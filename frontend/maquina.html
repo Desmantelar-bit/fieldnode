@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FieldNode — Detalhes da Máquina</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #0e1210;
+      --bg2:       #151a17;
+      --bg3:       #1c2420;
+      --border:    rgba(255,255,255,0.07);
+      --border2:   rgba(255,255,255,0.13);
+      --green:     #4ade80;
+      --green-dim: #1a3326;
+      --amber:     #fbbf24;
+      --amber-dim: #2d2007;
+      --red:       #f87171;
+      --red-dim:   #2d1010;
+      --blue:      #60a5fa;
+      --blue-dim:  #0f1e33;
+      --text:      #e8f0eb;
+      --text2:     #7a9080;
+      --text3:     #4a6055;
+      --mono:      'DM Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+      --radius:    10px;
+      --radius-lg: 16px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    /* MAIN */
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 10; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .back-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); cursor: pointer; text-decoration: none; transition: color .15s; }
+    .back-btn:hover { color: var(--text); }
+    .topbar-title { font-size: 16px; font-weight: 600; }
+    .topbar-sub   { font-size: 12px; color: var(--text2); margin-top: 1px; }
+    .content { padding: 24px 28px; }
+
+    /* HERO */
+    .hero {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 24px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .hero-left { display: flex; align-items: center; gap: 18px; }
+    .machine-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--green-dim); border: 1px solid rgba(74,222,128,.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+    }
+    .machine-id   { font-size: 11px; font-family: var(--mono); color: var(--text3); margin-bottom: 4px; }
+    .machine-name { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+    .machine-marca{ font-size: 13px; color: var(--text2); margin-top: 2px; }
+    .hero-badges  { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .badge { font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; }
+    .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
+    .badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
+    .badge-red   { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,.2); }
+    .badge-blue  { background: var(--blue-dim);  color: var(--blue);  border: 1px solid rgba(96,165,250,.2); }
+    .badge-gray  { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+
+    /* GRID */
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-bottom: 16px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+
+    .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; transition: border-color .2s; }
+    .metric-card:hover { border-color: var(--border2); }
+    .metric-label { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    .metric-value { font-size: 26px; font-weight: 300; line-height: 1; }
+    .metric-unit  { font-size: 12px; color: var(--text2); margin-left: 3px; }
+    .metric-sub   { font-size: 11px; color: var(--text3); margin-top: 6px; font-family: var(--mono); }
+
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
+    .card-title { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .card-title-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    .data-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .data-row:last-child { border-bottom: none; }
+    .data-key { color: var(--text2); display: flex; align-items: center; gap: 6px; }
+    .data-val { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+    /* GAUGE BAR */
+    .gauge-bar-wrap { margin-top: 6px; }
+    .gauge-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 5px; }
+    .gauge-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+    .gauge-fill  { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+    /* OPERÁRIO */
+    .op-card { display: flex; align-items: center; gap: 14px; }
+    .op-avatar { width: 48px; height: 48px; border-radius: 12px; background: var(--blue-dim); border: 1px solid rgba(96,165,250,.25); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: var(--blue); font-family: var(--mono); flex-shrink: 0; }
+    .op-name  { font-size: 15px; font-weight: 500; }
+    .op-meta  { font-size: 12px; color: var(--text2); margin-top: 3px; font-family: var(--mono); }
+
+    /* CHART */
+    .chart-wrap { position: relative; width: 100%; height: 180px; margin-top: 8px; }
+
+    /* LOADING */
+    .state-msg { padding: 32px; text-align: center; font-size: 13px; color: var(--text3); font-family: var(--mono); }
+
+    /* SECTION DIVIDER */
+    .section-label { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .1em; text-transform: uppercase; margin: 20px 0 10px; display: flex; align-items: center; gap: 10px; }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+
+    @media (max-width: 900px) {
+      .grid-4, .grid-3 { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .hero { flex-direction: column; align-items: flex-start; gap: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item active" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Colheitadeiras
+    </a>
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px;font-family:var(--mono);">127.0.0.1:8000</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="index.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Voltar
+      </a>
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div>
+        <div class="topbar-title" id="page-title">Carregando...</div>
+        <div class="topbar-sub">Detalhes da máquina</div>
+      </div>
+    </div>
+    <button onclick="location.reload()" style="font-size:12px;padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;">↻ Atualizar</button>
+  </div>
+
+  <div class="content" id="content">
+    <div class="state-msg">Carregando dados da máquina...</div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const API = 'http://127.0.0.1:8000';
+
+// Pega o ID da URL: maquina.html?id=1
+const params = new URLSearchParams(window.location.search);
+const ID = params.get('id');
+
+if (!ID) {
+  document.getElementById('content').innerHTML =
+    '<div class="state-msg" style="color:var(--red)">Nenhuma máquina selecionada. <a href="index.html" style="color:var(--green)">Voltar</a></div>';
+}
+
+async function apiFetch(ep) {
+  const r = await fetch(API + ep);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+function gaugeColor(v, max) {
+  const pct = v / max;
+  if (pct > .75) return 'var(--red)';
+  if (pct > .55) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+function fuelColor(v) {
+  if (v < 20) return 'var(--red)';
+  if (v < 40) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+function iniciais(nome) {
+  return nome.split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase();
+}
+
+async function carregar() {
+  try {
+    const [colh, todas_temp, todos_comb, todo_amb, todo_mov, todo_status, todo_pneus, todo_corte, todo_pcorte] = await Promise.all([
+      apiFetch('/Colheitadeira/' + ID + '/'),
+      apiFetch('/Temperaturamaquina/'),
+      apiFetch('/Combustivel/'),
+      apiFetch('/Tempumi_ambiente/'),
+      apiFetch('/Estadodemovimento/'),
+      apiFetch('/Statusdeoperacao/'),
+      apiFetch('/Pressaopneus/'),
+      apiFetch('/Alturadocorte/'),
+      apiFetch('/Pressaodocorte/'),
+    ]);
+
+    // Dados relacionados
+    const temp   = todas_temp.find(t => t.id === colh.TemperaturaMaquina) || {};
+    const comb   = todos_comb.find(c => c.id === colh.Combustivel)        || {};
+    const amb    = todo_amb.find(a => a.id === colh.TempUmi_Ambiente)      || {};
+    const mov    = todo_mov.find(m => m.id === colh.EstadodeMovimento)     || {};
+    const status = todo_status.find(s => s.id === colh.StatusdeOperacao)   || {};
+    const pneus  = todo_pneus.find(p => p.id === colh.PressaoPneus)        || {};
+    const corte  = todo_corte.find(c => c.id === colh.AlturadoCorte)       || {};
+    const pcorte = todo_pcorte.find(p => p.id === colh.PressaodoCorte)     || {};
+
+    // Operário — busca por ID
+    let operario = {};
+    try { operario = await apiFetch('/Operario/' + colh.Operario + '/'); } catch {}
+
+    // Modelo — busca por ID
+    let modelo = {};
+    try { modelo = await apiFetch('/Modelo/' + colh.Modelo + '/'); } catch {}
+
+    // Atualiza título
+    const nomeModelo = modelo.Nome || 'Colheitadeira #' + ID;
+    document.getElementById('page-title').textContent = nomeModelo;
+
+    const emOp  = status.Em_Operacao;
+    const emMov = mov.Em_Movimento;
+    const tempVal = temp.Temperatura || 0;
+    const combPct = comb.Porcentagem || 0;
+
+    // Alertas automáticos
+    const alertas = [];
+    if (tempVal > 85) alertas.push({ cor: 'var(--red)',   msg: `Temperatura crítica: ${tempVal}°C` });
+    else if (tempVal > 75) alertas.push({ cor: 'var(--amber)', msg: `Temperatura elevada: ${tempVal}°C` });
+    if (combPct < 20) alertas.push({ cor: 'var(--red)',   msg: `Combustível crítico: ${combPct}%` });
+    else if (combPct < 40) alertas.push({ cor: 'var(--amber)', msg: `Combustível baixo: ${combPct}%` });
+
+    document.getElementById('content').innerHTML = `
+
+      <!-- HERO -->
+      <div class="hero">
+        <div class="hero-left">
+          <div class="machine-icon">🚜</div>
+          <div>
+            <div class="machine-id">COLHEITADEIRA #${String(ID).padStart(2,'0')}</div>
+            <div class="machine-name">${nomeModelo}</div>
+            <div class="machine-marca">${modelo.Marca?.Nome || (modelo.Marca ? 'Marca #' + modelo.Marca : '—')}</div>
+          </div>
+        </div>
+        <div class="hero-badges">
+          ${emOp  ? '<span class="badge badge-green">● Em operação</span>'  : '<span class="badge badge-gray">○ Parada</span>'}
+          ${emMov ? '<span class="badge badge-blue">⟶ Em movimento</span>' : '<span class="badge badge-gray">◼ Estacionada</span>'}
+          ${alertas.length ? `<span class="badge badge-amber">⚠ ${alertas.length} alerta${alertas.length>1?'s':''}</span>` : '<span class="badge badge-green">✓ Normal</span>'}
+        </div>
+      </div>
+
+      ${alertas.length ? `
+      <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px">
+        ${alertas.map(a => `
+          <div style="background:var(--bg2);border:1px solid ${a.cor}33;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
+            <span style="color:${a.cor};font-size:16px">⚠</span>
+            <span style="color:var(--text)">${a.msg}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- MÉTRICAS RÁPIDAS -->
+      <div class="section-label">telemetria em tempo real</div>
+      <div class="grid-4">
+        <div class="metric-card">
+          <div class="metric-label">Temperatura</div>
+          <div class="metric-value" style="color:${gaugeColor(tempVal,100)}">${tempVal}<span class="metric-unit">°C</span></div>
+          <div class="gauge-bar-wrap">
+            <div class="gauge-track"><div class="gauge-fill" style="width:${Math.min(tempVal,100)}%;background:${gaugeColor(tempVal,100)}"></div></div>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Combustível</div>
+          <div class="metric-value" style="color:${fuelColor(combPct)}">${combPct}<span class="metric-unit">%</span></div>
+          <div class="gauge-bar-wrap">
+            <div class="gauge-track"><div class="gauge-fill" style="width:${combPct}%;background:${fuelColor(combPct)}"></div></div>
+          </div>
+          <div class="metric-sub">${comb.Tipo || '—'}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Velocidade</div>
+          <div class="metric-value">${mov.Velocidade ?? '—'}<span class="metric-unit">km/h</span></div>
+          <div class="metric-sub">${emMov ? 'em movimento' : 'parada'}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Horas de operação</div>
+          <div class="metric-value">${status.Tempo_de_Operacao ?? '—'}<span class="metric-unit">h</span></div>
+          <div class="metric-sub">${emOp ? 'operando' : 'parada'}</div>
+        </div>
+      </div>
+
+      <!-- DADOS TÉCNICOS + OPERÁRIO -->
+      <div class="section-label">dados técnicos</div>
+      <div class="grid-3">
+
+        <div class="card">
+          <div class="card-title"><div class="card-title-dot" style="background:var(--blue)"></div>pressões e corte</div>
+          <div class="data-row"><span class="data-key">Pressão dos pneus</span><span class="data-val">${pneus.Pressao ?? '—'} ${pneus.UnidadedeMedida?.Nome || ''}</span></div>
+          <div class="data-row"><span class="data-key">Altura de corte</span><span class="data-val">${corte.Altura ?? '—'} ${corte.UnidadedeMedida?.Nome || ''}</span></div>
+          <div class="data-row"><span class="data-key">Pressão de corte</span><span class="data-val">${pcorte.Pressao ?? '—'} ${pcorte.UnidadedeMedida?.Nome || ''}</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>ambiente</div>
+          <div class="data-row"><span class="data-key">🌡 Temperatura</span><span class="data-val">${amb.Temperatura ?? '—'} °C</span></div>
+          <div class="data-row"><span class="data-key">💧 Umidade</span><span class="data-val">${amb.Umidade ?? '—'} %</span></div>
+          <div class="data-row"><span class="data-key">Condição</span>
+            <span class="data-val">
+              ${amb.Temperatura > 35 ? '<span style="color:var(--red)">Calor extremo</span>' :
+                amb.Temperatura > 28 ? '<span style="color:var(--amber)">Quente</span>' :
+                '<span style="color:var(--green)">Normal</span>'}
+            </span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>operário responsável</div>
+          <div class="op-card" style="margin-bottom:14px">
+            <div class="op-avatar">${operario.Nome ? iniciais(operario.Nome) : '?'}</div>
+            <div>
+              <div class="op-name">${operario.Nome || '—'}</div>
+              <div class="op-meta">${operario.TempodeServico ?? '—'} anos de serviço</div>
+            </div>
+          </div>
+          <div class="data-row"><span class="data-key">No banco</span>
+            <span>${operario.Nobanco ? '<span class="badge badge-green" style="font-size:10px">Sim</span>' : '<span class="badge badge-amber" style="font-size:10px">Não</span>'}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRÁFICOS -->
+      <div class="section-label">histórico de leituras</div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>temperaturas registradas</div>
+          <div class="chart-wrap"><canvas id="allTempChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>combustíveis cadastrados</div>
+          <div class="chart-wrap"><canvas id="allFuelChart"></canvas></div>
+        </div>
+      </div>
+    `;
+
+    // Gráfico temperaturas (todas as leituras)
+    new Chart(document.getElementById('allTempChart'), {
+      type: 'line',
+      data: {
+        labels: todas_temp.map((_, i) => '#' + (i+1)),
+        datasets: [{
+          label: 'Temperatura',
+          data: todas_temp.map(t => t.Temperatura),
+          borderColor: '#fbbf24',
+          backgroundColor: 'rgba(251,191,36,.08)',
+          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
+          pointBackgroundColor: todas_temp.map(t =>
+            t.id === colh.TemperaturaMaquina ? '#4ade80' : '#fbbf24'
+          ),
+          pointRadius: todas_temp.map(t =>
+            t.id === colh.TemperaturaMaquina ? 6 : 3
+          ),
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ctx.parsed.y + '°C' } }
+        },
+        scales: {
+          y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#4a6055', font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { color: '#4a6055', font: { size: 11 } } },
+        }
+      }
+    });
+
+    // Gráfico combustíveis
+    new Chart(document.getElementById('allFuelChart'), {
+      type: 'bar',
+      data: {
+        labels: todos_comb.map(c => c.Tipo || '?'),
+        datasets: [{
+          data: todos_comb.map(c => c.Porcentagem),
+          backgroundColor: todos_comb.map(c =>
+            c.id === colh.Combustivel ? '#4ade80' :
+            c.Porcentagem < 30 ? '#f87171' :
+            c.Porcentagem < 50 ? '#fbbf24' : '#1a3326'
+          ),
+          borderRadius: 4, borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#4a6055', font: { size: 11 }, callback: v => v + '%' } },
+          x: { grid: { display: false }, ticks: { color: '#4a6055', font: { size: 11 } } },
+        }
+      }
+    });
+
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      `<div class="state-msg" style="color:var(--red)">Erro ao carregar máquina #${ID}.<br><small>${e.message}</small><br><br><a href="index.html" style="color:var(--green)">← Voltar</a></div>`;
+  }
+}
+
+if (ID) carregar();
+</script>
+</body>
+</html>

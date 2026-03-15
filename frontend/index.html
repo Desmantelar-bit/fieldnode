@@ -6,6 +6,25 @@
   <title>FieldNode — Telemetria Agrícola</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <style>
+    /*
+    =====================================================
+      FIELDNODE — DASHBOARD DE TELEMETRIA AGRICOLA
+      Arquivo: index.html
+      Descricao: Interface principal do sistema FieldNode.
+      Consome a API Django REST em http://127.0.0.1:8000
+      
+      Estrutura do arquivo:
+        1. CSS — estilos visuais (variaveis, layout, componentes)
+        2. HTML — sidebar, topbar e paginas (abas)
+        3. JavaScript — comunicacao com API e logica do frontend
+    =====================================================
+    */
+
+    /* ─────────────────────────────────────────
+       VARIAVEIS GLOBAIS DE COR E FONTE
+       Altere aqui para mudar o tema do sistema inteiro.
+       Use var(--nome) em qualquer elemento CSS abaixo.
+    ───────────────────────────────────────── */
     :root {
       --bg:        #0e1210;
       --bg2:       #151a17;
@@ -39,7 +58,10 @@
       display: flex;
     }
 
-    /* ── SIDEBAR ── */
+    /* ─────────────────────────────────────────
+       SIDEBAR — Barra lateral fixa
+       Contém: logo, menu de navegacao e status da API
+    ───────────────────────────────────────── */
     .sidebar {
       width: 220px;
       flex-shrink: 0;
@@ -98,7 +120,11 @@
     .api-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .api-dot.offline { background: var(--red); }
 
-    /* ── MAIN ── */
+    /* ─────────────────────────────────────────
+       AREA PRINCIPAL
+       Fica ao lado direito da sidebar (margin-left: 220px)
+       Contém: topbar fixo + area de conteudo das paginas
+    ───────────────────────────────────────── */
     .main {
       margin-left: 220px;
       flex: 1;
@@ -133,7 +159,11 @@
     .page { display: none; }
     .page.active { display: block; }
 
-    /* ── CARDS ── */
+    /* ─────────────────────────────────────────
+       CARDS E METRICAS
+       .metric-card — card de numero grande (ex: total de maquinas)
+       .card        — card generico para graficos e listas
+    ───────────────────────────────────────── */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0,1fr));
@@ -167,7 +197,10 @@
     .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
     .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 
-    /* ── TABLE ── */
+    /* ─────────────────────────────────────────
+       TABELAS
+       Usadas nas paginas de Colheitadeiras e Operarios
+    ───────────────────────────────────────── */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     thead th {
@@ -182,7 +215,10 @@
     tbody tr:hover td { background: rgba(255,255,255,.02); }
     .mono { font-family: var(--mono); font-size: 12px; }
 
-    /* ── DATA ROWS ── */
+    /* ─────────────────────────────────────────
+       LINHAS DE DADOS (chave: valor)
+       Usadas nos cards de detalhes (ambiente, pressoes, etc.)
+    ───────────────────────────────────────── */
     .data-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--border);
@@ -192,7 +228,14 @@
     .data-key { color: var(--text2); }
     .data-val { font-family: var(--mono); font-size: 12px; color: var(--text); }
 
-    /* ── FORMS ── */
+    /* ─────────────────────────────────────────
+       FORMULARIOS DE CADASTRO
+       .form-grid  — grade de 2 colunas para os campos
+       .form-group — grupo de label + input/select
+       .btn        — botao generico
+       .btn-primary — botao verde (salvar)
+       .btn-ghost   — botao transparente (cancelar/voltar)
+    ───────────────────────────────────────── */
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .form-group { display: flex; flex-direction: column; gap: 5px; }
     .form-group label { font-size: 11px; color: var(--text2); font-family: var(--mono); letter-spacing: .05em; }
@@ -245,6 +288,10 @@
 
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     .pulse { animation: pulse 2s ease-in-out infinite; }
+    .cad-tab { font-size:13px; padding:8px 16px; background:transparent; border:none; color:var(--text2); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s; font-family:var(--sans); }
+    .cad-tab:hover { color:var(--text); }
+    .cad-tab.active { color:var(--green); border-bottom-color:var(--green); font-weight:500; }
+    .fb { font-size:12px; font-family:var(--mono); color:var(--text3); }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 900px) {
@@ -255,7 +302,11 @@
 </head>
 <body>
 
-<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<!-- ═══════════════════════════════════════════
+     SIDEBAR — Menu lateral fixo
+     Cada .nav-item chama showPage(nome, this)
+     para trocar a pagina visivel no conteudo
+════════════════════════════════════════════ -->
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-icon">
@@ -299,7 +350,11 @@
   </div>
 </aside>
 
-<!-- ═══════════════ MAIN ═══════════════ -->
+<!-- ═══════════════════════════════════════════
+     AREA PRINCIPAL
+     Cada pagina (.page) fica oculta por padrao (display:none)
+     e so aparece quando tem a classe .active
+════════════════════════════════════════════ -->
 <main class="main">
 
   <!-- TOPBAR -->
@@ -379,86 +434,180 @@
       </div>
     </div>
 
-    <!-- ══ CADASTROS ══ -->
+    <!-- CADASTROS -->
     <div id="pg-cadastros" class="page">
-      <div class="two-col">
 
-        <!-- Marca -->
-        <div class="card">
-          <div class="card-title">Nova marca</div>
-          <div class="form-grid" style="grid-template-columns:1fr">
-            <div class="form-group">
-              <label>Nome da marca</label>
-              <input type="text" id="marca-nome" placeholder="Ex: Case IH">
-            </div>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-primary" onclick="cadastrarMarca()">Salvar</button>
-            <span id="marca-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
-          </div>
-        </div>
-
-        <!-- Combustível -->
-        <div class="card">
-          <div class="card-title">Novo combustível</div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Tipo</label>
-              <input type="text" id="comb-tipo" placeholder="Ex: Diesel S10">
-            </div>
-            <div class="form-group">
-              <label>Porcentagem (%)</label>
-              <input type="number" id="comb-pct" placeholder="0 – 100" min="0" max="100">
-            </div>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-primary" onclick="cadastrarCombustivel()">Salvar</button>
-            <span id="comb-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
-          </div>
-        </div>
-
-        <!-- Operário -->
-        <div class="card">
-          <div class="card-title">Novo operário</div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Nome</label>
-              <input type="text" id="op-nome" placeholder="Nome completo">
-            </div>
-            <div class="form-group">
-              <label>Tempo de serviço (anos)</label>
-              <input type="number" id="op-tempo" placeholder="Ex: 5" min="0" max="99">
-            </div>
-          </div>
-          <div class="form-group" style="margin-top:10px">
-            <label>No banco</label>
-            <select id="op-banco">
-              <option value="true">Sim</option>
-              <option value="false">Não</option>
-            </select>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-primary" onclick="cadastrarOperario()">Salvar</button>
-            <span id="op-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
-          </div>
-        </div>
-
-        <!-- Unidade de Medida -->
-        <div class="card">
-          <div class="card-title">Nova unidade de medida</div>
-          <div class="form-grid" style="grid-template-columns:1fr">
-            <div class="form-group">
-              <label>Nome</label>
-              <input type="text" id="um-nome" placeholder="Ex: PSI, bar, °C, cm">
-            </div>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-primary" onclick="cadastrarUnidade()">Salvar</button>
-            <span id="um-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
-          </div>
-        </div>
-
+      <div style="display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;">
+        <button class="cad-tab active" onclick="showCadTab('referencia',this)">Referencia</button>
+        <button class="cad-tab" onclick="showCadTab('leituras',this)">Leituras</button>
+        <button class="cad-tab" onclick="showCadTab('maquina',this)">Colheitadeira</button>
       </div>
+
+      <!-- ABA 1: Referencia -->
+      <div id="cad-referencia" class="cad-pane">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">Nova marca</div>
+            <div class="form-group"><label>Nome da marca</label><input type="text" id="marca-nome" placeholder="Ex: Case IH"></div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarMarca()">Salvar</button>
+              <span id="marca-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Novo modelo</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Nome do modelo</label><input type="text" id="mod-nome" placeholder="Ex: TC5000"></div>
+              <div class="form-group"><label>Marca</label><select id="mod-marca"><option value="">Carregando...</option></select></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarModelo()">Salvar</button>
+              <span id="mod-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Novo combustivel</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Tipo</label><input type="text" id="comb-tipo" placeholder="Ex: Diesel S10"></div>
+              <div class="form-group"><label>Porcentagem (%)</label><input type="number" id="comb-pct" placeholder="0-100" min="0" max="100"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarCombustivel()">Salvar</button>
+              <span id="comb-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Novo operario</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Nome</label><input type="text" id="op-nome" placeholder="Nome completo"></div>
+              <div class="form-group"><label>Tempo de servico (anos)</label><input type="number" id="op-tempo" placeholder="Ex: 5" min="0" max="99"></div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>No banco</label>
+              <select id="op-banco"><option value="true">Sim</option><option value="false">Nao</option></select>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarOperario()">Salvar</button>
+              <span id="op-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Nova unidade de medida</div>
+            <div class="form-group"><label>Nome</label><input type="text" id="um-nome" placeholder="Ex: PSI, bar, grau C, cm"></div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarUnidade()">Salvar</button>
+              <span id="um-feedback" class="fb"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA 2: Leituras -->
+      <div id="cad-leituras" class="cad-pane" style="display:none">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">Nova pressao dos pneus</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Pressao</label><input type="number" id="pneu-pressao" placeholder="Ex: 32"></div>
+              <div class="form-group"><label>Unidade</label><select id="pneu-unidade"><option value="">Carregando...</option></select></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarPressaoPneus()">Salvar</button>
+              <span id="pneu-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Nova altura de corte</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Altura</label><input type="number" id="alt-altura" placeholder="Ex: 45"></div>
+              <div class="form-group"><label>Unidade</label><select id="alt-unidade"><option value="">Carregando...</option></select></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarAltura()">Salvar</button>
+              <span id="alt-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Nova pressao de corte</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Pressao</label><input type="number" id="pcorte-pressao" placeholder="Ex: 120"></div>
+              <div class="form-group"><label>Unidade</label><select id="pcorte-unidade"><option value="">Carregando...</option></select></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarPressaoCorte()">Salvar</button>
+              <span id="pcorte-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Nova leitura de ambiente</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Temperatura (grau C)</label><input type="number" id="amb-temp" placeholder="Ex: 31.4"></div>
+              <div class="form-group"><label>Umidade (%)</label><input type="number" id="amb-umi" placeholder="Ex: 68"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarAmbiente()">Salvar</button>
+              <span id="amb-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Nova temperatura de maquina</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Temperatura (grau C)</label><input type="number" id="tmaq-temp" placeholder="Ex: 82.3"></div>
+              <div class="form-group"><label>Modelo da maquina</label><select id="tmaq-modelo"><option value="">Carregando...</option></select></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarTempMaquina()">Salvar</button>
+              <span id="tmaq-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Novo status de operacao</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Em operacao</label><select id="sop-status"><option value="true">Sim</option><option value="false">Nao</option></select></div>
+              <div class="form-group"><label>Tempo de operacao (h)</label><input type="number" id="sop-tempo" placeholder="Ex: 4.5"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarStatusOp()">Salvar</button>
+              <span id="sop-feedback" class="fb"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Novo estado de movimento</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Em movimento</label><select id="mov-status"><option value="true">Sim</option><option value="false">Nao</option></select></div>
+              <div class="form-group"><label>Velocidade (km/h)</label><input type="number" id="mov-vel" placeholder="Ex: 12.3"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" onclick="cadastrarMovimento()">Salvar</button>
+              <span id="mov-feedback" class="fb"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA 3: Colheitadeira -->
+      <div id="cad-maquina" class="cad-pane" style="display:none">
+        <div class="card" style="max-width:700px">
+          <div class="card-title">Nova colheitadeira</div>
+          <div class="form-grid" style="margin-bottom:10px">
+            <div class="form-group"><label>Modelo</label><select id="col-modelo"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Combustivel</label><select id="col-comb"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Operario</label><select id="col-operario"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Pressao dos pneus</label><select id="col-pneus"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Altura de corte</label><select id="col-altura"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Pressao de corte</label><select id="col-pcorte"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Temp. / Umidade Ambiente</label><select id="col-ambiente"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Temperatura da maquina</label><select id="col-tmaq"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Status de operacao</label><select id="col-status"><option value="">Carregando...</option></select></div>
+            <div class="form-group"><label>Estado de movimento</label><select id="col-mov"><option value="">Carregando...</option></select></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+            <button class="btn btn-primary" onclick="cadastrarColheitadeira()">Cadastrar colheitadeira</button>
+            <span id="col-feedback" class="fb"></span>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ══ ALERTAS ══ -->
@@ -478,15 +627,42 @@
   </div><!-- /content -->
 </main>
 
+<!-- Chart.js: biblioteca de graficos carregada do CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
+/*
+=====================================================
+  JAVASCRIPT — LOGICA DO FRONTEND FIELDNODE
+  
+  Secoes:
+    1. CONFIGURACAO     — endereco da API
+    2. NAVEGACAO        — troca de paginas e abas
+    3. FETCH            — funcoes de comunicacao com API
+    4. STATUS DA API    — verifica se Django esta rodando
+    5. CHARTS           — configuracao dos graficos
+    6. DASHBOARD        — carrega dados da pagina inicial
+    7. COLHEITADEIRAS   — lista da frota
+    8. OPERARIOS        — lista de operarios
+    9. ALERTAS          — analise automatica de riscos
+   10. CADASTROS        — formularios de cadastro
+   11. INIT             — inicializacao ao abrir a pagina
+=====================================================
+*/
 /* ─────────────────────────────────────────
    CONFIGURAÇÃO
 ───────────────────────────────────────── */
-const API = 'http://127.0.0.1:8000';
+/* ─────────────────────────────────────────
+   1. CONFIGURACAO
+   Se mudar o endereco ou porta do servidor Django,
+   altere apenas esta variavel — ela e usada em todo o codigo.
+───────────────────────────────────────── */
+const API = 'http://127.0.0.1:8000'; // Endereco base da API Django
 
 /* ─────────────────────────────────────────
-   NAVEGAÇÃO
+   2. NAVEGACAO
+   showPage(name, el) — troca a pagina visivel
+   pageTitles         — mapa de titulos para o topbar
+   recarregarPagina() — recarrega a pagina atual
 ───────────────────────────────────────── */
 const pageTitles = {
   dashboard:      ['Dashboard',     'Visão geral da frota'],
@@ -523,7 +699,13 @@ function carregarPagina(name) {
 }
 
 /* ─────────────────────────────────────────
-   FETCH GENÉRICO
+   3. FETCH GENERICO
+   apiFetch(endpoint) — faz GET na API e retorna JSON
+   apiPost(endpoint, body) — faz POST na API com dados JSON
+   
+   Exemplo de uso:
+     const colhs = await apiFetch('/Colheitadeira/');
+     await apiPost('/Marca/', { Nome: 'Case IH' });
 ───────────────────────────────────────── */
 async function apiFetch(endpoint) {
   const r = await fetch(API + endpoint);
@@ -545,7 +727,10 @@ async function apiPost(endpoint, body) {
 }
 
 /* ─────────────────────────────────────────
-   STATUS DA API
+   4. STATUS DA API
+   Tenta acessar /Colheitadeira/ e atualiza o
+   indicador verde/vermelho no rodape da sidebar.
+   Chamado na inicializacao e a cada 30 segundos.
 ───────────────────────────────────────── */
 async function verificarAPI() {
   const dot  = document.getElementById('api-dot');
@@ -562,7 +747,12 @@ async function verificarAPI() {
 }
 
 /* ─────────────────────────────────────────
-   CHARTS — instâncias globais
+   5. CHARTS
+   charts{}          — guarda instancias dos graficos para
+                        destruir antes de recriar (evita vazamento)
+   criarOuAtualizar() — destroi o grafico anterior e cria novo
+   C{}               — paleta de cores dos graficos
+   scaleDefaults()   — configuracao padrao dos eixos X e Y
 ───────────────────────────────────────── */
 const charts = {};
 function criarOuAtualizar(id, config) {
@@ -586,13 +776,21 @@ function scaleDefaults() {
 }
 
 /* ─────────────────────────────────────────
-   DASHBOARD
+   6. DASHBOARD
+   carregarDashboard() — busca dados de 5 endpoints em paralelo
+                          e renderiza metricas + graficos
+   renderMetrics()     — cards de numeros no topo
+   renderAmbiente()    — card de temperatura/umidade
+   renderTempChart()   — grafico de linha de temperatura
+   renderFuelChart()   — grafico de barras de combustivel
+   renderMoveChart()   — grafico de rosca de movimento
 ───────────────────────────────────────── */
 let chartsInitialized = false;
 
 async function carregarDashboard() {
   try {
-    const [colh, temp, comb, amb, mov] = await Promise.all([
+    // Busca em paralelo: colheitadeiras + todas as tabelas necessarias
+    const [colh, temp, comb, amb, movimentos] = await Promise.all([
       apiFetch('/Colheitadeira/'),
       apiFetch('/Temperaturamaquina/'),
       apiFetch('/Combustivel/'),
@@ -603,8 +801,9 @@ async function carregarDashboard() {
     renderMetrics(colh, temp, comb);
     renderAmbiente(amb);
     renderTempChart(temp);
-    renderFuelChart(comb);
-    renderMoveChart(mov);
+    renderFuelChart(colh, comb);
+    // Passa colh E movimentos para cruzar o FK e verificar Em_Movimento real
+    renderMoveChart(colh, movimentos);
 
   } catch (e) {
     document.getElementById('metrics-container').innerHTML =
@@ -676,15 +875,20 @@ function renderTempChart(temp) {
   });
 }
 
-function renderFuelChart(comb) {
-  const labels = comb.map((c, i) => c.Tipo || '#' + (i+1));
-  const data   = comb.map(c => c.Porcentagem);
+function renderFuelChart(colh, comb) {
+  // Monta label como "Colh. #01" e busca o combustivel vinculado a cada maquina
+  const labels = colh.map((c, i) => 'Colh. #' + String(c.id).padStart(2,'0'));
+  const data   = colh.map(c => {
+    // Procura o registro de combustivel cujo id bate com o FK da colheitadeira
+    const combDaColh = comb.find(cb => cb.id === c.Combustivel);
+    return combDaColh ? combDaColh.Porcentagem : 0;
+  });
   const colors = data.map(v => v < 30 ? C.red : v < 60 ? C.amber : C.green);
   criarOuAtualizar('fuelChart', {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Combustível %', data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+      datasets: [{ label: 'Combustivel %', data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -694,9 +898,14 @@ function renderFuelChart(comb) {
   });
 }
 
-function renderMoveChart(mov) {
-  const emMov   = mov.filter(m => m.Em_Movimento).length;
-  const paradas = mov.length - emMov;
+function renderMoveChart(colh, movimentos) {
+  // Para cada colheitadeira, busca o registro de movimento pelo FK
+  // e verifica o campo Em_Movimento (true/false) — nao apenas se existe
+  const emMov   = colh.filter(c => {
+    const mov = movimentos.find(m => m.id === c.EstadodeMovimento);
+    return mov && mov.Em_Movimento === true;
+  }).length;
+  const paradas = colh.length - emMov;
   criarOuAtualizar('moveChart', {
     type: 'doughnut',
     data: {
@@ -712,40 +921,72 @@ function renderMoveChart(mov) {
 }
 
 /* ─────────────────────────────────────────
-   COLHEITADEIRAS
+   7. COLHEITADEIRAS
+   Busca /Colheitadeira/ e monta a tabela da frota.
+   Cada linha e clicavel e abre maquina.html?id=N
 ───────────────────────────────────────── */
 async function carregarColheitadeiras() {
   const tbody = document.getElementById('colheitadeiras-tbody');
   tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Carregando...</td></tr>';
   try {
-    const data = await apiFetch('/Colheitadeira/');
+    // Busca colheitadeiras + tabelas de referencia em paralelo para resolver os IDs
+    const [data, modelos, operarios, combustiveis, tempmaq, movimentos, statuses] = await Promise.all([
+      apiFetch('/Colheitadeira/'),
+      apiFetch('/Modelo/'),
+      apiFetch('/Operario/'),
+      apiFetch('/Combustivel/'),
+      apiFetch('/Temperaturamaquina/'),
+      apiFetch('/Estadodemovimento/'),
+      apiFetch('/Statusdeoperacao/'),
+    ]);
+
     if (!data.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Nenhuma colheitadeira cadastrada.</td></tr>';
       return;
     }
+
     tbody.innerHTML = data.map(c => {
-      const emOp = c.StatusdeOperacao;
+      // Resolve cada FK pelo id correspondente na tabela de referencia
+      const modelo    = modelos.find(m => m.id === c.Modelo);
+      const operario  = operarios.find(o => o.id === c.Operario);
+      const comb      = combustiveis.find(cb => cb.id === c.Combustivel);
+      const temp      = tempmaq.find(t => t.id === c.TemperaturaMaquina);
+      const mov       = movimentos.find(mv => mv.id === c.EstadodeMovimento);
+      const status    = statuses.find(s => s.id === c.StatusdeOperacao);
+
+      const emOp  = status?.Em_Operacao;
       const badge = emOp
-        ? `<span class="badge badge-green">Em operação</span>`
+        ? `<span class="badge badge-green">Em operacao</span>`
         : `<span class="badge badge-gray">Parada</span>`;
+
+      // Monta exibicao de temperatura com cor de alerta
+      const tempVal  = temp?.Temperatura ?? null;
+      const tempCor  = tempVal > 85 ? 'var(--red)' : tempVal > 75 ? 'var(--amber)' : 'var(--text)';
+      const tempText = tempVal !== null ? `<span style="color:${tempCor}">${tempVal} C</span>` : '—';
+
+      // Monta exibicao de velocidade
+      const velText = mov ? (mov.Em_Movimento ? mov.Velocidade + ' km/h' : 'Parada') : '—';
+
       return `
-        <tr>
+        <tr style="cursor:pointer" onclick="window.location='maquina.html?id=${c.id}'" title="Ver detalhes">
           <td class="mono">#${String(c.id).padStart(2,'0')}</td>
-          <td>${c.Modelo ?? '—'}</td>
-          <td>${c.Operario ?? '—'}</td>
-          <td>${c.Combustivel ?? '—'}</td>
-          <td>${c.TemperaturaMaquina ?? '—'}</td>
-          <td>${c.EstadodeMovimento ?? '—'}</td>
-          <td>${badge}</td>
+          <td style="color:var(--green)">${modelo?.Nome ?? '—'}</td>
+          <td>${operario?.Nome ?? '—'}</td>
+          <td>${comb ? comb.Tipo + ' (' + comb.Porcentagem + '%)' : '—'}</td>
+          <td>${tempText}</td>
+          <td>${velText}</td>
+          <td>${badge} <span style="font-size:11px;color:var(--text3);margin-left:4px">→</span></td>
         </tr>`;
     }).join('');
-  } catch {
+  } catch(e) {
     tbody.innerHTML = '<tr><td colspan="7" class="state-msg" style="color:var(--red)">Erro ao carregar. Verifique a API.</td></tr>';
   }
 }
 
 /* ─────────────────────────────────────────
-   OPERÁRIOS
+   8. OPERARIOS
+   Busca /Operario/ e monta a tabela com nome,
+   tempo de servico e status "no banco".
 ───────────────────────────────────────── */
 async function carregarOperarios() {
   const tbody = document.getElementById('operarios-tbody');
@@ -772,7 +1013,15 @@ async function carregarOperarios() {
 }
 
 /* ─────────────────────────────────────────
-   ALERTAS
+   9. ALERTAS
+   Analise automatica dos dados da API — sem configuracao manual.
+   Regras atuais:
+     - Temperatura > 85°C  → CRITICO (vermelho)
+     - Temperatura > 75°C  → ATENCAO (amarelo)
+     - Combustivel < 20%   → CRITICO (vermelho)
+     - Combustivel < 40%   → ATENCAO (amarelo)
+   Para adicionar novas regras, basta incluir mais
+   blocos if/else no loop de cada sensor.
 ───────────────────────────────────────── */
 async function carregarAlertas() {
   const cont = document.getElementById('alertas-container');
@@ -837,7 +1086,15 @@ async function carregarAlertas() {
 }
 
 /* ─────────────────────────────────────────
-   CADASTROS
+   10. CADASTROS
+   feedback(id, msg, ok) — mostra mensagem de sucesso/erro
+                            abaixo do botao Salvar por 3 segundos
+   
+   Cada funcao cadastrar*():
+     1. Le os valores do formulario
+     2. Valida se estao preenchidos
+     3. Faz POST na API via apiPost()
+     4. Limpa o formulario em caso de sucesso
 ───────────────────────────────────────── */
 function feedback(id, msg, ok) {
   const el = document.getElementById(id);
@@ -900,10 +1157,199 @@ async function cadastrarUnidade() {
 }
 
 /* ─────────────────────────────────────────
-   INIT
+   ABAS DE CADASTRO
+   showCadTab(name, btn) — troca a aba visivel dentro da
+                            pagina de Cadastros
+   
+   Ao abrir a aba "Leituras" ou "Colheitadeira",
+   os selects sao populados automaticamente com
+   dados da API (evita carregar tudo de uma vez).
+───────────────────────────────────────── */
+function showCadTab(name, btn) {
+  document.querySelectorAll('.cad-pane').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.cad-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('cad-' + name).style.display = 'block';
+  btn.classList.add('active');
+  if (name === 'leituras') carregarSelectsLeituras();
+  if (name === 'maquina')  carregarSelectsColheitadeira();
+}
+
+/* ─────────────────────────────────────────
+   POPULA SELECTS
+   popularSelect(id, endpoint, labelFn)
+     id        — id do elemento <select> no HTML
+     endpoint  — rota da API a ser consultada
+     labelFn   — funcao que define o texto de cada opcao
+   
+   Exemplo:
+     popularSelect('mod-marca', '/Marca/', d => d.Nome)
+     Busca /Marca/ e preenche o select com os nomes das marcas
+───────────────────────────────────────── */
+async function popularSelect(id, endpoint, labelFn) {
+  try {
+    const data = await apiFetch(endpoint);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '<option value="">Selecione...</option>' +
+      data.map(d => `<option value="${d.id}">${labelFn(d)}</option>`).join('');
+  } catch { }
+}
+
+async function carregarSelectsReferencia() {
+  await popularSelect('mod-marca', '/Marca/', d => d.Nome);
+}
+
+async function carregarSelectsLeituras() {
+  await Promise.all([
+    popularSelect('pneu-unidade',  '/Unidadedemedida/', d => d.Nome),
+    popularSelect('alt-unidade',   '/Unidadedemedida/', d => d.Nome),
+    popularSelect('pcorte-unidade','/Unidadedemedida/', d => d.Nome),
+    popularSelect('tmaq-modelo',   '/Modelo/',          d => d.Nome),
+  ]);
+}
+
+async function carregarSelectsColheitadeira() {
+  await Promise.all([
+    popularSelect('col-modelo',   '/Modelo/',            d => d.Nome),
+    popularSelect('col-comb',     '/Combustivel/',       d => `${d.Tipo} (${d.Porcentagem}%)`),
+    popularSelect('col-operario', '/Operario/',          d => d.Nome),
+    popularSelect('col-pneus',    '/Pressaopneus/',      d => `${d.Pressao} ${d.UnidadedeMedida?.Nome || ''}`),
+    popularSelect('col-altura',   '/Alturadocorte/',     d => `${d.Altura} ${d.UnidadedeMedida?.Nome || ''}`),
+    popularSelect('col-pcorte',   '/Pressaodocorte/',    d => `${d.Pressao} ${d.UnidadedeMedida?.Nome || ''}`),
+    popularSelect('col-ambiente', '/Tempumi_ambiente/',  d => `${d.Temperatura}grau C / ${d.Umidade}%`),
+    popularSelect('col-tmaq',     '/Temperaturamaquina/',d => `${d.Temperatura}grau C`),
+    popularSelect('col-status',   '/Statusdeoperacao/',  d => `${d.Em_Operacao ? 'Em op.' : 'Parada'} - ${d.Tempo_de_Operacao}h`),
+    popularSelect('col-mov',      '/Estadodemovimento/', d => `${d.Em_Movimento ? 'Movimento' : 'Parada'} - ${d.Velocidade}km/h`),
+  ]);
+}
+
+/* ─────────────────────────────────────────
+   NOVOS CADASTROS — funcoes individuais
+   Cada funcao corresponde a um formulario da pagina.
+   Os endpoints seguem os nomes registrados em urls.py.
+───────────────────────────────────────── */
+async function cadastrarModelo() {
+  const nome  = document.getElementById('mod-nome').value.trim();
+  const marca = document.getElementById('mod-marca').value;
+  if (!nome || !marca) return feedback('mod-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Modelo/', { Nome: nome, Marca: parseInt(marca) });
+    feedback('mod-feedback', 'Salvo!', true);
+    document.getElementById('mod-nome').value = '';
+    await carregarSelectsReferencia();
+  } catch(e) { feedback('mod-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarPressaoPneus() {
+  const pressao  = parseFloat(document.getElementById('pneu-pressao').value);
+  const unidade  = document.getElementById('pneu-unidade').value;
+  if (isNaN(pressao) || !unidade) return feedback('pneu-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Pressaopneus/', { Pressao: pressao, UnidadedeMedida: parseInt(unidade) });
+    feedback('pneu-feedback', 'Salvo!', true);
+    document.getElementById('pneu-pressao').value = '';
+  } catch(e) { feedback('pneu-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarAltura() {
+  const altura  = parseFloat(document.getElementById('alt-altura').value);
+  const unidade = document.getElementById('alt-unidade').value;
+  if (isNaN(altura) || !unidade) return feedback('alt-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Alturadocorte/', { Altura: altura, UnidadedeMedida: parseInt(unidade) });
+    feedback('alt-feedback', 'Salvo!', true);
+    document.getElementById('alt-altura').value = '';
+  } catch(e) { feedback('alt-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarPressaoCorte() {
+  const pressao  = parseFloat(document.getElementById('pcorte-pressao').value);
+  const unidade  = document.getElementById('pcorte-unidade').value;
+  if (isNaN(pressao) || !unidade) return feedback('pcorte-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Pressaodocorte/', { Pressao: pressao, UnidadedeMedida: parseInt(unidade) });
+    feedback('pcorte-feedback', 'Salvo!', true);
+    document.getElementById('pcorte-pressao').value = '';
+  } catch(e) { feedback('pcorte-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarAmbiente() {
+  const temp = parseFloat(document.getElementById('amb-temp').value);
+  const umi  = parseFloat(document.getElementById('amb-umi').value);
+  if (isNaN(temp) || isNaN(umi)) return feedback('amb-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Tempumi_ambiente/', { Temperatura: temp, Umidade: umi });
+    feedback('amb-feedback', 'Salvo!', true);
+    document.getElementById('amb-temp').value = '';
+    document.getElementById('amb-umi').value  = '';
+  } catch(e) { feedback('amb-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarTempMaquina() {
+  const temp   = parseFloat(document.getElementById('tmaq-temp').value);
+  const modelo = document.getElementById('tmaq-modelo').value;
+  if (isNaN(temp) || !modelo) return feedback('tmaq-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Temperaturamaquina/', { Temperatura: temp, Maquina: parseInt(modelo) });
+    feedback('tmaq-feedback', 'Salvo!', true);
+    document.getElementById('tmaq-temp').value = '';
+  } catch(e) { feedback('tmaq-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarStatusOp() {
+  const emOp = document.getElementById('sop-status').value === 'true';
+  const tempo = parseFloat(document.getElementById('sop-tempo').value);
+  if (isNaN(tempo)) return feedback('sop-feedback', 'Preencha o tempo.', false);
+  try {
+    await apiPost('/Statusdeoperacao/', { Em_Operacao: emOp, Tempo_de_Operacao: tempo });
+    feedback('sop-feedback', 'Salvo!', true);
+    document.getElementById('sop-tempo').value = '';
+  } catch(e) { feedback('sop-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarMovimento() {
+  const emMov = document.getElementById('mov-status').value === 'true';
+  const vel   = parseFloat(document.getElementById('mov-vel').value);
+  if (isNaN(vel)) return feedback('mov-feedback', 'Preencha a velocidade.', false);
+  try {
+    await apiPost('/Estadodemovimento/', { Em_Movimento: emMov, Velocidade: vel });
+    feedback('mov-feedback', 'Salvo!', true);
+    document.getElementById('mov-vel').value = '';
+  } catch(e) { feedback('mov-feedback', 'Erro: ' + e.message, false); }
+}
+
+async function cadastrarColheitadeira() {
+  const campos = {
+    Modelo:           parseInt(document.getElementById('col-modelo').value),
+    Combustivel:      parseInt(document.getElementById('col-comb').value),
+    Operario:         parseInt(document.getElementById('col-operario').value),
+    PressaoPneus:     parseInt(document.getElementById('col-pneus').value),
+    AlturadoCorte:    parseInt(document.getElementById('col-altura').value),
+    PressaodoCorte:   parseInt(document.getElementById('col-pcorte').value),
+    TempUmi_Ambiente: parseInt(document.getElementById('col-ambiente').value),
+    TemperaturaMaquina:parseInt(document.getElementById('col-tmaq').value),
+    StatusdeOperacao: parseInt(document.getElementById('col-status').value),
+    EstadodeMovimento:parseInt(document.getElementById('col-mov').value),
+  };
+  if (Object.values(campos).some(v => isNaN(v))) 
+    return feedback('col-feedback', 'Selecione todos os campos.', false);
+  try {
+    await apiPost('/Colheitadeira/', campos);
+    feedback('col-feedback', 'Colheitadeira cadastrada!', true);
+  } catch(e) { feedback('col-feedback', 'Erro: ' + e.message, false); }
+}
+
+/* ─────────────────────────────────────────
+   11. INICIALIZACAO
+   Executado automaticamente quando a pagina abre:
+     - Verifica se a API esta online
+     - Carrega os dados do Dashboard
+     - Popula o select de Marcas (aba Referencia)
+     - Agenda nova verificacao da API a cada 30 segundos
 ───────────────────────────────────────── */
 verificarAPI();
 carregarDashboard();
+carregarSelectsReferencia();
 setInterval(verificarAPI, 30000);
 </script>
 </body>
