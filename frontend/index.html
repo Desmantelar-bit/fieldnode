@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FieldNode — Telemetria Agrícola</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #0e1210;
+      --bg2:       #151a17;
+      --bg3:       #1c2420;
+      --border:    rgba(255,255,255,0.07);
+      --border2:   rgba(255,255,255,0.13);
+      --green:     #4ade80;
+      --green-dim: #1a3326;
+      --amber:     #fbbf24;
+      --amber-dim: #2d2007;
+      --red:       #f87171;
+      --red-dim:   #2d1010;
+      --blue:      #60a5fa;
+      --blue-dim:  #0f1e33;
+      --text:      #e8f0eb;
+      --text2:     #7a9080;
+      --text3:     #4a6055;
+      --mono:      'DM Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+      --radius:    10px;
+      --radius-lg: 16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 20px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--green-dim);
+      border: 1px solid rgba(74,222,128,.3);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 20px; font-size: 13px; font-weight: 400;
+      color: var(--text2); cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all .15s;
+    }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .nav-item.active svg { opacity: 1; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px 0;
+      border-top: 1px solid var(--border);
+    }
+    .api-status {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 11px; font-family: var(--mono); color: var(--text3);
+    }
+    .api-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text3);
+      transition: background .3s;
+    }
+    .api-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .api-dot.offline { background: var(--red); }
+
+    /* ── MAIN ── */
+    .main {
+      margin-left: 220px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg2);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; }
+    .topbar-sub   { font-size: 12px; color: var(--text2); margin-top: 1px; }
+
+    .badge {
+      font-size: 11px; font-family: var(--mono);
+      padding: 4px 10px; border-radius: 20px;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
+    .badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
+    .badge-red   { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,.2); }
+    .badge-blue  { background: var(--blue-dim);  color: var(--blue);  border: 1px solid rgba(96,165,250,.2); }
+    .badge-gray  { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+
+    .content { padding: 24px 28px; flex: 1; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── CARDS ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .metric-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      transition: border-color .2s;
+    }
+    .metric-card:hover { border-color: var(--border2); }
+    .metric-label { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    .metric-value { font-size: 28px; font-weight: 300; color: var(--text); line-height: 1; }
+    .metric-unit  { font-size: 13px; color: var(--text2); margin-left: 3px; }
+    .metric-sub   { font-size: 11px; color: var(--text3); margin-top: 6px; font-family: var(--mono); }
+
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+    }
+    .card-title {
+      font-size: 11px; font-family: var(--mono);
+      color: var(--text3); letter-spacing: .08em;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 8px 12px;
+      font-size: 10px; font-family: var(--mono); letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text3);
+      border-bottom: 1px solid var(--border);
+      font-weight: 400;
+    }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.02); }
+    .mono { font-family: var(--mono); font-size: 12px; }
+
+    /* ── DATA ROWS ── */
+    .data-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .data-row:last-child { border-bottom: none; }
+    .data-key { color: var(--text2); }
+    .data-val { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+    /* ── FORMS ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 11px; color: var(--text2); font-family: var(--mono); letter-spacing: .05em; }
+    .form-group input,
+    .form-group select {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px 12px;
+      color: var(--text); font-size: 13px; font-family: var(--sans);
+      outline: none; transition: border-color .15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: rgba(74,222,128,.4); }
+    .form-group select option { background: var(--bg3); }
+
+    .btn {
+      padding: 9px 18px; border-radius: var(--radius);
+      font-size: 13px; font-family: var(--sans); font-weight: 500;
+      cursor: pointer; border: none; transition: all .15s;
+    }
+    .btn-primary {
+      background: var(--green-dim); color: var(--green);
+      border: 1px solid rgba(74,222,128,.3);
+    }
+    .btn-primary:hover { background: rgba(74,222,128,.2); }
+    .btn-ghost {
+      background: transparent; color: var(--text2);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+
+    /* ── ALERT ITEMS ── */
+    .alert-item {
+      display: flex; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .alert-msg  { font-size: 13px; color: var(--text); }
+    .alert-meta { font-size: 11px; color: var(--text3); margin-top: 3px; font-family: var(--mono); }
+
+    /* ── LOADING / ERROR ── */
+    .state-msg {
+      padding: 32px; text-align: center;
+      font-size: 13px; color: var(--text3);
+      font-family: var(--mono);
+    }
+
+    /* ── CHART ── */
+    .chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 8px; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .two-col, .three-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+
+  <nav>
+    <div class="nav-item active" onclick="showPage('dashboard', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('colheitadeiras', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Colheitadeiras
+    </div>
+    <div class="nav-item" onclick="showPage('operarios', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Operários
+    </div>
+    <div class="nav-item" onclick="showPage('cadastros', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Cadastros
+    </div>
+    <div class="nav-item" onclick="showPage('alertas', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Alertas
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot pulse" id="api-dot"></div>
+      <span id="api-status-text">verificando...</span>
+    </div>
+    <div style="font-size:10px; color:var(--text3); margin-top:4px; font-family:var(--mono);">127.0.0.1:8000</div>
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="page-title">Dashboard</div>
+      <div class="topbar-sub" id="page-sub">Visão geral da frota</div>
+    </div>
+    <button class="btn btn-ghost" onclick="recarregarPagina()" style="font-size:12px;">↻ Atualizar</button>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div id="pg-dashboard" class="page active">
+      <div class="metrics-grid" id="metrics-container">
+        <div class="state-msg" style="grid-column:1/-1">Carregando métricas...</div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Temperatura das máquinas (°C)</div>
+          <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Nível de combustível (%)</div>
+          <div class="chart-wrap"><canvas id="fuelChart"></canvas></div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Ambiente — última leitura</div>
+          <div id="ambiente-container"><div class="state-msg">Carregando...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Movimentação da frota</div>
+          <div class="chart-wrap" style="height:160px"><canvas id="moveChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ COLHEITADEIRAS ══ -->
+    <div id="pg-colheitadeiras" class="page">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="font-size:13px; color:var(--text2);">Frota registrada na API</div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Modelo</th><th>Operário</th>
+                <th>Combustível</th><th>Temp. máquina</th>
+                <th>Velocidade</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="colheitadeiras-tbody">
+              <tr><td colspan="7" class="state-msg">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ OPERÁRIOS ══ -->
+    <div id="pg-operarios" class="page">
+      <div class="card" style="margin-bottom:14px">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Nome</th><th>Tempo de serviço</th><th>No banco</th></tr>
+            </thead>
+            <tbody id="operarios-tbody">
+              <tr><td colspan="4" class="state-msg">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CADASTROS ══ -->
+    <div id="pg-cadastros" class="page">
+      <div class="two-col">
+
+        <!-- Marca -->
+        <div class="card">
+          <div class="card-title">Nova marca</div>
+          <div class="form-grid" style="grid-template-columns:1fr">
+            <div class="form-group">
+              <label>Nome da marca</label>
+              <input type="text" id="marca-nome" placeholder="Ex: Case IH">
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary" onclick="cadastrarMarca()">Salvar</button>
+            <span id="marca-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
+          </div>
+        </div>
+
+        <!-- Combustível -->
+        <div class="card">
+          <div class="card-title">Novo combustível</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Tipo</label>
+              <input type="text" id="comb-tipo" placeholder="Ex: Diesel S10">
+            </div>
+            <div class="form-group">
+              <label>Porcentagem (%)</label>
+              <input type="number" id="comb-pct" placeholder="0 – 100" min="0" max="100">
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary" onclick="cadastrarCombustivel()">Salvar</button>
+            <span id="comb-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
+          </div>
+        </div>
+
+        <!-- Operário -->
+        <div class="card">
+          <div class="card-title">Novo operário</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nome</label>
+              <input type="text" id="op-nome" placeholder="Nome completo">
+            </div>
+            <div class="form-group">
+              <label>Tempo de serviço (anos)</label>
+              <input type="number" id="op-tempo" placeholder="Ex: 5" min="0" max="99">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:10px">
+            <label>No banco</label>
+            <select id="op-banco">
+              <option value="true">Sim</option>
+              <option value="false">Não</option>
+            </select>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary" onclick="cadastrarOperario()">Salvar</button>
+            <span id="op-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
+          </div>
+        </div>
+
+        <!-- Unidade de Medida -->
+        <div class="card">
+          <div class="card-title">Nova unidade de medida</div>
+          <div class="form-grid" style="grid-template-columns:1fr">
+            <div class="form-group">
+              <label>Nome</label>
+              <input type="text" id="um-nome" placeholder="Ex: PSI, bar, °C, cm">
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary" onclick="cadastrarUnidade()">Salvar</button>
+            <span id="um-feedback" style="font-size:12px; font-family:var(--mono); color:var(--text3)"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ ALERTAS ══ -->
+    <div id="pg-alertas" class="page">
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Alertas automáticos</div>
+          <div id="alertas-container"><div class="state-msg">Carregando...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Resumo por tipo</div>
+          <div class="chart-wrap" style="height:180px"><canvas id="alertChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ─────────────────────────────────────────
+   CONFIGURAÇÃO
+───────────────────────────────────────── */
+const API = 'http://127.0.0.1:8000';
+
+/* ─────────────────────────────────────────
+   NAVEGAÇÃO
+───────────────────────────────────────── */
+const pageTitles = {
+  dashboard:      ['Dashboard',     'Visão geral da frota'],
+  colheitadeiras: ['Colheitadeiras','Frota registrada'],
+  operarios:      ['Operários',     'Equipe de campo'],
+  cadastros:      ['Cadastros',     'Adicionar registros na API'],
+  alertas:        ['Alertas',       'Monitoramento automático'],
+};
+
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('pg-' + name).classList.add('active');
+  el.classList.add('active');
+  const [title, sub] = pageTitles[name];
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent   = sub;
+  carregarPagina(name);
+}
+
+function recarregarPagina() {
+  const active = document.querySelector('.nav-item.active');
+  const name = Object.keys(pageTitles).find(k =>
+    document.getElementById('pg-' + k).classList.contains('active')
+  );
+  if (name) carregarPagina(name);
+}
+
+function carregarPagina(name) {
+  if (name === 'dashboard')      carregarDashboard();
+  if (name === 'colheitadeiras') carregarColheitadeiras();
+  if (name === 'operarios')      carregarOperarios();
+  if (name === 'alertas')        carregarAlertas();
+}
+
+/* ─────────────────────────────────────────
+   FETCH GENÉRICO
+───────────────────────────────────────── */
+async function apiFetch(endpoint) {
+  const r = await fetch(API + endpoint);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function apiPost(endpoint, body) {
+  const r = await fetch(API + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(JSON.stringify(err));
+  }
+  return r.json();
+}
+
+/* ─────────────────────────────────────────
+   STATUS DA API
+───────────────────────────────────────── */
+async function verificarAPI() {
+  const dot  = document.getElementById('api-dot');
+  const txt  = document.getElementById('api-status-text');
+  dot.classList.remove('online', 'offline', 'pulse');
+  try {
+    await fetch(API + '/Colheitadeira/');
+    dot.classList.add('online');
+    txt.textContent = 'API online';
+  } catch {
+    dot.classList.add('offline');
+    txt.textContent = 'API offline';
+  }
+}
+
+/* ─────────────────────────────────────────
+   CHARTS — instâncias globais
+───────────────────────────────────────── */
+const charts = {};
+function criarOuAtualizar(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, config);
+}
+
+const C = {
+  green: '#4ade80', amber: '#fbbf24', red: '#f87171',
+  blue: '#60a5fa', purple: '#a78bfa', teal: '#2dd4bf',
+  grid: 'rgba(255,255,255,0.05)', tick: '#4a6055',
+};
+
+function scaleDefaults() {
+  return {
+    y: { grid: { color: C.grid }, ticks: { color: C.tick, font: { size: 11 } } },
+    x: { grid: { display: false }, ticks: { color: C.tick, font: { size: 11 } } },
+  };
+}
+
+/* ─────────────────────────────────────────
+   DASHBOARD
+───────────────────────────────────────── */
+let chartsInitialized = false;
+
+async function carregarDashboard() {
+  try {
+    const [colh, temp, comb, amb, mov] = await Promise.all([
+      apiFetch('/Colheitadeira/'),
+      apiFetch('/Temperaturamaquina/'),
+      apiFetch('/Combustivel/'),
+      apiFetch('/Tempumi_ambiente/'),
+      apiFetch('/Estadodemovimento/'),
+    ]);
+
+    renderMetrics(colh, temp, comb);
+    renderAmbiente(amb);
+    renderTempChart(temp);
+    renderFuelChart(comb);
+    renderMoveChart(mov);
+
+  } catch (e) {
+    document.getElementById('metrics-container').innerHTML =
+      `<div class="state-msg" style="grid-column:1/-1;color:var(--red)">Erro ao conectar na API. Verifique se o Django está rodando.</div>`;
+  }
+}
+
+function renderMetrics(colh, temp, comb) {
+  const total    = colh.length;
+  const emOp     = colh.filter(c => c.StatusdeOperacao).length;
+  const maxTemp  = temp.length ? Math.max(...temp.map(t => t.Temperatura)) : '—';
+  const mediaC   = comb.length ? (comb.reduce((s,c) => s + c.Porcentagem, 0) / comb.length).toFixed(1) : '—';
+
+  document.getElementById('metrics-container').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Colheitadeiras</div>
+      <div class="metric-value">${total}</div>
+      <div class="metric-sub">cadastradas</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Status de operação</div>
+      <div class="metric-value">${emOp}</div>
+      <div class="metric-sub">registros ativos</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Temp. máx. (máq.)</div>
+      <div class="metric-value">${maxTemp}<span class="metric-unit">°C</span></div>
+      <div class="metric-sub">última leitura</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Combustível médio</div>
+      <div class="metric-value">${mediaC}<span class="metric-unit">%</span></div>
+      <div class="metric-sub">${comb.length} registros</div>
+    </div>
+  `;
+}
+
+function renderAmbiente(amb) {
+  if (!amb.length) {
+    document.getElementById('ambiente-container').innerHTML = '<div class="state-msg">Sem dados de ambiente.</div>';
+    return;
+  }
+  const u = amb[amb.length - 1];
+  document.getElementById('ambiente-container').innerHTML = `
+    <div class="data-row"><span class="data-key">Temperatura</span><span class="data-val">${u.Temperatura} °C</span></div>
+    <div class="data-row"><span class="data-key">Umidade</span><span class="data-val">${u.Umidade}%</span></div>
+    <div class="data-row"><span class="data-key">Total de leituras</span><span class="data-val">${amb.length}</span></div>
+  `;
+}
+
+function renderTempChart(temp) {
+  const labels = temp.map((_, i) => '#' + (i+1));
+  const data   = temp.map(t => t.Temperatura);
+  criarOuAtualizar('tempChart', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Temperatura', data,
+        borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
+        borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: scaleDefaults(),
+    }
+  });
+}
+
+function renderFuelChart(comb) {
+  const labels = comb.map((c, i) => c.Tipo || '#' + (i+1));
+  const data   = comb.map(c => c.Porcentagem);
+  const colors = data.map(v => v < 30 ? C.red : v < 60 ? C.amber : C.green);
+  criarOuAtualizar('fuelChart', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Combustível %', data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { ...scaleDefaults(), y: { ...scaleDefaults().y, min: 0, max: 100, ticks: { ...scaleDefaults().y.ticks, callback: v => v + '%' } } },
+    }
+  });
+}
+
+function renderMoveChart(mov) {
+  const emMov   = mov.filter(m => m.Em_Movimento).length;
+  const paradas = mov.length - emMov;
+  criarOuAtualizar('moveChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Em movimento', 'Parada'],
+      datasets: [{ data: [emMov, paradas], backgroundColor: [C.green, '#1c2420'], borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: C.tick, font: { size: 12 }, padding: 16, boxWidth: 10, boxHeight: 10 } } },
+      cutout: '65%',
+    }
+  });
+}
+
+/* ─────────────────────────────────────────
+   COLHEITADEIRAS
+───────────────────────────────────────── */
+async function carregarColheitadeiras() {
+  const tbody = document.getElementById('colheitadeiras-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Carregando...</td></tr>';
+  try {
+    const data = await apiFetch('/Colheitadeira/');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Nenhuma colheitadeira cadastrada.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(c => {
+      const emOp = c.StatusdeOperacao;
+      const badge = emOp
+        ? `<span class="badge badge-green">Em operação</span>`
+        : `<span class="badge badge-gray">Parada</span>`;
+      return `
+        <tr>
+          <td class="mono">#${String(c.id).padStart(2,'0')}</td>
+          <td>${c.Modelo ?? '—'}</td>
+          <td>${c.Operario ?? '—'}</td>
+          <td>${c.Combustivel ?? '—'}</td>
+          <td>${c.TemperaturaMaquina ?? '—'}</td>
+          <td>${c.EstadodeMovimento ?? '—'}</td>
+          <td>${badge}</td>
+        </tr>`;
+    }).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="7" class="state-msg" style="color:var(--red)">Erro ao carregar. Verifique a API.</td></tr>';
+  }
+}
+
+/* ─────────────────────────────────────────
+   OPERÁRIOS
+───────────────────────────────────────── */
+async function carregarOperarios() {
+  const tbody = document.getElementById('operarios-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" class="state-msg">Carregando...</td></tr>';
+  try {
+    const data = await apiFetch('/Operario/');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="state-msg">Nenhum operário cadastrado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(o => `
+      <tr>
+        <td class="mono">${o.id}</td>
+        <td>${o.Nome}</td>
+        <td>${o.TempodeServico} ano${o.TempodeServico !== 1 ? 's' : ''}</td>
+        <td>${o.Nobanco
+          ? '<span class="badge badge-green">Sim</span>'
+          : '<span class="badge badge-amber">Não</span>'}</td>
+      </tr>`
+    ).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="4" class="state-msg" style="color:var(--red)">Erro ao carregar.</td></tr>';
+  }
+}
+
+/* ─────────────────────────────────────────
+   ALERTAS
+───────────────────────────────────────── */
+async function carregarAlertas() {
+  const cont = document.getElementById('alertas-container');
+  cont.innerHTML = '<div class="state-msg">Analisando dados...</div>';
+  try {
+    const [temp, comb, mov] = await Promise.all([
+      apiFetch('/Temperaturamaquina/'),
+      apiFetch('/Combustivel/'),
+      apiFetch('/Estadodemovimento/'),
+    ]);
+
+    const alertas = [];
+
+    temp.forEach((t, i) => {
+      if (t.Temperatura > 85)
+        alertas.push({ nivel: 'red',   msg: `Temperatura crítica: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
+      else if (t.Temperatura > 75)
+        alertas.push({ nivel: 'amber', msg: `Temperatura elevada: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
+    });
+
+    comb.forEach((c, i) => {
+      if (c.Porcentagem < 20)
+        alertas.push({ nivel: 'red',   msg: `Combustível crítico: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 20%' });
+      else if (c.Porcentagem < 40)
+        alertas.push({ nivel: 'amber', msg: `Combustível baixo: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 40%' });
+    });
+
+    if (!alertas.length) {
+      cont.innerHTML = '<div class="state-msg" style="color:var(--green)">✓ Nenhum alerta ativo.</div>';
+    } else {
+      cont.innerHTML = alertas.map(a => `
+        <div class="alert-item">
+          <div class="alert-dot" style="background:var(--${a.nivel})"></div>
+          <div>
+            <div class="alert-msg">${a.msg}</div>
+            <div class="alert-meta">${a.meta}</div>
+          </div>
+        </div>`
+      ).join('');
+    }
+
+    const criticos = alertas.filter(a => a.nivel === 'red').length;
+    const avisos   = alertas.filter(a => a.nivel === 'amber').length;
+    const ok       = (temp.length + comb.length) - criticos - avisos;
+
+    criarOuAtualizar('alertChart', {
+      type: 'doughnut',
+      data: {
+        labels: ['Normal', 'Atenção', 'Crítico'],
+        datasets: [{ data: [ok, avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: C.tick, font: { size: 12 }, padding: 14, boxWidth: 10, boxHeight: 10 } } },
+        cutout: '60%',
+      }
+    });
+
+  } catch {
+    cont.innerHTML = '<div class="state-msg" style="color:var(--red)">Erro ao carregar alertas.</div>';
+  }
+}
+
+/* ─────────────────────────────────────────
+   CADASTROS
+───────────────────────────────────────── */
+function feedback(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  setTimeout(() => el.textContent = '', 3000);
+}
+
+async function cadastrarMarca() {
+  const nome = document.getElementById('marca-nome').value.trim();
+  if (!nome) return feedback('marca-feedback', 'Preencha o nome.', false);
+  try {
+    await apiPost('/Marca/', { Nome: nome });
+    feedback('marca-feedback', '✓ Salvo!', true);
+    document.getElementById('marca-nome').value = '';
+  } catch (e) {
+    feedback('marca-feedback', 'Erro: ' + e.message, false);
+  }
+}
+
+async function cadastrarCombustivel() {
+  const tipo = document.getElementById('comb-tipo').value.trim();
+  const pct  = parseFloat(document.getElementById('comb-pct').value);
+  if (!tipo || isNaN(pct)) return feedback('comb-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Combustivel/', { Tipo: tipo, Porcentagem: pct });
+    feedback('comb-feedback', '✓ Salvo!', true);
+    document.getElementById('comb-tipo').value = '';
+    document.getElementById('comb-pct').value  = '';
+  } catch (e) {
+    feedback('comb-feedback', 'Erro: ' + e.message, false);
+  }
+}
+
+async function cadastrarOperario() {
+  const nome  = document.getElementById('op-nome').value.trim();
+  const tempo = parseInt(document.getElementById('op-tempo').value);
+  const banco = document.getElementById('op-banco').value === 'true';
+  if (!nome || isNaN(tempo)) return feedback('op-feedback', 'Preencha todos os campos.', false);
+  try {
+    await apiPost('/Operario/', { Nome: nome, TempodeServico: tempo, Nobanco: banco });
+    feedback('op-feedback', '✓ Salvo!', true);
+    document.getElementById('op-nome').value  = '';
+    document.getElementById('op-tempo').value = '';
+  } catch (e) {
+    feedback('op-feedback', 'Erro: ' + e.message, false);
+  }
+}
+
+async function cadastrarUnidade() {
+  const nome = document.getElementById('um-nome').value.trim();
+  if (!nome) return feedback('um-feedback', 'Preencha o nome.', false);
+  try {
+    await apiPost('/Unidadedemedida/', { Nome: nome });
+    feedback('um-feedback', '✓ Salvo!', true);
+    document.getElementById('um-nome').value = '';
+  } catch (e) {
+    feedback('um-feedback', 'Erro: ' + e.message, false);
+  }
+}
+
+/* ─────────────────────────────────────────
+   INIT
+───────────────────────────────────────── */
+verificarAPI();
+carregarDashboard();
+setInterval(verificarAPI, 30000);
+</script>
+</body>
+</html>

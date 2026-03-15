@@ -31,7 +31,7 @@ class Combustivel(models.Model):
 
 class Operario(models.Model):
     Nome = models.CharField(max_length=100)
-    TempodeServico = models.IntegerField(max_length=2)
+    TempodeServico = models.IntegerField()
     Nobanco = models.BooleanField(default=True)
     
     def __str__(self):
