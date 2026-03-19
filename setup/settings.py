@@ -83,7 +83,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'projetotcc',
         'USER': 'root',
-        'PASSWORD': '1234',
+        'PASSWORD': 'Senai901',
         'HOST': 'localhost',
         'PORT': '3306',      
         'OPTIONS': {
