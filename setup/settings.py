@@ -135,11 +135,15 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Em produção, substitua por CORS_ALLOWED_ORIGINS com os domínios reais
+# CORS: em desenvolvimento aceita qualquer origem para facilitar o frontend local.
+# Em produção (DEBUG=False), apenas as origens listadas abaixo são permitidas.
+CORS_ALLOWED_ORIGINS = [
+    'http://127.0.0.1:5500',
+    'http://localhost:5500',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]
+
 if DEBUG:
-    CORS_ORIGIN_ALLOW_ALL = True
-else:
-    CORS_ALLOWED_ORIGINS = [
-        'http://127.0.0.1:5500',
-        'http://localhost:5500',
-    ]
+    CORS_ALLOWED_ORIGINS += ['http://127.0.0.1:3000', 'http://localhost:3000']
+    CORS_ALLOW_CREDENTIALS = True
