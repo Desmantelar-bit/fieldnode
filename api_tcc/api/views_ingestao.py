@@ -18,6 +18,12 @@ class IngestaoTelemetriaView(APIView):
 
         serializer = LeituraTelemetriaSerializer(data=request.data)
         if serializer.is_valid():
+            maquina_id = serializer.validated_data.get('maquina_id', '').strip()
+            if not maquina_id:
+                return Response(
+                    {'status': 'erro', 'detalhes': {'maquina_id': 'Este campo não pode ser vazio.'}},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             serializer.save()
             return Response(
                 {'status': 'ok', 'id': str(serializer.data['id'])},

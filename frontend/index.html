@@ -629,6 +629,7 @@
 
 <!-- Chart.js: biblioteca de graficos carregada do CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="config.js"></script>
 <script>
 /*
 =====================================================
@@ -657,6 +658,7 @@
    altere apenas esta variavel — ela e usada em todo o codigo.
 ───────────────────────────────────────── */
 const API = 'http://127.0.0.1:8000'; // Endereco base da API Django
+// ATENÇÃO: esta constante foi movida para config.js — não edite aqui.
 
 /* ─────────────────────────────────────────
    2. NAVEGACAO
@@ -1192,7 +1194,13 @@ async function popularSelect(id, endpoint, labelFn) {
     if (!el) return;
     el.innerHTML = '<option value="">Selecione...</option>' +
       data.map(d => `<option value="${d.id}">${labelFn(d)}</option>`).join('');
-  } catch { }
+  } catch (err) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerHTML = '<option value="">Erro ao carregar</option>';
+      el.style.borderColor = 'var(--red)';
+    }
+  }
 }
 
 async function carregarSelectsReferencia() {

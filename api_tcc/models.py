@@ -40,21 +40,21 @@ class Operario(models.Model):
 class PressaoPneus(models.Model):
 
     Pressao = models.FloatField()
-    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.DO_NOTHING)
+    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT)
 
     def __str__(self):
         return f'Pressão: {self.Pressao} - Unidade: {self.UnidadedeMedida}'
     
 class AlturadoCorte(models.Model):
     Altura = models.FloatField()
-    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.DO_NOTHING)
+    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT)
 
     def __str__(self):
         return f'Altura: {self.Altura} - Unidade: {self.UnidadedeMedida}'
 
 class PressaodoCorte(models.Model):
     Pressao = models.FloatField()
-    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.DO_NOTHING)
+    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT)
 
     def __str__(self):
         return f'Pressão: {self.Pressao} - Unidade: {self.UnidadedeMedida}'
