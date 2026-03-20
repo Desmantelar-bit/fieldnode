@@ -172,12 +172,12 @@ Documentação completa: `http://localhost:8000/swagger/`
 
 Desenvolvido por estudantes do curso técnico de Informática do **SENAI** como Trabalho de Conclusão de Curso.
 
-| Nome | GitHub |
-|------|--------|
-| [Nome 1] | @usuario |
-| [Nome 2] | @usuario |
-| [Nome 3] | @usuario |
-| [Nome 4] | @usuario |
+| Nome | GitHub | LinkedIn | E-mail |
+|------|--------|----------|--------|
+| Vinícius Morales | [@ViniciusMorales](https://github.com/ViniciusMorales) | [LinkedIn](https://www.linkedin.com/in/vin%C3%ADcius-morales-609744368/) | viniciusmorales09@gmail.com |
+| Paola | [@Paola5858](https://github.com/Paola5858) | [LinkedIn](https://www.linkedin.com/in/paolasoaresmachado/) | paolasesi351@gmail.com |
+| Ana Caroline Furlaneto | [@acfurlaneto](https://github.com/acfurlaneto) | [LinkedIn](https://www.linkedin.com/in/ana-furlaneto-a47746368/) | ana.furlaneto19@icloud.com |
+| Giovana Machado D'Angelo | — | [LinkedIn](https://www.linkedin.com/in/giovanamdangelo/) | giovanamachadodangelo@gmail.com |
 
 ---
 
