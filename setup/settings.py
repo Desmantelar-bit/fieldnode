@@ -26,7 +26,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = []  # TODO: preencher antes do deploy, ex: ['fieldnode.seudominio.com']
 
 
 # Application definition
@@ -135,4 +135,11 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ORIGIN_ALLOW_ALL = True
+# Em produção, substitua por CORS_ALLOWED_ORIGINS com os domínios reais
+if DEBUG:
+    CORS_ORIGIN_ALLOW_ALL = True
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://127.0.0.1:5500',
+        'http://localhost:5500',
+    ]

@@ -22,9 +22,6 @@ venv.bak/
 db.sqlite3
 db.sqlite3-journal
 
-# Ignorar arquivos de migrações geradas
-*/migrations/*.py
-!*/migrations/__init__.py
 
 # Ignorar arquivos de logs
 *.log

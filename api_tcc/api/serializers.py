@@ -21,6 +21,9 @@ class MarcaSerializer(serializers.ModelSerializer):
             
 class ModeloSerializer(serializers.ModelSerializer):
     Marca = MarcaSerializer(read_only=True)
+    Marca_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.Marca.objects.all(), source='Marca', write_only=True
+    )
 
     class Meta:
         model = models.Modelo
@@ -28,7 +31,6 @@ class ModeloSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'id': {'read_only': True},
             'Nome': {'label': 'Nome do Modelo', 'required': True},
-            'Marca': {'label': 'Marca', 'required': True}
         }
 
 class CombustivelSerializer(serializers.ModelSerializer):
@@ -54,6 +56,9 @@ class OperarioSerializer(serializers.ModelSerializer):
 
 class PressaoPneusSerializer(serializers.ModelSerializer):
     UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
+    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    )
 
     class Meta:
         model = models.PressaoPneus
@@ -61,12 +66,14 @@ class PressaoPneusSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'id': {'read_only': True},
             'Pressao': {'label': 'Pressão dos Pneus', 'required': True},
-            'UnidadedeMedida': {'label': 'Unidade de Medida', 'required': True}
         }
 
 
 class AlturadoCorteSerializer(serializers.ModelSerializer):
     UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
+    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    )
 
     class Meta:
         model = models.AlturadoCorte
@@ -74,11 +81,13 @@ class AlturadoCorteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'id': {'read_only': True},
             'Altura': {'label': 'Altura de Corte', 'required': True},
-            'UnidadedeMedida': {'label': 'Unidade de Medida', 'required': True}
         }
 
 class PressaodoCorteSerializer(serializers.ModelSerializer):
     UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
+    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    )
 
     class Meta:
         model = models.PressaodoCorte
@@ -86,7 +95,6 @@ class PressaodoCorteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'id': {'read_only': True},
             'Pressao': {'label': 'Pressão de Corte', 'required': True},
-            'UnidadedeMedida': {'label': 'Unidade de Medida', 'required': True}
         }
         
 class TempUmi_AmbienteSerializer(serializers.ModelSerializer):
