@@ -26,7 +26,7 @@ class Marca(models.Model):
 
 class Modelo(models.Model):
     Nome  = models.CharField(max_length=100, verbose_name='Nome')
-    Marca = models.ForeignKey(Marca, on_delete=models.CASCADE, verbose_name='Marca')
+    Marca = models.ForeignKey(Marca, on_delete=models.PROTECT, verbose_name='Marca')
 
     class Meta:
         verbose_name = 'Modelo'
@@ -158,16 +158,16 @@ class TemperaturaMaquina(models.Model):
 
 
 class Colheitadeira(models.Model):
-    Modelo             = models.ForeignKey(Modelo,            on_delete=models.CASCADE, verbose_name='Modelo')
-    Combustivel        = models.ForeignKey(Combustivel,       on_delete=models.CASCADE, verbose_name='Combustível')
-    PressaoPneus       = models.ForeignKey(PressaoPneus,      on_delete=models.CASCADE, verbose_name='Pressão dos Pneus')
-    AlturadoCorte      = models.ForeignKey(AlturadoCorte,     on_delete=models.CASCADE, verbose_name='Altura de Corte')
-    PressaodoCorte     = models.ForeignKey(PressaodoCorte,    on_delete=models.CASCADE, verbose_name='Pressão de Corte')
-    TempUmi_Ambiente   = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.CASCADE, verbose_name='Temp./Umidade Ambiente')
-    TemperaturaMaquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.CASCADE, verbose_name='Temperatura da Máquina')
-    Operario           = models.ForeignKey(Operario,          on_delete=models.CASCADE, verbose_name='Operário')
-    StatusdeOperacao   = models.ForeignKey(StatusdeOperacao,  on_delete=models.CASCADE, verbose_name='Status de Operação')
-    EstadodeMovimento  = models.ForeignKey(EstadodeMovimento, on_delete=models.CASCADE, verbose_name='Estado de Movimento')
+    Modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
+    Combustivel        = models.ForeignKey(Combustivel,       on_delete=models.PROTECT, verbose_name='Combustível')
+    PressaoPneus       = models.ForeignKey(PressaoPneus,      on_delete=models.PROTECT, verbose_name='Pressão dos Pneus')
+    AlturadoCorte      = models.ForeignKey(AlturadoCorte,     on_delete=models.PROTECT, verbose_name='Altura de Corte')
+    PressaodoCorte     = models.ForeignKey(PressaodoCorte,    on_delete=models.PROTECT, verbose_name='Pressão de Corte')
+    TempUmi_Ambiente   = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.PROTECT, verbose_name='Temp./Umidade Ambiente')
+    TemperaturaMaquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.PROTECT, verbose_name='Temperatura da Máquina')
+    Operario           = models.ForeignKey(Operario,          on_delete=models.PROTECT, verbose_name='Operário')
+    StatusdeOperacao   = models.ForeignKey(StatusdeOperacao,  on_delete=models.PROTECT, verbose_name='Status de Operação')
+    EstadodeMovimento  = models.ForeignKey(EstadodeMovimento, on_delete=models.PROTECT, verbose_name='Estado de Movimento')
 
     class Meta:
         verbose_name = 'Colheitadeira'

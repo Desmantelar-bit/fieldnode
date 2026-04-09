@@ -240,7 +240,7 @@ como Trabalho de Conclusão de Curso.
       <img src="https://ui-avatars.com/api/?name=Giovana+Machado&size=72&background=0D1117&color=fff&rounded=true"
            width="72" alt="Giovana Machado D'Angelo"/>
       <br/>
-      <strong>Giovana Machado D'Angelo</strong>
+      <strong>Giovana Dangelo</strong>
       <br/>
       <a href="https://www.linkedin.com/in/giovanamdangelo/">
         <img src="https://img.shields.io/badge/LinkedIn-0A66C2?logo=linkedin"
