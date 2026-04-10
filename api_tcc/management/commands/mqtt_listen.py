@@ -1,3 +1,32 @@
+# ============================================================
+# Exemplos de publicação de mensagens JSON no Mosquitto
+#
+# 1. Usando CMD (Prompt de Comando do Windows):
+#    mosquitto_pub -h localhost -t "fieldnode/teste" -m "{\"id\":\"550e8400-e29b-41d4-a716-446655440000\",\"maquina_id\":\"COLH-01\",\"temperatura\":78.5,\"vibracao\":0.42,\"rpm\":1850,\"timestamp\":\"2026-04-10T10:30:00Z\"}"
+#
+#    -> No CMD, é necessário escapar as aspas internas com \"
+#
+# 2. Usando PowerShell:
+#    mosquitto_pub -h localhost -t "fieldnode/teste" -m '{"id":"550e8400-e29b-41d4-a716-446655440000","maquina_id":"COLH-01","temperatura":78.5,"vibracao":0.42,"rpm":1850,"timestamp":"2026-04-10T10:30:00Z"}'
+#
+#    -> No PowerShell, basta usar aspas simples externas e aspas duplas internas
+#
+# 3. Usando arquivo JSON (funciona em ambos):
+#    Crie um arquivo msg.json com:
+#    {
+#      "id": "550e8400-e29b-41d4-a716-446655440000",
+#      "maquina_id": "COLH-01",
+#      "temperatura": 78.5,
+#      "vibracao": 0.42,
+#      "rpm": 1850,
+#      "timestamp": "2026-04-10T10:30:00Z"
+#    }
+#
+#    E publique com:
+#    mosquitto_pub -h localhost -t "fieldnode/teste" -f msg.json
+#
+# ============================================================
+
 import json
 import logging
 from django.core.management.base import BaseCommand
@@ -8,7 +37,7 @@ from api_tcc.models import LeituraTelemetria
 logger = logging.getLogger(__name__)
 
 BROKER_HOST = 'localhost'
-BROKER_PORT = 1883
+BROKER_PORT = 1883 
 TOPICO      = 'fieldnode/#'   # escuta tudo que começa com fieldnode/
 
 
