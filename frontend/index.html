@@ -457,10 +457,24 @@ async function verificarAPI() {
   const txt  = document.getElementById('api-status-text');
   dot.classList.remove('online', 'offline', 'pulse');
   try {
-    await fetch(API + '/Colheitadeira/');
-    dot.classList.add('online');
-    txt.textContent = 'API online';
-  } catch {
+    console.log('Testando API:', API + '/Colheitadeira/');
+    const response = await fetch(API + '/Colheitadeira/', {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log('Response status:', response.status);
+    if (response.ok) {
+      dot.classList.add('online');
+      txt.textContent = 'API online';
+      console.log('API online!');
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Erro na verificação da API:', error);
     dot.classList.add('offline');
     txt.textContent = 'API offline';
   }

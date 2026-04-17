@@ -21,7 +21,12 @@ import time
 import uuid
 from datetime import datetime
 
-import paho.mqtt.client as mqtt
+try:
+    import paho.mqtt.client as mqtt
+except ImportError:
+    print("❌ Erro: paho-mqtt não está instalado.")
+    print("Execute: pip install paho-mqtt")
+    exit(1)
 
 BROKER_HOST = 'localhost'
 BROKER_PORT  = 1883
@@ -79,20 +84,20 @@ def gerar_leitura(ciclo: int) -> dict:
 
 def main():
     print()
-    print('╔══════════════════════════════════════════╗')
-    print('║  FIELDNODE — DEMO DE PANE                 ║')
-    print('║  Simulação de falha progressiva em campo  ║')
-    print('╚══════════════════════════════════════════╝')
+    print('=' * 42)
+    print('  FIELDNODE - DEMO DE PANE')
+    print('  Simulacao de falha progressiva em campo')
+    print('=' * 42)
     print()
     print(f'  Broker: {BROKER_HOST}:{BROKER_PORT}')
-    print(f'  Tópico: {TOPICO}')
-    print(f'  Máquina: {MAQUINA_ID}')
+    print(f'  Topico: {TOPICO}')
+    print(f'  Maquina: {MAQUINA_ID}')
     print()
     print('  Fases:')
-    print('  00-40s  → NORMAL (65-72°C)')
-    print('  40-80s  → ATENÇÃO (72-85°C)')
-    print('  80-120s → CRÍTICO (85-92°C)')
-    print('  120s+   → Recuperação (operador intervém)')
+    print('  00-40s  -> NORMAL (65-72°C)')
+    print('  40-80s  -> ATENCAO (72-85°C)')
+    print('  80-120s -> CRITICO (85-92°C)')
+    print('  120s+   -> Recuperacao (operador intervem)')
     print()
 
     client = mqtt.Client()
@@ -107,9 +112,9 @@ def main():
             t_seg    = ciclo * INTERVALO
 
             fase = (
-                '🔴 CRITICO' if leitura['temperatura'] > 85 else
-                '🟡 ATENCAO' if leitura['temperatura'] > 75 else
-                '🟢 NORMAL'
+                'CRITICO' if leitura['temperatura'] > 85 else
+                'ATENCAO' if leitura['temperatura'] > 75 else
+                'NORMAL'
             )
 
             print(f'[{t_seg:>4}s] {fase}  '
