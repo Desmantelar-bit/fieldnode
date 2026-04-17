@@ -109,6 +109,16 @@
           <div class="state-msg">Aguardando dados...</div>
         </div>
       </div>
+      <!-- card de inteligência artificial -->
+      <div class="card" style="margin-bottom: 14px;">
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Análise de IA — Manutenção Preditiva</span>
+          <span id="ia-update" style="font-size:10px; color:var(--text3); font-family:var(--mono);">aguardando dados...</span>
+        </div>
+        <div id="ia-container">
+          <div class="state-msg">Aguardando leituras suficientes para análise...</div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-title">ESP32 — últimas leituras de telemetria</div>
         <div id="telemetria-container"><div class="state-msg">Carregando...</div></div>
@@ -830,43 +840,64 @@ async function carregarOperarios() {
 
 /* ─────────────────────────────────────────
    9. ALERTAS
-   Analise automatica dos dados da API — sem configuracao manual.
+   Analise automatica dos dados de telemetria em tempo real.
    Regras atuais:
      - Temperatura > 85°C  → CRITICO (vermelho)
      - Temperatura > 75°C  → ATENCAO (amarelo)
-     - Combustivel < 20%   → CRITICO (vermelho)
-     - Combustivel < 40%   → ATENCAO (amarelo)
-   Para adicionar novas regras, basta incluir mais
-   blocos if/else no loop de cada sensor.
+     - Vibração > 0.8      → CRITICO (vermelho)
+     - Vibração > 0.5      → ATENCAO (amarelo)
+     - RPM < 1300          → ATENCAO (amarelo)
 ───────────────────────────────────────── */
 async function carregarAlertas() {
   const cont = document.getElementById('alertas-container');
   cont.innerHTML = '<div class="state-msg">Analisando dados...</div>';
   try {
-    const [temp, comb, mov] = await Promise.all([
-      apiFetch('/Temperaturamaquina/'),
-      apiFetch('/Combustivel/'),
-      apiFetch('/Estadodemovimento/'),
-    ]);
+    // Usa os dados reais de telemetria em vez das tabelas antigas
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
 
     const alertas = [];
 
-    temp.forEach((t, i) => {
-      if (t.Temperatura > 85)
-        alertas.push({ nivel: 'red',   msg: `Temperatura crítica: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
-      else if (t.Temperatura > 75)
-        alertas.push({ nivel: 'amber', msg: `Temperatura elevada: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
-    });
+    // Analisa cada máquina com base nos dados de telemetria atuais
+    maquinas.forEach(m => {
+      // Alertas de temperatura
+      if (m.temperatura > 85)
+        alertas.push({ 
+          nivel: 'red', 
+          msg: `Temperatura crítica: ${m.temperatura}°C (${m.maquina_id})`, 
+          meta: 'Limite: 85°C - Risco de superaquecimento!' 
+        });
+      else if (m.temperatura > 75)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `Temperatura elevada: ${m.temperatura}°C (${m.maquina_id})`, 
+          meta: 'Limite: 85°C - Monitorar de perto' 
+        });
 
-    comb.forEach((c, i) => {
-      if (c.Porcentagem < 20)
-        alertas.push({ nivel: 'red',   msg: `Combustível crítico: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 20%' });
-      else if (c.Porcentagem < 40)
-        alertas.push({ nivel: 'amber', msg: `Combustível baixo: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 40%' });
+      // Alertas de vibração
+      if (m.vibracao > 0.8)
+        alertas.push({ 
+          nivel: 'red', 
+          msg: `Vibração crítica: ${m.vibracao} (${m.maquina_id})`, 
+          meta: 'Limite: 0.8 - Possível falha mecânica!' 
+        });
+      else if (m.vibracao > 0.5)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `Vibração elevada: ${m.vibracao} (${m.maquina_id})`, 
+          meta: 'Limite: 0.8 - Verificar componentes' 
+        });
+
+      // Alertas de RPM
+      if (m.rpm < 1300)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `RPM baixo: ${m.rpm} (${m.maquina_id})`, 
+          meta: 'Mínimo: 1300 RPM - Verificar motor' 
+        });
     });
 
     if (!alertas.length) {
-      cont.innerHTML = '<div class="state-msg ok-green">✓ Nenhum alerta ativo.</div>';
+      cont.innerHTML = '<div class="state-msg ok-green">✓ Nenhum alerta ativo no momento.</div>';
     } else {
       cont.innerHTML = alertas.map(a => `
         <div class="alert-item">
@@ -879,15 +910,16 @@ async function carregarAlertas() {
       ).join('');
     }
 
+    // Atualiza o gráfico com base nos dados reais
     const criticos = alertas.filter(a => a.nivel === 'red').length;
     const avisos   = alertas.filter(a => a.nivel === 'amber').length;
-    const ok       = (temp.length + comb.length) - criticos - avisos;
+    const ok       = maquinas.length - Math.ceil((criticos + avisos) / 2);
 
     criarOuAtualizar('alertChart', {
       type: 'doughnut',
       data: {
         labels: ['Normal', 'Atenção', 'Crítico'],
-        datasets: [{ data: [ok, avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
+        datasets: [{ data: [Math.max(0, ok), avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -1247,6 +1279,136 @@ async function atualizarStatusMaquinas() {
 // inicia polling de status em tempo real
 atualizarStatusMaquinas();
 setInterval(atualizarStatusMaquinas, 3000);
+
+/* ─────────────────────────────────────────────────────────────
+   ANÁLISE DE IA — consome /api/manutencao/ e /api/anomalias/
+   Atualiza a cada 30 segundos (não precisa ser tão frequente
+   quanto o polling de sensores — a IA é pesada)
+───────────────────────────────────────────────────────────── */
+async function atualizarIA() {
+  const cont = document.getElementById('ia-container');
+  const upEl = document.getElementById('ia-update');
+  if (!cont) return;
+
+  try {
+    // busca as máquinas ativas primeiro
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
+    if (!maquinas.length) {
+      cont.innerHTML = '<div class="state-msg">Sem máquinas ativas para analisar.</div>';
+      return;
+    }
+
+    // roda análise pra cada máquina ativa em paralelo
+    const resultados = await Promise.all(
+      maquinas.map(m =>
+        Promise.all([
+          apiFetch('/api/manutencao/?maquina_id=' + m.maquina_id),
+          apiFetch('/api/anomalias/?maquina_id=' + m.maquina_id),
+        ]).then(([manut, anom]) => ({ maquina: m.maquina_id, manut, anom }))
+      )
+    );
+
+    cont.innerHTML = resultados.map(r => {
+      const manut = r.manut;
+      const anom  = r.anom;
+
+      // card de manutenção preditiva
+      if (manut.status === 'dados_insuficientes') {
+        return `
+          <div style="padding:12px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:11px; font-family:var(--mono); color:var(--green); margin-bottom:8px;">${r.maquina}</div>
+            <div style="font-size:12px; color:var(--text3);">Aguardando ${manut.minimo} leituras mínimas (atual: ${manut.atual})</div>
+          </div>`;
+      }
+
+      const nivelCor = manut.nivel === 'CRITICO' ? C.red : manut.nivel === 'ATENCAO' ? C.amber : C.green;
+      const nivelBg  = manut.nivel === 'CRITICO' ? 'var(--red-dim)' : manut.nivel === 'ATENCAO' ? 'var(--amber-dim)' : 'var(--green-dim)';
+      const probPct  = Math.round(manut.prob_risco * 100);
+
+      // feature mais importante
+      const features = manut.features || {};
+      const topFeature = Object.entries(features).sort((a, b) => b[1] - a[1])[0];
+      const featNomes = {
+        temperatura: 'temperatura', vibracao: 'vibração', rpm: 'RPM',
+        temp_media_movel: 'tendência de temp.', vib_media_movel: 'tendência de vibração',
+        temp_tendencia: 'variação de temp.'
+      };
+
+      // anomalias detectadas
+      const totalAnom = anom.status === 'ok' ? anom.total : 0;
+      const totalAnal = anom.status === 'ok' ? anom.analisadas : 0;
+
+      return `
+        <div style="padding:16px 0; border-bottom:1px solid var(--border);">
+          <!-- header da máquina -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="font-size:11px; font-family:var(--mono); color:var(--green);">${r.maquina}</div>
+            <div style="background:${nivelBg}; border:1px solid ${nivelCor}33; border-radius:6px; padding:4px 10px; font-size:11px; font-family:var(--mono); color:${nivelCor};">
+              ${manut.nivel}
+            </div>
+          </div>
+
+          <!-- grid de métricas de IA -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <!-- probabilidade de falha -->
+            <div style="background:var(--bg3); border-radius:8px; padding:12px;">
+              <div style="font-size:9px; color:var(--text3); font-family:var(--mono); letter-spacing:.08em; margin-bottom:6px;">PROB. FALHA</div>
+              <div style="font-size:24px; font-weight:300; color:${nivelCor};">${probPct}<span style="font-size:12px; color:var(--text2);">%</span></div>
+              <div style="height:3px; background:var(--bg); border-radius:2px; margin-top:6px; overflow:hidden;">
+                <div style="height:100%; width:${probPct}%; background:${nivelCor}; border-radius:2px; transition:width .6s;"></div>
+              </div>
+            </div>
+
+            <!-- fator principal -->
+            <div style="background:var(--bg3); border-radius:8px; padding:12px;">
+              <div style="font-size:9px; color:var(--text3); font-family:var(--mono); letter-spacing:.08em; margin-bottom:6px;">FATOR PRINCIPAL</div>
+              <div style="font-size:13px; font-weight:500; color:var(--text); margin-bottom:2px;">
+                ${topFeature ? featNomes[topFeature[0]] || topFeature[0] : '—'}
+              </div>
+              <div style="font-size:11px; color:var(--text3); font-family:var(--mono);">
+                ${topFeature ? Math.round(topFeature[1] * 100) + '% de peso' : ''}
+              </div>
+            </div>
+
+            <!-- anomalias detectadas -->
+            <div style="background:var(--bg3); border-radius:8px; padding:12px;">
+              <div style="font-size:9px; color:var(--text3); font-family:var(--mono); letter-spacing:.08em; margin-bottom:6px;">ANOMALIAS</div>
+              <div style="font-size:24px; font-weight:300; color:${totalAnom > 0 ? C.amber : C.green};">${totalAnom}</div>
+              <div style="font-size:11px; color:var(--text3); font-family:var(--mono);">
+                de ${totalAnal} analisadas
+              </div>
+            </div>
+          </div>
+
+          <!-- barra de features (importâncias) -->
+          ${topFeature ? `
+          <div style="font-size:9px; color:var(--text3); font-family:var(--mono); letter-spacing:.08em; margin-bottom:6px;">IMPORTÂNCIA DAS FEATURES</div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            ${Object.entries(features)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([k, v]) => `
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div style="font-size:10px; color:var(--text2); font-family:var(--mono); min-width:130px;">${featNomes[k] || k}</div>
+                  <div style="flex:1; height:3px; background:var(--bg); border-radius:2px; overflow:hidden;">
+                    <div style="height:100%; width:${Math.round(v * 100)}%; background:var(--green); border-radius:2px;"></div>
+                  </div>
+                  <div style="font-size:10px; color:var(--text3); font-family:var(--mono); min-width:30px; text-align:right;">${Math.round(v * 100)}%</div>
+                </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    if (upEl) upEl.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+  } catch (e) {
+    if (cont) cont.innerHTML = '<div class="state-msg err-red">Erro ao carregar análise de IA.</div>';
+  }
+}
+
+// roda IA a cada 30 segundos (não precisa ser mais frequente)
+atualizarIA();
+setInterval(atualizarIA, 30000);
 
 /* ───────────────────────────────────────────────────────────── */
 verificarAPI();
