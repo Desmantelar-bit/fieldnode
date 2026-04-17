@@ -1,29 +1,24 @@
 # ============================================================
-# Exemplos de publicação de mensagens JSON no Mosquitto
+# MQTT Listener - FieldNode Telemetria
+# 
+# Este comando Django escuta mensagens MQTT do broker local e
+# salva as leituras de telemetria no banco de dados MySQL.
 #
-# 1. Usando CMD (Prompt de Comando do Windows):
-#    mosquitto_pub -h localhost -t "fieldnode/teste" -m "{\"id\":\"550e8400-e29b-41d4-a716-446655440000\",\"maquina_id\":\"COLH-01\",\"temperatura\":78.5,\"vibracao\":0.42,\"rpm\":1850,\"timestamp\":\"2026-04-10T10:30:00Z\"}"
+# Como usar:
+#   python manage.py mqtt_listen
 #
-#    -> No CMD, é necessário escapar as aspas internas com \"
+# Estrutura da mensagem JSON esperada:
+# {
+#   "id": "550e8400-e29b-41d4-a716-446655440000",
+#   "maquina_id": "COLH-01", 
+#   "temperatura": 78.5,
+#   "vibracao": 0.42,
+#   "rpm": 1850,
+#   "timestamp": "2026-04-10T10:30:00Z"
+# }
 #
-# 2. Usando PowerShell:
-#    mosquitto_pub -h localhost -t "fieldnode/teste" -m '{"id":"550e8400-e29b-41d4-a716-446655440000","maquina_id":"COLH-01","temperatura":78.5,"vibracao":0.42,"rpm":1850,"timestamp":"2026-04-10T10:30:00Z"}'
-#
-#    -> No PowerShell, basta usar aspas simples externas e aspas duplas internas
-#
-# 3. Usando arquivo JSON (funciona em ambos):
-#    Crie um arquivo msg.json com:
-#    {
-#      "id": "550e8400-e29b-41d4-a716-446655440000",
-#      "maquina_id": "COLH-01",
-#      "temperatura": 78.5,
-#      "vibracao": 0.42,
-#      "rpm": 1850,
-#      "timestamp": "2026-04-10T10:30:00Z"
-#    }
-#
-#    E publique com:
-#    mosquitto_pub -h localhost -t "fieldnode/teste" -f msg.json
+# Exemplo de envio via mosquitto_pub:
+#   mosquitto_pub -h localhost -p 1883 -t "fieldnode/COLH-01/leitura" -m '{"id":"uuid-aqui","maquina_id":"COLH-01","temperatura":85.5,"vibracao":0.65,"rpm":1750,"timestamp":"2026-04-17T10:00:00"}'
 #
 # ============================================================
 
@@ -31,6 +26,7 @@ import json
 import logging
 from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware, is_aware
 import paho.mqtt.client as mqtt
 from api_tcc.models import LeituraTelemetria
 
@@ -67,7 +63,7 @@ def on_message(client, userdata, msg):
             temperatura = payload['temperatura'],
             vibracao    = payload['vibracao'],
             rpm         = payload['rpm'],
-            timestamp   = parse_datetime(payload['timestamp']),
+            timestamp   = (lambda dt: make_aware(dt) if not is_aware(dt) else dt)(parse_datetime(payload['timestamp'])),
         )
         print(f'[MQTT] Salvo no banco: {uuid_recebido}')
 

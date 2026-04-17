@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from api_tcc.models import LeituraTelemetria
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.ia.anomalias import detectar_anomalias
@@ -90,43 +90,53 @@ class UltimaLeituraView(APIView):
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
 
-        # pega IDs únicos de máquinas que têm leituras
-        qs = LeituraTelemetria.objects.all()
-        if maquina:
-            qs = qs.filter(maquina_id=maquina)
-
-        # descobre quais máquinas existem no banco
-        maquinas = qs.values_list('maquina_id', flat=True).distinct()
-
+        # SQL raw para pegar apenas a última leitura de cada máquina
+        with connection.cursor() as cursor:
+            if maquina:
+                cursor.execute("""
+                    SELECT maquina_id, temperatura, vibracao, rpm, timestamp,
+                           COUNT(*) as total_leituras
+                    FROM api_tcc_leituratelemetria 
+                    WHERE maquina_id = %s
+                    GROUP BY maquina_id
+                    ORDER BY MAX(timestamp) DESC
+                    LIMIT 1
+                """, [maquina])
+            else:
+                cursor.execute("""
+                    SELECT maquina_id, temperatura, vibracao, rpm, timestamp,
+                           COUNT(*) as total_leituras
+                    FROM api_tcc_leituratelemetria t1
+                    WHERE timestamp = (
+                        SELECT MAX(timestamp) 
+                        FROM api_tcc_leituratelemetria t2 
+                        WHERE t2.maquina_id = t1.maquina_id
+                    )
+                    GROUP BY maquina_id
+                    ORDER BY maquina_id
+                    LIMIT 10
+                """)
+            
+            rows = cursor.fetchall()
+        
         resultado = []
-        for mid in maquinas:
-            ultima = (
-                LeituraTelemetria.objects
-                .filter(maquina_id=mid)
-                .order_by('-timestamp')
-                .first()
-            )
-            if not ultima:
-                continue
-
-            total = LeituraTelemetria.objects.filter(maquina_id=mid).count()
-
-            # classifica risco por regra simples
-            # quando o Random Forest estiver pronto, isso vira uma chamada ao modelo
-            if ultima.temperatura > 85 or ultima.vibracao > 0.8:
+        for row in rows:
+            mid, temp, vib, rpm, ts, total = row
+            
+            if temp > 85 or vib > 0.8:
                 nivel = 'CRITICO'
-            elif ultima.temperatura > 75 or ultima.vibracao > 0.5:
+            elif temp > 75 or vib > 0.5:
                 nivel = 'ATENCAO'
             else:
                 nivel = 'NORMAL'
-
+                
             resultado.append({
-                'maquina_id':     mid,
-                'temperatura':    ultima.temperatura,
-                'vibracao':       ultima.vibracao,
-                'rpm':            ultima.rpm,
-                'timestamp':      ultima.timestamp,
-                'nivel_risco':    nivel,
+                'maquina_id': mid,
+                'temperatura': temp,
+                'vibracao': vib,
+                'rpm': rpm,
+                'timestamp': ts,
+                'nivel_risco': nivel,
                 'total_leituras': total,
             })
 
