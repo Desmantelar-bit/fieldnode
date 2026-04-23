@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo - Sistema Bicolor FieldNode</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { padding: 20px; }
+    .demo-section { margin-bottom: 30px; }
+    .demo-title { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: var(--text); }
+    .demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+    .demo-card { 
+      background: var(--bg2); 
+      border: 1px solid var(--border); 
+      border-radius: var(--radius-lg); 
+      padding: 16px; 
+      position: relative;
+    }
+    .demo-machine-id { 
+      font-size: 14px; 
+      font-family: var(--mono); 
+      font-weight: 600; 
+      margin-bottom: 8px; 
+    }
+    .demo-description { 
+      font-size: 12px; 
+      color: var(--text2); 
+      margin-bottom: 12px; 
+    }
+    .demo-metrics { 
+      display: flex; 
+      gap: 15px; 
+      font-size: 11px; 
+      font-family: var(--mono); 
+    }
+    .demo-metric { text-align: center; }
+    .demo-metric-value { font-size: 16px; font-weight: 300; }
+    .demo-metric-label { color: var(--text3); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<h1 style="color: var(--green); margin-bottom: 30px;">🎨 Sistema Bicolor FieldNode</h1>
+
+<div class="demo-section">
+  <div class="demo-title">Máquinas Únicas (Monocor)</div>
+  <div class="demo-grid" id="maquinas-unicas"></div>
+</div>
+
+<div class="demo-section">
+  <div class="demo-title">Máquinas Duplicadas CASE-TC5000 (Sistema Bicolor)</div>
+  <div class="demo-grid" id="maquinas-duplicadas-case"></div>
+</div>
+
+<div class="demo-section">
+  <div class="demo-title">Máquinas Duplicadas NH-CR9000 (Sistema Bicolor)</div>
+  <div class="demo-grid" id="maquinas-duplicadas-nh"></div>
+</div>
+
+<script>
+// Função getMachineColor (copiada do sistema principal)
+function getMachineColor(maquinaId, allMachines = []) {
+  const marcaCores = {
+    'NH': '#fbbf24',      // New Holland - Amarelo
+    'NEW-HOLLAND': '#fbbf24',
+    'CASE': '#f87171',    // Case IH - Vermelho  
+    'JD': '#4ade80',      // John Deere - Verde
+    'JOHN-DEERE': '#4ade80',
+    'MF': '#60a5fa',      // Massey Ferguson - Azul
+    'MASSEY': '#60a5fa'
+  };
+  
+  const coresSecundarias = {
+    '#fbbf24': '#f59e0b', // Amarelo -> Laranja
+    '#f87171': '#ef4444', // Vermelho -> Vermelho escuro
+    '#4ade80': '#22c55e', // Verde -> Verde escuro
+    '#60a5fa': '#3b82f6'  // Azul -> Azul escuro
+  };
+  
+  let corBase = 'var(--text3)';
+  for (const [marca, cor] of Object.entries(marcaCores)) {
+    if (maquinaId.includes(marca)) {
+      corBase = cor;
+      break;
+    }
+  }
+  
+  if (!allMachines.length) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  }
+  
+  const maquinasPorModelo = {};
+  allMachines.forEach(m => {
+    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
+    
+    if (!maquinasPorModelo[modelo]) {
+      maquinasPorModelo[modelo] = [];
+    }
+    maquinasPorModelo[modelo].push(m);
+  });
+  
+  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
+  
+  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
+  
+  if (maquinasDoMesmoModelo.length <= 1) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  }
+  
+  const indiceMaquina = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
+  
+  if (indiceMaquina === 0) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  } else {
+    const corSecundaria = coresSecundarias[corBase] || corBase;
+    return {
+      primary: corBase,
+      secondary: corSecundaria,
+      isBicolor: true
+    };
+  }
+}
+
+// Dados de demonstração
+const maquinasUnicas = [
+  { maquina_id: 'JD-S700', temp: 78, rpm: 2100, vib: 0.3 },
+  { maquina_id: 'MF-IDEAL9T', temp: 82, rpm: 2300, vib: 0.4 },
+  { maquina_id: 'NH-CR8000', temp: 75, rpm: 1900, vib: 0.2 }
+];
+
+const maquinasDuplicadasCase = [
+  { maquina_id: 'CASE-TC5000-01', temp: 85, rpm: 2400, vib: 0.6 },
+  { maquina_id: 'CASE-TC5000-02', temp: 79, rpm: 2200, vib: 0.4 },
+  { maquina_id: 'CASE-TC5000-03', temp: 88, rpm: 2500, vib: 0.7 }
+];
+
+const maquinasDuplicadasNH = [
+  { maquina_id: 'NH-CR9000-01', temp: 76, rpm: 2000, vib: 0.3 },
+  { maquina_id: 'NH-CR9000-02', temp: 81, rpm: 2150, vib: 0.5 }
+];
+
+function renderMaquinas(maquinas, containerId) {
+  const container = document.getElementById(containerId);
+  
+  container.innerHTML = maquinas.map(m => {
+    const cores = getMachineColor(m.maquina_id, maquinas);
+    
+    return `
+      <div class="demo-card" style="border-left: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
+        <div class="demo-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+          ${m.maquina_id}
+        </div>
+        <div class="demo-description">
+          ${cores.isBicolor ? 
+            `🎨 <strong>Sistema Bicolor</strong> - Diferenciação automática para máquinas do mesmo modelo` : 
+            `🎯 <strong>Monocor</strong> - Máquina única do modelo`
+          }
+        </div>
+        <div class="demo-metrics">
+          <div class="demo-metric">
+            <div class="demo-metric-value" style="color: ${m.temp > 85 ? '#f87171' : m.temp > 75 ? '#fbbf24' : '#4ade80'}">${m.temp}°C</div>
+            <div class="demo-metric-label">TEMP</div>
+          </div>
+          <div class="demo-metric">
+            <div class="demo-metric-value">${m.rpm}</div>
+            <div class="demo-metric-label">RPM</div>
+          </div>
+          <div class="demo-metric">
+            <div class="demo-metric-value" style="color: ${m.vib > 0.5 ? '#f87171' : '#4ade80'}">${m.vib}</div>
+            <div class="demo-metric-label">VIB</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Renderiza as demonstrações
+renderMaquinas(maquinasUnicas, 'maquinas-unicas');
+renderMaquinas(maquinasDuplicadasCase, 'maquinas-duplicadas-case');
+renderMaquinas(maquinasDuplicadasNH, 'maquinas-duplicadas-nh');
+
+</script>
+
+</body>
+</html>

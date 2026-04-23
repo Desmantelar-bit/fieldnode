@@ -218,6 +218,82 @@ function iniciais(nome) {
   return nome.split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase();
 }
 
+function getMachineColor(maquinaId, allMachines = []) {
+  // Cores base por marca
+  const marcaCores = {
+    'NH': '#fbbf24',      // New Holland - Amarelo
+    'NEW-HOLLAND': '#fbbf24',
+    'CASE': '#f87171',    // Case IH - Vermelho  
+    'JD': '#4ade80',      // John Deere - Verde
+    'JOHN-DEERE': '#4ade80',
+    'MF': '#60a5fa',      // Massey Ferguson - Azul
+    'MASSEY': '#60a5fa'
+  };
+  
+  // Cores secundárias para diferenciação (tons complementares)
+  const coresSecundarias = {
+    '#fbbf24': '#f59e0b', // Amarelo -> Laranja
+    '#f87171': '#ef4444', // Vermelho -> Vermelho escuro
+    '#4ade80': '#22c55e', // Verde -> Verde escuro
+    '#60a5fa': '#3b82f6'  // Azul -> Azul escuro
+  };
+  
+  // Identifica a marca da máquina
+  let corBase = 'var(--text3)'; // Cor padrão
+  for (const [marca, cor] of Object.entries(marcaCores)) {
+    if (maquinaId.includes(marca)) {
+      corBase = cor;
+      break;
+    }
+  }
+  
+  // Se não temos informações de todas as máquinas, retorna cor base
+  if (!allMachines.length) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  }
+  
+  // Agrupa máquinas por modelo base (ex: CASE-TC5000)
+  const maquinasPorModelo = {};
+  allMachines.forEach(m => {
+    // Extrai o modelo base do ID (ex: CASE-TC5000-01 -> CASE-TC5000)
+    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
+    
+    if (!maquinasPorModelo[modelo]) {
+      maquinasPorModelo[modelo] = [];
+    }
+    maquinasPorModelo[modelo].push(m);
+  });
+  
+  // Encontra o modelo da máquina atual
+  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
+  
+  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
+  
+  // Se há apenas uma máquina deste modelo, usa monocor
+  if (maquinasDoMesmoModelo.length <= 1) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  }
+  
+  // Se há múltiplas máquinas do mesmo modelo, usa sistema bicolor
+  // A primeira máquina usa cor primária, as demais usam bicolor
+  const indiceMaquina = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
+  
+  if (indiceMaquina === 0) {
+    // Primeira máquina do modelo: cor primária pura
+    return { primary: corBase, secondary: null, isBicolor: false };
+  } else {
+    // Demais máquinas: sistema bicolor
+    const corSecundaria = coresSecundarias[corBase] || corBase;
+    return {
+      primary: corBase,
+      secondary: corSecundaria,
+      isBicolor: true
+    };
+  }
+}
+
 async function carregar() {
   try {
     const [

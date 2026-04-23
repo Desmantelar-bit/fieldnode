@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste - Estrutura da Tabela</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { padding: 20px; background: var(--bg); color: var(--text); }
+    .test-container { max-width: 800px; margin: 0 auto; }
+    .test-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--green); }
+    .debug-info { background: var(--bg2); padding: 15px; border-radius: var(--radius); margin-bottom: 20px; font-family: var(--mono); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="test-container">
+  <h1 class="test-title">🔍 Teste da Estrutura da Tabela</h1>
+  
+  <div class="debug-info">
+    <strong>Estrutura esperada:</strong><br>
+    Header: CASE-TC5000-01 | CASE-TC5000-02 | NH-CR9000-01<br>
+    Linha 1: 72°C | 78°C | 69°C<br>
+    Linha 2: 0.3g | 0.6g | 0.2g<br>
+    Linha 3: 2100 | 2350 | 1950<br>
+    Linha 4: 14:32 | 14:31 | 14:33
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tabela de Teste</div>
+    <div class="status-table-container">
+      <table class="status-table" id="test-table">
+        <thead id="test-head">
+          <!-- Será preenchido pelo JavaScript -->
+        </thead>
+        <tbody id="test-body">
+          <!-- Será preenchido pelo JavaScript -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <button onclick="gerarTabela()" style="margin-top: 20px; padding: 10px 20px; background: var(--green-dim); color: var(--green); border: 1px solid var(--green); border-radius: var(--radius); cursor: pointer;">
+    Gerar Tabela de Teste
+  </button>
+
+  <div id="debug-output" class="debug-info" style="margin-top: 20px; display: none;">
+    <strong>Debug HTML gerado:</strong><br>
+    <div id="debug-content"></div>
+  </div>
+</div>
+
+<script>
+// Dados de teste
+const maquinasTeste = [
+  { maquina_id: 'CASE-TC5000-01', temperatura: 72, vibracao: 0.3, rpm: 2100, timestamp: new Date() },
+  { maquina_id: 'CASE-TC5000-02', temperatura: 78, vibracao: 0.6, rpm: 2350, timestamp: new Date() },
+  { maquina_id: 'NH-CR9000-01', temperatura: 69, vibracao: 0.2, rpm: 1950, timestamp: new Date() }
+];
+
+function getMachineColor(maquinaId, allMachines = []) {
+  const marcaCores = {
+    'CASE': '#f87171',
+    'NH': '#fbbf24',
+    'JD': '#4ade80'
+  };
+  
+  const coresSecundarias = {
+    '#f87171': '#ef4444',
+    '#fbbf24': '#f59e0b',
+    '#4ade80': '#22c55e'
+  };
+  
+  let corBase = '#60a5fa';
+  for (const [marca, cor] of Object.entries(marcaCores)) {
+    if (maquinaId.includes(marca)) {
+      corBase = cor;
+      break;
+    }
+  }
+  
+  const maquinasPorModelo = {};
+  allMachines.forEach(m => {
+    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
+    
+    if (!maquinasPorModelo[modelo]) {
+      maquinasPorModelo[modelo] = [];
+    }
+    maquinasPorModelo[modelo].push(m);
+  });
+  
+  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
+  
+  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
+  
+  if (maquinasDoMesmoModelo.length <= 1) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  }
+  
+  const indiceMaquina = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
+  
+  if (indiceMaquina === 0) {
+    return { primary: corBase, secondary: null, isBicolor: false };
+  } else {
+    const corSecundaria = coresSecundarias[corBase] || corBase;
+    return {
+      primary: corBase,
+      secondary: corSecundaria,
+      isBicolor: true
+    };
+  }
+}
+
+function gerarTabela() {
+  const tableHead = document.getElementById('test-head');
+  const tableBody = document.getElementById('test-body');
+  const debugOutput = document.getElementById('debug-output');
+  const debugContent = document.getElementById('debug-content');
+  
+  console.log('Gerando tabela com dados:', maquinasTeste);
+  
+  // Gera headers
+  const headers = maquinasTeste.map(m => {
+    const cores = getMachineColor(m.maquina_id, maquinasTeste);
+    console.log(`Máquina ${m.maquina_id}:`, cores);
+    
+    return `
+      <th class="machine-header" style="border-top: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
+        <div class="machine-name" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+          ${m.maquina_id}
+        </div>
+        <div class="machine-status-badge" style="background: var(--green-dim); color: var(--green); border: 1px solid var(--green)33;">
+          NORMAL
+        </div>
+      </th>`;
+  });
+  
+  console.log('Headers gerados:', headers);
+  
+  // Monta o header
+  const headerHTML = `<tr>${headers.join('')}</tr>`;
+  tableHead.innerHTML = headerHTML;
+  
+  console.log('Header HTML final:', headerHTML);
+  
+  // Gera linhas de dados
+  const linhas = [
+    // Temperaturas
+    `<tr>${maquinasTeste.map(m => `<td><span style="color: #4ade80;">${m.temperatura}°C</span></td>`).join('')}</tr>`,
+    // Vibrações
+    `<tr>${maquinasTeste.map(m => `<td><span style="color: #4ade80;">${m.vibracao}g</span></td>`).join('')}</tr>`,
+    // RPM
+    `<tr>${maquinasTeste.map(m => `<td><span>${m.rpm}</span></td>`).join('')}</tr>`,
+    // Timestamp
+    `<tr>${maquinasTeste.map(m => `<td><span style="color: var(--text3); font-size: 11px;">14:32</span></td>`).join('')}</tr>`
+  ];
+  
+  console.log('Linhas geradas:', linhas);
+  
+  tableBody.innerHTML = linhas.join('');
+  
+  // Mostra debug
+  debugContent.innerHTML = `
+    <strong>Header HTML:</strong><br>
+    <code style="word-break: break-all;">${headerHTML.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code><br><br>
+    <strong>Body HTML:</strong><br>
+    <code style="word-break: break-all;">${linhas.join('').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>
+  `;
+  debugOutput.style.display = 'block';
+  
+  console.log('Tabela gerada com sucesso!');
+}
+
+// Gera automaticamente ao carregar
+window.onload = function() {
+  gerarTabela();
+};
+</script>
+
+</body>
+</html>

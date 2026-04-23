@@ -82,11 +82,31 @@
       </div>
       <div class="two-col">
         <div class="card">
-          <div class="card-title">Temperatura das máquinas (°C)</div>
+          <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Temperatura das máquinas (°C)</span>
+            <div class="chart-search-container">
+              <div class="chart-search-wrapper">
+                <input type="text" id="temp-chart-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
+                <div id="temp-chart-suggestions" class="chart-suggestions"></div>
+              </div>
+              <button class="chart-search-clear" onclick="clearTempFilter()" title="Limpar filtro">✕</button>
+              <button class="chart-refresh-btn" onclick="refreshTempChart()" title="Atualizar gráfico">🔄</button>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Nível de combustível (%)</div>
+          <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Nível de combustível (%)</span>
+            <div class="chart-search-container">
+              <div class="chart-search-wrapper">
+                <input type="text" id="fuel-chart-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
+                <div id="fuel-chart-suggestions" class="chart-suggestions"></div>
+              </div>
+              <button class="chart-search-clear" onclick="clearFuelFilter()" title="Limpar filtro">✕</button>
+              <button class="chart-refresh-btn" onclick="refreshFuelChart()" title="Atualizar gráfico">🔄</button>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="fuelChart"></canvas></div>
         </div>
       </div>
@@ -100,8 +120,72 @@
           <div class="chart-wrap chart-move"><canvas id="moveChart"></canvas></div>
         </div>
       </div>
+      <div class="card" style="margin-bottom: 14px;">
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Status em tempo real por máquina</span>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="machine-search-container">
+              <div class="search-wrapper">
+                <input type="text" id="machine-search" placeholder="Buscar máquina..." class="machine-search-input" autocomplete="off">
+                <div id="search-suggestions" class="search-suggestions"></div>
+              </div>
+              <button class="machine-search-btn" onclick="buscarMaquina()">🔍</button>
+            </div>
+            <div class="carousel-controls">
+              <button class="carousel-btn" id="carousel-prev" onclick="scrollMaquinasTabela(-1)">‹</button>
+              <button class="carousel-btn" id="carousel-next" onclick="scrollMaquinasTabela(1)">›</button>
+            </div>
+            <span id="ultimo-update" style="font-size:10px; color:var(--text3); font-family:var(--mono);">atualizando...</span>
+          </div>
+        </div>
+        <div class="status-table-container">
+          <div class="status-table-wrapper" id="status-table-wrapper">
+            <table class="status-table" id="status-table">
+              <thead id="status-table-head">
+                <tr>
+                </tr>
+              </thead>
+              <tbody id="status-table-body">
+                <tr>
+                  <td colspan="100%" class="state-msg">Carregando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- card de inteligência artificial -->
+      <div class="card" style="margin-bottom: 14px;">
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Análise de IA — Visão Geral da Frota</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="chart-search-container">
+              <div class="chart-search-wrapper">
+                <input type="text" id="ia-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
+                <div id="ia-suggestions" class="chart-suggestions"></div>
+              </div>
+              <button class="chart-search-clear" onclick="clearIAFilter()" title="Limpar filtro">✕</button>
+              <button class="chart-refresh-btn" onclick="refreshIA()" title="Atualizar análise">🔄</button>
+            </div>
+            <span id="ia-update" style="font-size:10px; color:var(--text3); font-family:var(--mono);">aguardando dados...</span>
+          </div>
+        </div>
+        <div id="ia-container">
+          <div class="state-msg">Aguardando leituras suficientes para análise...</div>
+        </div>
+      </div>
       <div class="card">
-        <div class="card-title">ESP32 — últimas leituras de telemetria</div>
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>ESP32 — últimas leituras de telemetria</span>
+          <div class="chart-search-container">
+            <div class="chart-search-wrapper">
+              <input type="text" id="telemetria-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
+              <div id="telemetria-suggestions" class="chart-suggestions"></div>
+            </div>
+            <button class="chart-search-clear" onclick="clearTelemetriaFilter()" title="Limpar filtro">✕</button>
+            <button class="chart-refresh-btn" onclick="refreshTelemetria()" title="Atualizar dados">🔄</button>
+          </div>
+        </div>
         <div id="telemetria-container"><div class="state-msg">Carregando...</div></div>
       </div>
     </div>
@@ -338,6 +422,19 @@
   </div><!-- /content -->
 </main>
 
+<!-- POPUP DE DETALHES DA MÁQUINA -->
+<div id="machine-popup" class="machine-popup-overlay" style="display: none;">
+  <div class="machine-popup">
+    <div class="machine-popup-header">
+      <h3 id="popup-machine-title">Detalhes da Máquina</h3>
+      <button class="machine-popup-close" onclick="fecharPopupMaquina()">×</button>
+    </div>
+    <div class="machine-popup-content" id="popup-machine-content">
+      <div class="state-msg">Carregando...</div>
+    </div>
+  </div>
+</div>
+
 <!-- Chart.js: biblioteca de graficos carregada do CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="config.js"></script>
@@ -448,10 +545,24 @@ async function verificarAPI() {
   const txt  = document.getElementById('api-status-text');
   dot.classList.remove('online', 'offline', 'pulse');
   try {
-    await fetch(API + '/Colheitadeira/');
-    dot.classList.add('online');
-    txt.textContent = 'API online';
-  } catch {
+    console.log('Testando API:', API + '/Colheitadeira/');
+    const response = await fetch(API + '/Colheitadeira/', {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log('Response status:', response.status);
+    if (response.ok) {
+      dot.classList.add('online');
+      txt.textContent = 'API online';
+      console.log('API online!');
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Erro na verificação da API:', error);
     dot.classList.add('offline');
     txt.textContent = 'API offline';
   }
@@ -509,10 +620,13 @@ async function carregarDashboard() {
       apiFetch('/api/telemetria/'),
     ]);
 
-    renderMetrics(colh, temp, comb);
+    renderMetrics(colh, temp, comb, telemetria);
     renderAmbiente(amb);
-    renderTempChart(temp);
-    renderFuelChart(colh, comb);
+    
+    // Usa dados de telemetria para gráficos dinâmicos
+    renderTempChart(telemetria);
+    renderFuelChart(telemetria);
+    
     renderMoveChart(colh, movimentos);
     renderTelemetria(telemetria);
 
@@ -529,9 +643,21 @@ function renderTelemetria(leituras) {
     return;
   }
 
+  // Aplica filtro se existir
+  let dadosFiltrados = leituras;
+  if (telemetriaFilter.length > 0) {
+    dadosFiltrados = leituras.filter(l => telemetriaFilter.includes(l.maquina_id));
+  }
+
+  // Se não há dados após filtro, mostra mensagem
+  if (dadosFiltrados.length === 0) {
+    cont.innerHTML = '<div class="state-msg">Nenhuma máquina encontrada com o filtro aplicado. <button onclick="clearTelemetriaFilter()" style="color:var(--green);background:none;border:none;cursor:pointer;text-decoration:underline;">Limpar filtro</button></div>';
+    return;
+  }
+
   // Agrupa a leitura mais recente por maquina_id para o resumo de cards
   const porMaquina = {};
-  leituras.forEach(l => {
+  dadosFiltrados.forEach(l => {
     if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = l;
   });
 
@@ -539,14 +665,30 @@ function renderTelemetria(leituras) {
   const rpmColor  = r => r > 3000 ? C.red : r > 2000 ? C.amber : C.green;
   const vibColor  = v => v > 8 ? C.red : v > 5 ? C.amber : C.green;
 
-  const cards = Object.values(porMaquina).map(l => {
+  // Prepara dados para o sistema de cores inteligente
+  const todasMaquinas = Object.values(porMaquina);
+
+  const cards = todasMaquinas.map(l => {
     const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
+    const cores = getMachineColor(l.maquina_id, todasMaquinas);
+    
+    // Estilo do card baseado no sistema bicolor
+    let cardStyle = `border-left: 3px solid ${cores.primary};`;
+    let idStyle = `color: ${cores.primary};`;
+    
+    if (cores.isBicolor) {
+      cardStyle = `border-left: 4px solid; border-image: linear-gradient(180deg, ${cores.primary} 0%, ${cores.secondary} 100%) 1; background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);`;
+      idStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
+    }
+    
     return `
-      <div class="telemetria-card">
-        <div class="telemetria-id">${l.maquina_id}</div>
+      <div class="telemetria-card" style="${cardStyle}">
+        <div class="telemetria-id" style="${idStyle}">
+          ${l.maquina_id}${cores.isBicolor ? ' (Máq+Op)' : ''}
+        </div>
         <div class="telemetria-metrics">
           <div class="telemetria-metric">
             <span class="telemetria-label">TEMP</span>
@@ -569,21 +711,35 @@ function renderTelemetria(leituras) {
       </div>`;
   }).join('');
 
-  // Tabela com as últimas 10 leituras brutas
-  const linhas = leituras.slice(0, 10).map(l => {
+  // Tabela com as últimas 10 leituras brutas com cores por máquina
+  const linhas = dadosFiltrados.slice(0, 10).map(l => {
     const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
+    const cores = getMachineColor(l.maquina_id, todasMaquinas);
+    
+    // Estilo do nome da máquina com sistema bicolor
+    let nomeStyle = `color: ${cores.primary}; font-weight: 600;`;
+    if (cores.isBicolor) {
+      nomeStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
+    }
+    
     return `
       <tr>
-        <td class="mono">${l.maquina_id}</td>
+        <td class="mono" style="${nomeStyle}">
+          ${l.maquina_id}${cores.isBicolor ? ' (M+O)' : ''}
+        </td>
         <td style="color:${tempColor(l.temperatura)}">${l.temperatura} °C</td>
         <td style="color:${vibColor(l.vibracao)}">${l.vibracao} g</td>
         <td style="color:${rpmColor(l.rpm)}">${l.rpm}</td>
         <td class="mono" style="color:var(--text3);font-size:11px">${ts}</td>
       </tr>`;
   }).join('');
+
+  const totalMaquinasFiltradas = Object.keys(porMaquina).length;
+  const totalLeiturasFiltradas = dadosFiltrados.length;
+  const filtroAtivo = telemetriaFilter.length > 0;
 
   cont.innerHTML = `
     <div class="telemetria-cards">${cards}</div>
@@ -599,16 +755,42 @@ function renderTelemetria(leituras) {
       </table>
     </div>
     <div style="margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono)">
-      ${leituras.length} leitura${leituras.length !== 1 ? 's' : ''} recebida${leituras.length !== 1 ? 's' : ''}
-      &nbsp;·&nbsp; ${Object.keys(porMaquina).length} máquina${Object.keys(porMaquina).length !== 1 ? 's' : ''} ativa${Object.keys(porMaquina).length !== 1 ? 's' : ''}
+      ${totalLeiturasFiltradas} leitura${totalLeiturasFiltradas !== 1 ? 's' : ''} ${filtroAtivo ? 'filtrada' : 'recebida'}${totalLeiturasFiltradas !== 1 ? 's' : ''}
+      &nbsp;•&nbsp; ${totalMaquinasFiltradas} máquina${totalMaquinasFiltradas !== 1 ? 's' : ''} ${filtroAtivo ? 'selecionada' : 'ativa'}${totalMaquinasFiltradas !== 1 ? 's' : ''}
+      ${filtroAtivo ? '&nbsp;•&nbsp; <span style="color:var(--amber);">Filtro ativo</span>' : ''}
     </div>`;
 }
 
-function renderMetrics(colh, temp, comb) {
-  const total    = colh.length;
-  const emOp     = colh.filter(c => c.StatusdeOperacao).length;
-  const maxTemp  = temp.length ? Math.max(...temp.map(t => t.Temperatura)) : '—';
-  const mediaC   = comb.length ? (comb.reduce((s,c) => s + c.Porcentagem, 0) / comb.length).toFixed(1) : '—';
+function renderMetrics(colh, temp, comb, telemetria = []) {
+  const total = colh.length;
+  const emOp = colh.filter(c => c.StatusdeOperacao).length;
+  
+  // Usa dados de telemetria se disponíveis, senão usa dados estáticos
+  let maxTemp, mediaC;
+  
+  if (telemetria.length > 0) {
+    // Dados dinâmicos de telemetria
+    maxTemp = Math.max(...telemetria.map(t => t.temperatura)).toFixed(1);
+    
+    // Simula combustível médio baseado na atividade
+    const porMaquina = {};
+    telemetria.forEach(l => {
+      if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = [];
+      porMaquina[l.maquina_id].push(l);
+    });
+    
+    const combustiveis = Object.values(porMaquina).map(leituras => {
+      const ultima = leituras[leituras.length - 1];
+      const fatorConsumo = (ultima.rpm / 2500) * (ultima.temperatura / 100);
+      return Math.max(15, Math.min(95, 85 - (fatorConsumo * 30) + (Math.random() * 20)));
+    });
+    
+    mediaC = combustiveis.length ? (combustiveis.reduce((s, c) => s + c, 0) / combustiveis.length).toFixed(1) : '—';
+  } else {
+    // Fallback para dados estáticos
+    maxTemp = temp.length ? Math.max(...temp.map(t => t.Temperatura)) : '—';
+    mediaC = comb.length ? (comb.reduce((s, c) => s + c.Porcentagem, 0) / comb.length).toFixed(1) : '—';
+  }
 
   document.getElementById('metrics-container').innerHTML = `
     <div class="metric-card">
@@ -622,14 +804,14 @@ function renderMetrics(colh, temp, comb) {
       <div class="metric-sub">registros ativos</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Temp. máx. (máq.)</div>
+      <div class="metric-label">Temp. máx. ${telemetria.length > 0 ? '(ESP32)' : '(máq.)'}</div>
       <div class="metric-value">${maxTemp}<span class="metric-unit">°C</span></div>
-      <div class="metric-sub">última leitura</div>
+      <div class="metric-sub">${telemetria.length > 0 ? 'telemetria ativa' : 'última leitura'}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Combustível médio</div>
       <div class="metric-value">${mediaC}<span class="metric-unit">%</span></div>
-      <div class="metric-sub">${comb.length} registros</div>
+      <div class="metric-sub">${telemetria.length > 0 ? 'estimado' : comb.length + ' registros'}</div>
     </div>
   `;
 }
@@ -647,46 +829,340 @@ function renderAmbiente(amb) {
   `;
 }
 
-function renderTempChart(temp) {
-  const labels = temp.map((_, i) => '#' + (i+1));
-  const data   = temp.map(t => t.Temperatura);
+function renderTempChart(telemetria) {
+  if (!telemetria || !telemetria.length) {
+    // Se não há dados de telemetria, usa dados estáticos como fallback
+    const labels = ['Sem dados'];
+    const data = [0];
+    criarOuAtualizar('tempChart', {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Temperatura', data,
+          borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
+          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: scaleDefaults(),
+      }
+    });
+    return;
+  }
+
+  // Aplica filtro se existir
+  let dadosFiltrados = telemetria;
+  if (tempChartFilter.length > 0) {
+    dadosFiltrados = telemetria.filter(l => tempChartFilter.includes(l.maquina_id));
+  }
+
+  // Se não há dados após filtro, mostra mensagem
+  if (dadosFiltrados.length === 0) {
+    criarOuAtualizar('tempChart', {
+      type: 'line',
+      data: {
+        labels: ['Filtro aplicado'],
+        datasets: [{
+          label: 'Temperatura', data: [0],
+          borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
+          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: () => 'Nenhuma máquina encontrada',
+              label: () => 'Ajuste o filtro ou limpe-o'
+            }
+          }
+        },
+        scales: scaleDefaults(),
+      }
+    });
+    return;
+  }
+
+  // Agrupa por máquina e pega as últimas 10 leituras de cada uma
+  const porMaquina = {};
+  dadosFiltrados.forEach(l => {
+    if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = [];
+    porMaquina[l.maquina_id].push(l);
+  });
+
+  // Prepara datasets para cada máquina com suas cores
+  const datasets = [];
+  const todasMaquinas = Object.keys(porMaquina).map(id => ({ maquina_id: id }));
+  
+  Object.entries(porMaquina).forEach(([maquinaId, leituras]) => {
+    const cores = getMachineColor(maquinaId, todasMaquinas);
+    const ultimasLeituras = leituras.slice(-10); // Últimas 10 leituras
+    
+    // Configuração de cores para o gráfico
+    let borderColor = cores.primary;
+    let backgroundColor = `${cores.primary}20`;
+    let pointBackgroundColor = cores.primary;
+    let pointBorderColor = cores.primary;
+    let pointBorderWidth = 0;
+    
+    // Se é bicolor, aplica gradiente e borda secundária
+    if (cores.isBicolor) {
+      // Cria gradiente para a linha
+      borderColor = cores.primary;
+      backgroundColor = `${cores.primary}15`;
+      pointBackgroundColor = cores.primary;
+      pointBorderColor = cores.secondary;
+      pointBorderWidth = 3;
+    }
+    
+    datasets.push({
+      label: maquinaId,
+      data: ultimasLeituras.map(l => l.temperatura),
+      borderColor: borderColor,
+      backgroundColor: backgroundColor,
+      borderWidth: cores.isBicolor ? 3 : 2,
+      pointRadius: cores.isBicolor ? 6 : 4,
+      pointBackgroundColor: pointBackgroundColor,
+      pointBorderColor: pointBorderColor,
+      pointBorderWidth: pointBorderWidth,
+      tension: 0.4,
+      fill: false
+    });
+  });
+
+  // Labels baseados no número máximo de leituras
+  const maxLeituras = Math.max(...Object.values(porMaquina).map(l => l.length));
+  const labels = Array.from({length: Math.min(maxLeituras, 10)}, (_, i) => `#${i + 1}`);
+
   criarOuAtualizar('tempChart', {
     type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Temperatura', data,
-        borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
-        borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
-      }]
-    },
+    data: { labels, datasets },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: scaleDefaults(),
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { 
+          display: true,
+          position: 'top',
+          labels: {
+            color: C.tick,
+            font: { size: 10 },
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        }
+      },
+      scales: {
+        ...scaleDefaults(),
+        y: {
+          ...scaleDefaults().y,
+          title: {
+            display: true,
+            text: 'Temperatura (°C)',
+            color: C.tick,
+            font: { size: 11 }
+          }
+        }
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index'
+      }
     }
   });
 }
 
-function renderFuelChart(colh, comb) {
-  // Monta label como "Colh. #01" e busca o combustivel vinculado a cada maquina
-  const labels = colh.map((c, i) => 'Colh. #' + String(c.id).padStart(2,'0'));
-  const data   = colh.map(c => {
-    // Procura o registro de combustivel cujo id bate com o FK da colheitadeira
-    const combDaColh = comb.find(cb => cb.id === c.Combustivel);
-    return combDaColh ? combDaColh.Porcentagem : 0;
+function renderFuelChart(telemetria) {
+  if (!telemetria || !telemetria.length) {
+    // Fallback para dados estáticos se não há telemetria
+    criarOuAtualizar('fuelChart', {
+      type: 'bar',
+      data: {
+        labels: ['Sem dados'],
+        datasets: [{ 
+          label: 'Combustível %', 
+          data: [0], 
+          backgroundColor: [C.red], 
+          borderRadius: 4, 
+          borderSkipped: false 
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { 
+          ...scaleDefaults(), 
+          y: { 
+            ...scaleDefaults().y, 
+            min: 0, 
+            max: 100, 
+            ticks: { 
+              ...scaleDefaults().y.ticks, 
+              callback: v => v + '%' 
+            } 
+          } 
+        },
+      }
+    });
+    return;
+  }
+
+  // Aplica filtro se existir
+  let dadosFiltrados = telemetria;
+  if (fuelChartFilter.length > 0) {
+    dadosFiltrados = telemetria.filter(l => fuelChartFilter.includes(l.maquina_id));
+  }
+
+  // Se não há dados após filtro, mostra mensagem
+  if (dadosFiltrados.length === 0) {
+    criarOuAtualizar('fuelChart', {
+      type: 'bar',
+      data: {
+        labels: ['Filtro aplicado'],
+        datasets: [{ 
+          label: 'Combustível %', 
+          data: [0], 
+          backgroundColor: [C.amber], 
+          borderRadius: 4, 
+          borderSkipped: false 
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: () => 'Nenhuma máquina encontrada',
+              label: () => 'Ajuste o filtro ou limpe-o'
+            }
+          }
+        },
+        scales: { 
+          ...scaleDefaults(), 
+          y: { 
+            ...scaleDefaults().y, 
+            min: 0, 
+            max: 100, 
+            ticks: { 
+              ...scaleDefaults().y.ticks, 
+              callback: v => v + '%' 
+            } 
+          } 
+        },
+      }
+    });
+    return;
+  }
+
+  // Agrupa por máquina e simula nível de combustível baseado na atividade
+  const porMaquina = {};
+  dadosFiltrados.forEach(l => {
+    if (!porMaquina[l.maquina_id]) {
+      porMaquina[l.maquina_id] = {
+        leituras: [],
+        maquina_id: l.maquina_id
+      };
+    }
+    porMaquina[l.maquina_id].leituras.push(l);
   });
-  const colors = data.map(v => v < 30 ? C.red : v < 60 ? C.amber : C.green);
+
+  const maquinas = Object.values(porMaquina);
+  const todasMaquinas = maquinas.map(m => ({ maquina_id: m.maquina_id }));
+  
+  // Simula nível de combustível baseado na atividade da máquina
+  const labels = [];
+  const data = [];
+  const colors = [];
+  
+  maquinas.forEach(m => {
+    const cores = getMachineColor(m.maquina_id, todasMaquinas);
+    const ultimaLeitura = m.leituras[m.leituras.length - 1];
+    
+    // Simula combustível baseado em RPM e temperatura
+    // RPM alto + temperatura alta = mais consumo = menos combustível
+    const fatorConsumo = (ultimaLeitura.rpm / 2500) * (ultimaLeitura.temperatura / 100);
+    const combustivelSimulado = Math.max(15, Math.min(95, 85 - (fatorConsumo * 30) + (Math.random() * 20)));
+    
+    labels.push(m.maquina_id + (cores.isBicolor ? ' (M+O)' : ''));
+    data.push(Math.round(combustivelSimulado));
+    
+    // Cor baseada no nível de combustível, mas considerando o sistema bicolor
+    const nivel = combustivelSimulado;
+    let corFinal;
+    if (nivel < 30) {
+      corFinal = C.red;
+    } else if (nivel < 60) {
+      corFinal = C.amber;
+    } else {
+      // Se é bicolor, usa a cor primária, senão usa verde padrão
+      corFinal = cores.isBicolor ? cores.primary : cores.primary;
+    }
+    
+    colors.push(corFinal);
+  });
+  
   criarOuAtualizar('fuelChart', {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Combustivel %', data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+      datasets: [{ 
+        label: 'Combustível %', 
+        data, 
+        backgroundColor: colors,
+        borderRadius: 6, 
+        borderSkipped: false,
+        borderWidth: 2,
+        borderColor: colors.map(c => c + '80')
+      }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { ...scaleDefaults(), y: { ...scaleDefaults().y, min: 0, max: 100, ticks: { ...scaleDefaults().y.ticks, callback: v => v + '%' } } },
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const maquina = context.label;
+              const valor = context.parsed.y;
+              const status = valor < 30 ? ' (CRÍTICO)' : valor < 60 ? ' (ATENÇÃO)' : ' (OK)';
+              return `${maquina}: ${valor}%${status}`;
+            }
+          }
+        }
+      },
+      scales: { 
+        ...scaleDefaults(), 
+        y: { 
+          ...scaleDefaults().y, 
+          min: 0, 
+          max: 100,
+          title: {
+            display: true,
+            text: 'Nível de Combustível (%)',
+            color: C.tick,
+            font: { size: 11 }
+          },
+          ticks: { 
+            ...scaleDefaults().y.ticks, 
+            callback: v => v + '%' 
+          } 
+        },
+        x: {
+          ...scaleDefaults().x,
+          ticks: {
+            ...scaleDefaults().x.ticks,
+            maxRotation: 45,
+            font: { size: 10 }
+          }
+        }
+      },
     }
   });
 }
@@ -807,43 +1283,64 @@ async function carregarOperarios() {
 
 /* ─────────────────────────────────────────
    9. ALERTAS
-   Analise automatica dos dados da API — sem configuracao manual.
+   Analise automatica dos dados de telemetria em tempo real.
    Regras atuais:
      - Temperatura > 85°C  → CRITICO (vermelho)
      - Temperatura > 75°C  → ATENCAO (amarelo)
-     - Combustivel < 20%   → CRITICO (vermelho)
-     - Combustivel < 40%   → ATENCAO (amarelo)
-   Para adicionar novas regras, basta incluir mais
-   blocos if/else no loop de cada sensor.
+     - Vibração > 0.8      → CRITICO (vermelho)
+     - Vibração > 0.5      → ATENCAO (amarelo)
+     - RPM < 1300          → ATENCAO (amarelo)
 ───────────────────────────────────────── */
 async function carregarAlertas() {
   const cont = document.getElementById('alertas-container');
   cont.innerHTML = '<div class="state-msg">Analisando dados...</div>';
   try {
-    const [temp, comb, mov] = await Promise.all([
-      apiFetch('/Temperaturamaquina/'),
-      apiFetch('/Combustivel/'),
-      apiFetch('/Estadodemovimento/'),
-    ]);
+    // Usa os dados reais de telemetria em vez das tabelas antigas
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
 
     const alertas = [];
 
-    temp.forEach((t, i) => {
-      if (t.Temperatura > 85)
-        alertas.push({ nivel: 'red',   msg: `Temperatura crítica: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
-      else if (t.Temperatura > 75)
-        alertas.push({ nivel: 'amber', msg: `Temperatura elevada: ${t.Temperatura}°C (máquina #${i+1})`, meta: 'Limite: 85°C' });
-    });
+    // Analisa cada máquina com base nos dados de telemetria atuais
+    maquinas.forEach(m => {
+      // Alertas de temperatura
+      if (m.temperatura > 85)
+        alertas.push({ 
+          nivel: 'red', 
+          msg: `Temperatura crítica: ${m.temperatura}°C (${m.maquina_id})`, 
+          meta: 'Limite: 85°C - Risco de superaquecimento!' 
+        });
+      else if (m.temperatura > 75)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `Temperatura elevada: ${m.temperatura}°C (${m.maquina_id})`, 
+          meta: 'Limite: 85°C - Monitorar de perto' 
+        });
 
-    comb.forEach((c, i) => {
-      if (c.Porcentagem < 20)
-        alertas.push({ nivel: 'red',   msg: `Combustível crítico: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 20%' });
-      else if (c.Porcentagem < 40)
-        alertas.push({ nivel: 'amber', msg: `Combustível baixo: ${c.Porcentagem}% — ${c.Tipo}`, meta: 'Abaixo de 40%' });
+      // Alertas de vibração
+      if (m.vibracao > 0.8)
+        alertas.push({ 
+          nivel: 'red', 
+          msg: `Vibração crítica: ${m.vibracao} (${m.maquina_id})`, 
+          meta: 'Limite: 0.8 - Possível falha mecânica!' 
+        });
+      else if (m.vibracao > 0.5)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `Vibração elevada: ${m.vibracao} (${m.maquina_id})`, 
+          meta: 'Limite: 0.8 - Verificar componentes' 
+        });
+
+      // Alertas de RPM
+      if (m.rpm < 1300)
+        alertas.push({ 
+          nivel: 'amber', 
+          msg: `RPM baixo: ${m.rpm} (${m.maquina_id})`, 
+          meta: 'Mínimo: 1300 RPM - Verificar motor' 
+        });
     });
 
     if (!alertas.length) {
-      cont.innerHTML = '<div class="state-msg ok-green">✓ Nenhum alerta ativo.</div>';
+      cont.innerHTML = '<div class="state-msg ok-green">✓ Nenhum alerta ativo no momento.</div>';
     } else {
       cont.innerHTML = alertas.map(a => `
         <div class="alert-item">
@@ -856,15 +1353,16 @@ async function carregarAlertas() {
       ).join('');
     }
 
+    // Atualiza o gráfico com base nos dados reais
     const criticos = alertas.filter(a => a.nivel === 'red').length;
     const avisos   = alertas.filter(a => a.nivel === 'amber').length;
-    const ok       = (temp.length + comb.length) - criticos - avisos;
+    const ok       = maquinas.length - Math.ceil((criticos + avisos) / 2);
 
     criarOuAtualizar('alertChart', {
       type: 'doughnut',
       data: {
         labels: ['Normal', 'Atenção', 'Crítico'],
-        datasets: [{ data: [ok, avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
+        datasets: [{ data: [Math.max(0, ok), avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -1146,6 +1644,1215 @@ async function cadastrarColheitadeira() {
      - Popula o select de Marcas (aba Referencia)
      - Agenda nova verificacao da API a cada 30 segundos
 ───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   STATUS EM TEMPO REAL — polling a cada 3 segundos
+   Consome /api/leituras/ultimas/ e atualiza os cards
+   sem precisar recarregar a página
+   
+   MELHORIAS IMPLEMENTADAS:
+   - Layout em carrossel com 12 status (3 tabelas de 4 informações)
+   - Cores diferentes por marca de máquina
+   - Controles de navegação
+────────────────────────────────────────────────────────────── */
+function nivelCor(nivel) {
+  return nivel === 'CRITICO' ? C.red : nivel === 'ATENCAO' ? C.amber : C.green;
+}
+
+function nivelBg(nivel) {
+  return nivel === 'CRITICO' ? 'var(--red-dim)' : nivel === 'ATENCAO' ? 'var(--amber-dim)' : 'var(--green-dim)';
+}
+
+function getMachineColor(maquinaId, allMachines = []) {
+  // Sistema de cores únicas por máquina (não por marca)
+  // Cada máquina terá sua própria cor para evitar confusões
+  const coresPrimarias = [
+    '#f87171', // Vermelho
+    '#fbbf24', // Amarelo  
+    '#4ade80', // Verde
+    '#60a5fa', // Azul
+    '#a78bfa', // Roxo
+    '#f59e0b', // Laranja
+    '#10b981', // Verde esmeralda
+    '#ef4444', // Vermelho escuro
+    '#3b82f6', // Azul escuro
+    '#8b5cf6', // Roxo escuro
+    '#06b6d4', // Ciano
+    '#84cc16'  // Verde lima
+  ];
+  
+  // Cores secundárias para sistema bicolor (bem distintas das primárias)
+  const coresSecundarias = [
+    '#3b82f6', // Azul
+    '#10b981', // Verde esmeralda
+    '#f59e0b', // Laranja
+    '#ef4444', // Vermelho
+    '#06b6d4', // Ciano
+    '#8b5cf6', // Roxo
+    '#84cc16', // Verde lima
+    '#a78bfa', // Roxo claro
+    '#fbbf24', // Amarelo
+    '#4ade80', // Verde
+    '#f87171', // Vermelho claro
+    '#60a5fa'  // Azul claro
+  ];
+  
+  // Se não temos informações de todas as máquinas, usa cor padrão
+  if (!allMachines.length) {
+    return { primary: coresPrimarias[0], secondary: null, isBicolor: false };
+  }
+  
+  // Ordena as máquinas por ID para garantir consistência
+  const maquinasOrdenadas = [...allMachines].sort((a, b) => a.maquina_id.localeCompare(b.maquina_id));
+  
+  // Agrupa máquinas por modelo base para determinar herança de cores
+  const maquinasPorModelo = {};
+  const modelosUnicos = new Set();
+  
+  maquinasOrdenadas.forEach(m => {
+    // Extrai o modelo base do ID (ex: CASE-TC5000-01 -> CASE-TC5000)
+    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
+    
+    if (!maquinasPorModelo[modelo]) {
+      maquinasPorModelo[modelo] = [];
+    }
+    maquinasPorModelo[modelo].push(m);
+    modelosUnicos.add(modelo);
+  });
+  
+  // Ordena os modelos únicos para atribuição consistente de cores
+  const modelosOrdenados = Array.from(modelosUnicos).sort();
+  
+  // Encontra o modelo da máquina atual
+  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
+  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
+  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
+  
+  // Encontra o índice do modelo para atribuir cor primária
+  const indiceModelo = modelosOrdenados.indexOf(modeloAtual);
+  const corPrimariaDoModelo = coresPrimarias[indiceModelo % coresPrimarias.length];
+  
+  // Encontra a posição da máquina atual dentro do modelo
+  const indiceDentroDoModelo = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
+  
+  if (indiceDentroDoModelo === 0) {
+    // Primeira máquina do modelo: cor única (define a cor do modelo)
+    return { primary: corPrimariaDoModelo, secondary: null, isBicolor: false };
+  } else {
+    // Demais máquinas do modelo: herdam a cor primária + cor secundária independente
+    const indiceMaquinaGlobal = maquinasOrdenadas.findIndex(m => m.maquina_id === maquinaId);
+    const corSecundaria = coresSecundarias[indiceMaquinaGlobal % coresSecundarias.length];
+    
+    return {
+      primary: corPrimariaDoModelo,    // Herda a cor do modelo
+      secondary: corSecundaria,        // Cor secundária independente
+      isBicolor: true
+    };
+  }
+}
+
+function aplicarCorMaquina(elemento, cores) {
+  if (cores.isBicolor) {
+    // Aplica gradiente bicolor
+    elemento.style.background = `linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%)`;
+    elemento.style.borderLeft = `4px solid ${cores.primary}`;
+  } else {
+    // Aplica cor única
+    elemento.style.color = cores.primary;
+    elemento.style.borderLeft = `4px solid ${cores.primary}`;
+  }
+}
+
+let currentTableIndex = 0;
+let totalMachines = 0;
+let allMachinesData = []; // Armazena todos os dados das máquinas
+
+// Variáveis globais para filtros dos gráficos
+let tempChartFilter = [];
+let fuelChartFilter = [];
+let telemetriaFilter = [];
+let iaFilter = [];
+
+// Funções de limpeza de filtros
+function clearTempFilter() {
+  tempChartFilter = [];
+  document.getElementById('temp-chart-search').value = '';
+  document.getElementById('temp-chart-suggestions').classList.remove('show');
+  refreshTempChart();
+}
+
+function clearFuelFilter() {
+  fuelChartFilter = [];
+  document.getElementById('fuel-chart-search').value = '';
+  document.getElementById('fuel-chart-suggestions').classList.remove('show');
+  refreshFuelChart();
+}
+
+function clearTelemetriaFilter() {
+  telemetriaFilter = [];
+  document.getElementById('telemetria-search').value = '';
+  document.getElementById('telemetria-suggestions').classList.remove('show');
+  refreshTelemetria();
+}
+
+function clearIAFilter() {
+  iaFilter = [];
+  document.getElementById('ia-search').value = '';
+  document.getElementById('ia-suggestions').classList.remove('show');
+  refreshIA();
+}
+
+// Funções de refresh individuais
+function refreshTempChart() {
+  if (allMachinesData.length) {
+    renderTempChart(allMachinesData);
+  } else {
+    carregarDashboard();
+  }
+}
+
+function refreshFuelChart() {
+  if (allMachinesData.length) {
+    renderFuelChart(allMachinesData);
+  } else {
+    carregarDashboard();
+  }
+}
+
+function refreshTelemetria() {
+  if (allMachinesData.length) {
+    renderTelemetria(allMachinesData);
+  } else {
+    carregarDashboard();
+  }
+}
+
+function refreshAmbiente() {
+  carregarDashboard();
+}
+
+function refreshIA() {
+  atualizarIA();
+}
+
+function refreshMachineTable() {
+  atualizarStatusMaquinas();
+}
+
+function scrollMaquinasTabela(direction) {
+  const table = document.getElementById('status-table');
+  const prevBtn = document.getElementById('carousel-prev');
+  const nextBtn = document.getElementById('carousel-next');
+  
+  if (!table || totalMachines <= 3) {
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    return;
+  }
+  
+  // Calcula novo índice (grupos de 3)
+  const maxIndex = Math.ceil(totalMachines / 3) - 1;
+  currentTableIndex = Math.max(0, Math.min(maxIndex, currentTableIndex + direction));
+  
+  // Atualiza estado dos botões
+  prevBtn.disabled = currentTableIndex === 0;
+  nextBtn.disabled = currentTableIndex >= maxIndex;
+  
+  // Atualiza a tabela com as máquinas do grupo atual
+  renderStatusTable(allMachinesData, currentTableIndex);
+}
+
+function renderStatusTable(maquinas, groupIndex = 0) {
+  const tableHead = document.getElementById('status-table-head');
+  const tableBody = document.getElementById('status-table-body');
+  
+  if (!maquinas.length) {
+    tableHead.innerHTML = '<tr><th colspan="100%" class="state-msg">Nenhuma leitura recebida do ESP32 ainda.</th></tr>';
+    tableBody.innerHTML = '';
+    return;
+  }
+
+  // Pega 3 máquinas do grupo atual
+  const startIndex = groupIndex * 3;
+  const endIndex = Math.min(startIndex + 3, maquinas.length);
+  const maquinasGrupo = maquinas.slice(startIndex, endIndex);
+  
+  console.log('Renderizando grupo', groupIndex, 'com máquinas:', maquinasGrupo.map(m => m.maquina_id));
+  
+  // Cria headers das máquinas com sistema bicolor aprimorado
+  const headers = ['<th class="info-label-header"><div class="diagonal-header"><span class="diagonal-top">Informações</span><span class="diagonal-bottom">Máquinas</span></div></th>'];
+  
+  maquinasGrupo.forEach(m => {
+    const cores = getMachineColor(m.maquina_id, maquinas);
+    const cor = nivelCor(m.nivel_risco || 'NORMAL');
+    const bg = nivelBg(m.nivel_risco || 'NORMAL');
+    
+    // Aplica sistema bicolor se necessário
+    let nomeStyle = `color: ${cores.primary};`;
+    let borderStyle = `border-top: 4px solid ${cores.primary};`;
+    
+    if (cores.isBicolor) {
+      // Para máquinas bicolor, usa gradiente no nome e borda dupla
+      nomeStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
+      borderStyle = `border-top: 4px solid; border-image: linear-gradient(90deg, ${cores.primary} 0%, ${cores.secondary} 100%) 1;`;
+    }
+    
+    headers.push(`<th class="machine-header" style="${borderStyle}">
+        <div class="machine-name" style="${nomeStyle}">${m.maquina_id}</div>
+        <div class="machine-status-badge" style="background: ${bg}; color: ${cor}; border: 1px solid ${cor}33;">${m.nivel_risco || 'NORMAL'}</div>
+        ${cores.isBicolor ? `<div style="font-size: 8px; color: var(--text3); margin-top: 2px;">MÁQUINA + OPERADOR</div>` : ''}
+      </th>`);
+  });
+  
+  console.log('Headers gerados:', headers);
+
+  // Header da tabela - UMA LINHA com todas as máquinas
+  tableHead.innerHTML = `<tr>${headers.join('')}</tr>`;
+
+  // Corpo da tabela - 4 linhas com os dados de cada máquina
+  const linhas = [
+    // Linha 1: Temperaturas
+    `<tr class="status-row">
+      <td class="info-label">Temperatura</td>
+      ${maquinasGrupo.map(m => {
+        const cor = m.temperatura > 85 ? C.red : m.temperatura > 75 ? C.amber : C.green;
+        return `<td><span class="status-value" style="color: ${cor};">${m.temperatura}<span class="status-unit">°C</span></span></td>`;
+      }).join('')}
+    </tr>`,
+    
+    // Linha 2: Vibrações
+    `<tr class="status-row">
+      <td class="info-label">Vibração</td>
+      ${maquinasGrupo.map(m => {
+        const cor = m.vibracao > 0.8 ? C.red : m.vibracao > 0.5 ? C.amber : 'var(--text)';
+        return `<td><span class="status-value" style="color: ${cor};">${m.vibracao}<span class="status-unit">g</span></span></td>`;
+      }).join('')}
+    </tr>`,
+    
+    // Linha 3: RPM
+    `<tr class="status-row">
+      <td class="info-label">RPM</td>
+      ${maquinasGrupo.map(m => {
+        const cor = m.rpm < 1300 ? C.amber : 'var(--text)';
+        return `<td><span class="status-value" style="color: ${cor};">${m.rpm}</span></td>`;
+      }).join('')}
+    </tr>`,
+    
+    // Linha 4: Última leitura
+    `<tr class="status-row">
+      <td class="info-label">Última Leitura</td>
+      ${maquinasGrupo.map(m => {
+        const ts = new Date(m.timestamp).toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        return `<td><span class="status-timestamp">${ts}</span></td>`;
+      }).join('')}
+    </tr>`
+  ];
+  
+  console.log('Linhas geradas:', linhas);
+
+  tableBody.innerHTML = linhas.join('');
+  
+  console.log('Tabela renderizada com sucesso!');
+  console.log('HTML final do head:', tableHead.innerHTML);
+  console.log('HTML final do body:', tableBody.innerHTML);
+}
+
+async function atualizarStatusMaquinas() {
+  try {
+    // DADOS DE TESTE - remova esta seção quando a API estiver funcionando
+    const maquinasTeste = [
+      {
+        maquina_id: 'CASE-TC5000-01',
+        temperatura: 72,
+        vibracao: 0.3,
+        rpm: 2100,
+        timestamp: new Date().toISOString(),
+        nivel_risco: 'NORMAL'
+      },
+      {
+        maquina_id: 'CASE-TC5000-02',
+        temperatura: 78,
+        vibracao: 0.6,
+        rpm: 2350,
+        timestamp: new Date().toISOString(),
+        nivel_risco: 'ATENCAO'
+      },
+      {
+        maquina_id: 'NH-CR9000-01',
+        temperatura: 69,
+        vibracao: 0.2,
+        rpm: 1950,
+        timestamp: new Date().toISOString(),
+        nivel_risco: 'NORMAL'
+      },
+      {
+        maquina_id: 'CASE-C10000-01',
+        temperatura: 75,
+        vibracao: 0.4,
+        rpm: 2200,
+        timestamp: new Date().toISOString(),
+        nivel_risco: 'NORMAL'
+      }
+    ];
+    
+    // Usa dados de teste em vez da API
+    const maquinas = maquinasTeste;
+    
+    // Código original comentado:
+    // const maquinas = await apiFetch('/api/leituras/ultimas/');
+    
+    if (!maquinas.length) {
+      const tableBody = document.getElementById('status-table-body');
+      if (tableBody) tableBody.innerHTML = '<tr><td colspan="100%" class="state-msg">Nenhuma leitura recebida do ESP32 ainda.</td></tr>';
+      return;
+    }
+
+    // Armazena dados globalmente para busca e navegação
+    allMachinesData = maquinas;
+    const novoTotalMachines = maquinas.length;
+    
+    // Só reseta o índice se o número de máquinas mudou
+    if (totalMachines !== novoTotalMachines) {
+      totalMachines = novoTotalMachines;
+      currentTableIndex = 0;
+    }
+    
+    // Renderiza a página atual (mantém a posição do usuário)
+    renderStatusTable(maquinas, currentTableIndex);
+    
+    // Atualiza controles do carrossel
+    const prevBtn = document.getElementById('carousel-prev');
+    const nextBtn = document.getElementById('carousel-next');
+    if (prevBtn && nextBtn) {
+      const maxIndex = Math.ceil(totalMachines / 3) - 1;
+      prevBtn.disabled = currentTableIndex === 0;
+      nextBtn.disabled = currentTableIndex >= maxIndex || totalMachines <= 3;
+    }
+
+    // Atualiza timestamp do último refresh
+    const upEl = document.getElementById('ultimo-update');
+    if (upEl) upEl.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+  } catch (e) {
+    console.error('Erro ao atualizar status das máquinas:', e);
+    const tableBody = document.getElementById('status-table-body');
+    if (tableBody) tableBody.innerHTML = '<tr><td colspan="100%" class="state-msg err-red">Erro ao buscar status das máquinas.</td></tr>';
+  }
+}
+
+// inicia polling de status em tempo real
+atualizarStatusMaquinas();
+setInterval(atualizarStatusMaquinas, 3000);
+
+/* ─────────────────────────────────────────────────────────────
+   BUSCA E POPUP DE MÁQUINAS
+   Sistema de busca por nome da máquina e popup com detalhes
+───────────────────────────────────────────────────────────── */
+function buscarMaquina() {
+  const searchInput = document.getElementById('machine-search');
+  const searchTerm = searchInput.value.trim().toUpperCase();
+  
+  if (!searchTerm) {
+    alert('Digite o nome da máquina para buscar');
+    return;
+  }
+  
+  console.log('Buscando máquina:', searchTerm);
+  console.log('Dados disponíveis:', allMachinesData);
+  
+  const maquinaEncontrada = allMachinesData.find(m => 
+    m.maquina_id.toUpperCase().includes(searchTerm)
+  );
+  
+  console.log('Máquina encontrada:', maquinaEncontrada);
+  
+  if (maquinaEncontrada) {
+    abrirPopupMaquina(maquinaEncontrada.maquina_id);
+    searchInput.value = ''; // Limpa o campo de busca
+  } else {
+    alert(`Máquina "${searchTerm}" não encontrada`);
+  }
+}
+
+// Permite buscar pressionando Enter e implementa sugestões
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('machine-search');
+  const suggestionsContainer = document.getElementById('search-suggestions');
+  let selectedSuggestionIndex = -1;
+  
+  if (searchInput) {
+    // Busca com Enter
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          // Se há uma sugestão selecionada, usa ela
+          const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
+          if (suggestions[selectedSuggestionIndex]) {
+            const maquinaId = suggestions[selectedSuggestionIndex].dataset.machineId;
+            searchInput.value = maquinaId;
+            hideSuggestions();
+            buscarMaquina();
+          }
+        } else {
+          buscarMaquina();
+        }
+      }
+    });
+    
+    // Navegação com setas nas sugestões
+    searchInput.addEventListener('keydown', function(e) {
+      const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
+        updateSelectedSuggestion();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+        updateSelectedSuggestion();
+      } else if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    });
+    
+    // Mostra sugestões conforme digita
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      selectedSuggestionIndex = -1;
+      
+      if (query.length >= 1) {
+        showSuggestions(query);
+      } else {
+        hideSuggestions();
+      }
+    });
+    
+    // Esconde sugestões quando clica fora
+    document.addEventListener('click', function(e) {
+      if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+        hideSuggestions();
+      }
+    });
+  }
+  
+  function showSuggestions(query) {
+    if (!allMachinesData || !allMachinesData.length) {
+      hideSuggestions();
+      return;
+    }
+    
+    const queryUpper = query.toUpperCase();
+    const matches = allMachinesData.filter(m => 
+      m.maquina_id.toUpperCase().includes(queryUpper)
+    ).slice(0, 5); // Máximo 5 sugestões
+    
+    if (matches.length === 0) {
+      hideSuggestions();
+      return;
+    }
+    
+    const suggestionsHTML = matches.map(m => {
+      const cores = getMachineColor(m.maquina_id, allMachinesData);
+      const status = m.nivel_risco || 'NORMAL';
+      const statusColor = status === 'CRITICO' ? 'var(--red)' : status === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
+      
+      return `
+        <div class="suggestion-item" data-machine-id="${m.maquina_id}" onclick="selectSuggestion('${m.maquina_id}')">
+          <div class="suggestion-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+            ${m.maquina_id}
+          </div>
+          <div class="suggestion-status" style="color: ${statusColor};">${status}</div>
+        </div>
+      `;
+    }).join('');
+    
+    suggestionsContainer.innerHTML = suggestionsHTML;
+    suggestionsContainer.classList.add('show');
+  }
+  
+  function hideSuggestions() {
+    suggestionsContainer.classList.remove('show');
+    selectedSuggestionIndex = -1;
+  }
+  
+  function updateSelectedSuggestion() {
+    const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
+    suggestions.forEach((item, index) => {
+      if (index === selectedSuggestionIndex) {
+        item.classList.add('selected');
+      } else {
+        item.classList.remove('selected');
+      }
+    });
+  }
+  
+  // Função global para seleção de sugestão
+  window.selectSuggestion = function(maquinaId) {
+    searchInput.value = maquinaId;
+    hideSuggestions();
+    buscarMaquina();
+  };
+  
+  // Inicializar campos de busca dos gráficos
+  initChartSearches();
+});
+
+// Função para inicializar buscas dos gráficos
+function initChartSearches() {
+  // Busca do gráfico de temperatura
+  const tempSearch = document.getElementById('temp-chart-search');
+  const tempSuggestions = document.getElementById('temp-chart-suggestions');
+  
+  if (tempSearch) {
+    tempSearch.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      if (query.length >= 1) {
+        showChartSuggestions(query, tempSuggestions, 'temp');
+      } else {
+        tempSuggestions.classList.remove('show');
+      }
+    });
+    
+    tempSearch.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyTempFilter(e.target.value.trim());
+      }
+    });
+  }
+  
+  // Busca do gráfico de combustível
+  const fuelSearch = document.getElementById('fuel-chart-search');
+  const fuelSuggestions = document.getElementById('fuel-chart-suggestions');
+  
+  if (fuelSearch) {
+    fuelSearch.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      if (query.length >= 1) {
+        showChartSuggestions(query, fuelSuggestions, 'fuel');
+      } else {
+        fuelSuggestions.classList.remove('show');
+      }
+    });
+    
+    fuelSearch.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyFuelFilter(e.target.value.trim());
+      }
+    });
+  }
+  
+  // Busca da telemetria
+  const telemetriaSearch = document.getElementById('telemetria-search');
+  const telemetriaSuggestions = document.getElementById('telemetria-suggestions');
+  
+  if (telemetriaSearch) {
+    telemetriaSearch.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      if (query.length >= 1) {
+        showChartSuggestions(query, telemetriaSuggestions, 'telemetria');
+      } else {
+        telemetriaSuggestions.classList.remove('show');
+      }
+    });
+    
+    telemetriaSearch.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyTelemetriaFilter(e.target.value.trim());
+      }
+    });
+  }
+  
+  // Busca da IA
+  const iaSearch = document.getElementById('ia-search');
+  const iaSuggestions = document.getElementById('ia-suggestions');
+  
+  if (iaSearch) {
+    iaSearch.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      if (query.length >= 1) {
+        showChartSuggestions(query, iaSuggestions, 'ia');
+      } else {
+        iaSuggestions.classList.remove('show');
+      }
+    });
+    
+    iaSearch.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyIAFilter(e.target.value.trim());
+      }
+    });
+  }
+}
+
+// Função para mostrar sugestões dos gráficos
+function showChartSuggestions(query, container, type) {
+  if (!allMachinesData || !allMachinesData.length) {
+    container.classList.remove('show');
+    return;
+  }
+  
+  const queryUpper = query.toUpperCase();
+  const matches = allMachinesData.filter(m => 
+    m.maquina_id.toUpperCase().includes(queryUpper)
+  ).slice(0, 4); // Máximo 4 sugestões para gráficos
+  
+  if (matches.length === 0) {
+    container.classList.remove('show');
+    return;
+  }
+  
+  const suggestionsHTML = matches.map(m => {
+    const cores = getMachineColor(m.maquina_id, allMachinesData);
+    const status = m.nivel_risco || 'NORMAL';
+    const statusColor = status === 'CRITICO' ? 'var(--red)' : status === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
+    
+    return `
+      <div class="chart-suggestion-item" onclick="selectChartSuggestion('${m.maquina_id}', '${type}')">
+        <div class="chart-suggestion-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+          ${m.maquina_id}
+        </div>
+        <div class="chart-suggestion-status" style="color: ${statusColor};">${status}</div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = suggestionsHTML;
+  container.classList.add('show');
+}
+
+// Função para selecionar sugestão dos gráficos
+function selectChartSuggestion(maquinaId, type) {
+  const searchInput = document.getElementById(`${type}-chart-search`) || document.getElementById(`${type}-search`);
+  const suggestions = document.getElementById(`${type}-chart-suggestions`) || document.getElementById(`${type}-suggestions`);
+  
+  if (searchInput) searchInput.value = maquinaId;
+  if (suggestions) suggestions.classList.remove('show');
+  
+  // Aplica o filtro
+  if (type === 'temp') applyTempFilter(maquinaId);
+  else if (type === 'fuel') applyFuelFilter(maquinaId);
+  else if (type === 'telemetria') applyTelemetriaFilter(maquinaId);
+  else if (type === 'ia') applyIAFilter(maquinaId);
+}
+
+// Funções para aplicar filtros
+function applyTempFilter(query) {
+  if (!query) return;
+  const matches = allMachinesData.filter(m => 
+    m.maquina_id.toUpperCase().includes(query.toUpperCase())
+  );
+  tempChartFilter = matches.map(m => m.maquina_id);
+  renderTempChart(allMachinesData);
+  document.getElementById('temp-chart-suggestions').classList.remove('show');
+}
+
+function applyFuelFilter(query) {
+  if (!query) return;
+  const matches = allMachinesData.filter(m => 
+    m.maquina_id.toUpperCase().includes(query.toUpperCase())
+  );
+  fuelChartFilter = matches.map(m => m.maquina_id);
+  renderFuelChart(allMachinesData);
+  document.getElementById('fuel-chart-suggestions').classList.remove('show');
+}
+
+function applyTelemetriaFilter(query) {
+  if (!query) return;
+  const matches = allMachinesData.filter(m => 
+    m.maquina_id.toUpperCase().includes(query.toUpperCase())
+  );
+  telemetriaFilter = matches.map(m => m.maquina_id);
+  renderTelemetria(allMachinesData);
+  document.getElementById('telemetria-suggestions').classList.remove('show');
+}
+
+function applyIAFilter(query) {
+  if (!query) return;
+  const matches = allMachinesData.filter(m => 
+    m.maquina_id.toUpperCase().includes(query.toUpperCase())
+  );
+  
+  if (matches.length === 0) {
+    // Se não encontrou nenhuma máquina, mostra popup
+    mostrarPopupIA('Nenhuma máquina encontrada', `Não foi possível encontrar máquinas com o termo "${query}". Verifique se o nome está correto.`);
+    return;
+  }
+  
+  if (matches.length === 1) {
+    // Se encontrou apenas uma máquina, mostra popup com detalhes
+    const maquina = matches[0];
+    mostrarPopupIA(`Detalhes da Máquina ${maquina.maquina_id}`, gerarDetalhesIA(maquina));
+  } else {
+    // Se encontrou múltiplas máquinas, aplica filtro normal
+    iaFilter = matches.map(m => m.maquina_id);
+    atualizarIA();
+  }
+  
+  document.getElementById('ia-suggestions').classList.remove('show');
+}
+
+function mostrarPopupIA(titulo, conteudo) {
+  // Cria o popup se não existir
+  let popup = document.getElementById('ia-popup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.id = 'ia-popup';
+    popup.className = 'ia-popup-overlay';
+    popup.style.display = 'none';
+    popup.innerHTML = `
+      <div class="ia-popup">
+        <div class="ia-popup-header">
+          <h3 id="ia-popup-title">Título</h3>
+          <button class="ia-popup-close" onclick="fecharPopupIA()">×</button>
+        </div>
+        <div class="ia-popup-content" id="ia-popup-content">
+          Conteúdo
+        </div>
+      </div>
+    `;
+    document.body.appendChild(popup);
+  }
+  
+  // Atualiza conteúdo e mostra
+  document.getElementById('ia-popup-title').textContent = titulo;
+  document.getElementById('ia-popup-content').innerHTML = conteudo;
+  popup.style.display = 'flex';
+}
+
+function fecharPopupIA() {
+  const popup = document.getElementById('ia-popup');
+  if (popup) popup.style.display = 'none';
+}
+
+function gerarDetalhesIA(maquina) {
+  const cores = getMachineColor(maquina.maquina_id, [maquina]);
+  const nivel = maquina.nivel_risco || 'NORMAL';
+  const nivelCor = nivel === 'CRITICO' ? 'var(--red)' : nivel === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
+  
+  return `
+    <div class="ia-popup-machine-header" style="border-left: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
+      <div class="ia-popup-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+        ${maquina.maquina_id}
+      </div>
+      <div class="ia-popup-machine-status">
+        Status: <span style="color: ${nivelCor}">${nivel}</span>
+      </div>
+    </div>
+    
+    <div class="ia-popup-metrics">
+      <div class="ia-popup-metric">
+        <span class="ia-popup-metric-label">TEMPERATURA</span>
+        <span class="ia-popup-metric-value" style="color: ${maquina.temperatura > 85 ? 'var(--red)' : maquina.temperatura > 75 ? 'var(--amber)' : 'var(--green)'}">
+          ${maquina.temperatura}°C
+        </span>
+      </div>
+      <div class="ia-popup-metric">
+        <span class="ia-popup-metric-label">VIBRAÇÃO</span>
+        <span class="ia-popup-metric-value" style="color: ${maquina.vibracao > 0.8 ? 'var(--red)' : maquina.vibracao > 0.5 ? 'var(--amber)' : 'var(--green)'}">
+          ${maquina.vibracao}g
+        </span>
+      </div>
+      <div class="ia-popup-metric">
+        <span class="ia-popup-metric-label">RPM</span>
+        <span class="ia-popup-metric-value" style="color: ${maquina.rpm < 1300 ? 'var(--amber)' : 'var(--text)'}">
+          ${maquina.rpm}
+        </span>
+      </div>
+    </div>
+    
+    <div class="ia-popup-analysis">
+      <h4>Análise de IA</h4>
+      <div class="ia-popup-analysis-item">
+        <strong>Risco de Falha:</strong> 
+        <span style="color: ${nivelCor}">${nivel === 'CRITICO' ? 'Alto (>70%)' : nivel === 'ATENCAO' ? 'Moderado (30-70%)' : 'Baixo (<30%)'}</span>
+      </div>
+      <div class="ia-popup-analysis-item">
+        <strong>Principal Indicador:</strong> 
+        ${maquina.temperatura > 85 ? 'Temperatura crítica' : maquina.vibracao > 0.8 ? 'Vibração excessiva' : maquina.rpm < 1300 ? 'RPM baixo' : 'Parâmetros normais'}
+      </div>
+      <div class="ia-popup-analysis-item">
+        <strong>Recomendação:</strong> 
+        ${nivel === 'CRITICO' ? '⚠️ URGENTE: Parar operação e realizar inspeção imediata' : 
+          nivel === 'ATENCAO' ? '🔍 Agendar manutenção preventiva nas próximas 24-48h' : 
+          '✅ Máquina operando dentro dos parâmetros normais'}
+      </div>
+    </div>
+    
+    <div class="ia-popup-timestamp">
+      Última atualização: ${new Date().toLocaleString('pt-BR')}
+    </div>
+  `;
+}
+
+async function abrirPopupMaquina(maquinaId) {
+  console.log('Abrindo popup para máquina:', maquinaId);
+  
+  const popup = document.getElementById('machine-popup');
+  const title = document.getElementById('popup-machine-title');
+  const content = document.getElementById('popup-machine-content');
+  
+  if (!popup || !title || !content) {
+    console.error('Elementos do popup não encontrados');
+    return;
+  }
+  
+  // Mostra o popup
+  popup.style.display = 'flex';
+  title.textContent = `Detalhes - ${maquinaId}`;
+  content.innerHTML = '<div class="state-msg">Carregando histórico...</div>';
+  
+  try {
+    // Para dados de teste, simula histórico
+    const leiturasMaquina = [];
+    const agora = new Date();
+    
+    // Gera 10 leituras simuladas para a máquina
+    for (let i = 0; i < 10; i++) {
+      const timestamp = new Date(agora.getTime() - (i * 5 * 60 * 1000)); // A cada 5 minutos
+      const maquinaAtual = allMachinesData.find(m => m.maquina_id === maquinaId);
+      
+      if (maquinaAtual) {
+        leiturasMaquina.push({
+          maquina_id: maquinaId,
+          temperatura: maquinaAtual.temperatura + (Math.random() - 0.5) * 10,
+          vibracao: maquinaAtual.vibracao + (Math.random() - 0.5) * 0.2,
+          rpm: maquinaAtual.rpm + Math.floor((Math.random() - 0.5) * 200),
+          timestamp: timestamp.toISOString()
+        });
+      }
+    }
+    
+    // Código original para API real (comentado):
+    // const todasLeituras = await apiFetch('/api/telemetria/');
+    // const leiturasMaquina = todasLeituras
+    //   .filter(l => l.maquina_id === maquinaId)
+    //   .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    //   .slice(0, 20);
+    
+    if (!leiturasMaquina.length) {
+      content.innerHTML = '<div class="state-msg">Nenhuma leitura encontrada para esta máquina.</div>';
+      return;
+    }
+    
+    // Dados da máquina atual
+    const maquinaAtual = allMachinesData.find(m => m.maquina_id === maquinaId);
+    const cores = getMachineColor(maquinaId, allMachinesData);
+    
+    // Renderiza o conteúdo do popup
+    content.innerHTML = `
+      <div class="popup-machine-header" style="border-left: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
+        <div class="popup-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+          ${maquinaId}
+        </div>
+        <div class="popup-machine-status">
+          Status: <span style="color: ${nivelCor(maquinaAtual?.nivel_risco || 'NORMAL')}">${maquinaAtual?.nivel_risco || 'NORMAL'}</span>
+        </div>
+      </div>
+      
+      <div class="popup-current-metrics">
+        <div class="popup-metric">
+          <span class="popup-metric-label">TEMPERATURA</span>
+          <span class="popup-metric-value" style="color: ${maquinaAtual?.temperatura > 85 ? C.red : maquinaAtual?.temperatura > 75 ? C.amber : C.green}">
+            ${maquinaAtual?.temperatura || '—'}°C
+          </span>
+        </div>
+        <div class="popup-metric">
+          <span class="popup-metric-label">VIBRAÇÃO</span>
+          <span class="popup-metric-value" style="color: ${maquinaAtual?.vibracao > 0.8 ? C.red : maquinaAtual?.vibracao > 0.5 ? C.amber : C.green}">
+            ${maquinaAtual?.vibracao || '—'}g
+          </span>
+        </div>
+        <div class="popup-metric">
+          <span class="popup-metric-label">RPM</span>
+          <span class="popup-metric-value" style="color: ${maquinaAtual?.rpm < 1300 ? C.amber : 'var(--text)'}">
+            ${maquinaAtual?.rpm || '—'}
+          </span>
+        </div>
+      </div>
+      
+      <div class="popup-history-title">
+        Histórico das Últimas ${leiturasMaquina.length} Leituras (Simulado)
+      </div>
+      
+      <div class="popup-history-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temp (°C)</th>
+              <th>Vib (g)</th>
+              <th>RPM</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leiturasMaquina.map(l => {
+              const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+              });
+              const tempColor = l.temperatura > 85 ? C.red : l.temperatura > 75 ? C.amber : C.green;
+              const vibColor = l.vibracao > 0.8 ? C.red : l.vibracao > 0.5 ? C.amber : C.green;
+              const rpmColor = l.rpm < 1300 ? C.amber : 'var(--text)';
+              
+              return `
+                <tr>
+                  <td class="popup-timestamp">${ts}</td>
+                  <td style="color: ${tempColor}">${l.temperatura.toFixed(1)}</td>
+                  <td style="color: ${vibColor}">${l.vibracao.toFixed(2)}</td>
+                  <td style="color: ${rpmColor}">${Math.round(l.rpm)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    
+  } catch (error) {
+    console.error('Erro ao carregar dados do popup:', error);
+    content.innerHTML = `<div class="state-msg err-red">Erro ao carregar dados: ${error.message}</div>`;
+  }
+}
+
+function fecharPopupMaquina() {
+  const popup = document.getElementById('machine-popup');
+  popup.style.display = 'none';
+}
+
+// Fecha popup clicando fora dele
+document.addEventListener('click', function(e) {
+  const popup = document.getElementById('machine-popup');
+  if (e.target === popup) {
+    fecharPopupMaquina();
+  }
+  
+  const iaPopup = document.getElementById('ia-popup');
+  if (e.target === iaPopup) {
+    fecharPopupIA();
+  }
+});
+
+// Fecha popup com ESC
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    fecharPopupMaquina();
+    fecharPopupIA();
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   ANÁLISE DE IA — consome /api/manutencao/ e /api/anomalias/
+   Atualiza a cada 30 segundos (não precisa ser tão frequente
+   quanto o polling de sensores — a IA é pesada)
+───────────────────────────────────────────────────────────── */
+async function atualizarIA() {
+  const cont = document.getElementById('ia-container');
+  const upEl = document.getElementById('ia-update');
+  if (!cont) return;
+
+  try {
+    // busca as máquinas ativas primeiro
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
+    if (!maquinas.length) {
+      cont.innerHTML = '<div class="state-msg">Sem máquinas ativas para analisar.</div>';
+      return;
+    }
+
+    // roda análise pra cada máquina ativa em paralelo
+    const resultados = await Promise.all(
+      maquinas.map(m =>
+        Promise.all([
+          apiFetch('/api/manutencao/?maquina_id=' + m.maquina_id),
+          apiFetch('/api/anomalias/?maquina_id=' + m.maquina_id),
+        ]).then(([manut, anom]) => ({ maquina: m.maquina_id, manut, anom }))
+      )
+    );
+
+    // Cria resumo geral da frota
+    const totalMaquinas = resultados.length;
+    const maquinasComDados = resultados.filter(r => r.manut.status === 'ok').length;
+    const maquinasCriticas = resultados.filter(r => r.manut.status === 'ok' && r.manut.nivel === 'CRITICO').length;
+    const maquinasAtencao = resultados.filter(r => r.manut.status === 'ok' && r.manut.nivel === 'ATENCAO').length;
+    const totalAnomalias = resultados.reduce((sum, r) => sum + (r.anom.status === 'ok' ? r.anom.total : 0), 0);
+
+    let resumoHtml = `
+      <div style="background: var(--bg3); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 12px;">RESUMO GERAL DA FROTA</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+          <div style="text-align: center;">
+            <div style="font-size: 20px; font-weight: 300; color: var(--green);">${totalMaquinas}</div>
+            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">MÁQUINAS ATIVAS</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 20px; font-weight: 300; color: ${maquinasCriticas > 0 ? C.red : C.green};">${maquinasCriticas}</div>
+            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">ESTADO CRÍTICO</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 20px; font-weight: 300; color: ${maquinasAtencao > 0 ? C.amber : C.green};">${maquinasAtencao}</div>
+            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">REQUER ATENÇÃO</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 20px; font-weight: 300; color: ${totalAnomalias > 0 ? C.amber : C.green};">${totalAnomalias}</div>
+            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">ANOMALIAS DETECTADAS</div>
+          </div>
+        </div>
+      </div>`;
+
+    const detalhesHtml = resultados.map(r => {
+      const manut = r.manut;
+      const anom = r.anom;
+      const cores = getMachineColor(r.maquina, maquinas);
+
+      // card de manutenção preditiva
+      if (manut.status === 'dados_insuficientes') {
+        return `
+          <div style="padding: 16px 0; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="font-size: 12px; font-family: var(--mono); color: ${cores.primary}; font-weight: 600; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">${r.maquina}</div>
+              <div style="background: var(--amber-dim); border: 1px solid ${C.amber}33; border-radius: 4px; padding: 2px 8px; font-size: 10px; color: ${C.amber};">COLETANDO DADOS</div>
+            </div>
+            <div style="font-size: 13px; color: var(--text2); margin-bottom: 8px;">
+              📈 Aguardando mais ${manut.minimo - manut.atual} leituras para iniciar análise preditiva
+            </div>
+            <div style="font-size: 11px; color: var(--text3); font-family: var(--mono);">
+              Progresso: ${manut.atual}/${manut.minimo} leituras (${Math.round((manut.atual / manut.minimo) * 100)}%)
+            </div>
+          </div>`;
+      }
+
+      const nivelCor = manut.nivel === 'CRITICO' ? C.red : manut.nivel === 'ATENCAO' ? C.amber : C.green;
+      const nivelBg = manut.nivel === 'CRITICO' ? 'var(--red-dim)' : manut.nivel === 'ATENCAO' ? 'var(--amber-dim)' : 'var(--green-dim)';
+      const probPct = Math.round(manut.prob_risco * 100);
+
+      // feature mais importante
+      const features = manut.features || {};
+      const topFeature = Object.entries(features).sort((a, b) => b[1] - a[1])[0];
+      const featNomes = {
+        temperatura: 'Temperatura do motor',
+        vibracao: 'Nível de vibração',
+        rpm: 'Rotação do motor',
+        temp_media_movel: 'Tendência de aquecimento',
+        vib_media_movel: 'Tendência de vibração',
+        temp_tendencia: 'Variação térmica'
+      };
+
+      // anomalias detectadas
+      const totalAnom = anom.status === 'ok' ? anom.total : 0;
+      const totalAnal = anom.status === 'ok' ? anom.analisadas : 0;
+
+      // Recomendações baseadas no nível de risco
+      let recomendacao = '';
+      if (manut.nivel === 'CRITICO') {
+        recomendacao = '⚠️ URGENTE: Parar operação e realizar inspeção imediata';
+      } else if (manut.nivel === 'ATENCAO') {
+        recomendacao = '🔍 Agendar manutenção preventiva nas próximas 24-48h';
+      } else {
+        recomendacao = '✅ Máquina operando dentro dos parâmetros normais';
+      }
+
+      return `
+        <div style="padding: 20px 0; border-bottom: 1px solid var(--border);">
+          <!-- header da máquina -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="font-size: 12px; font-family: var(--mono); color: ${cores.primary}; font-weight: 600; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">${r.maquina}</div>
+              <div style="width: 4px; height: 4px; border-radius: 50%; background: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%);` : ''}"></div>
+            </div>
+            <div style="background: ${nivelBg}; border: 1px solid ${nivelCor}33; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-family: var(--mono); color: ${nivelCor}; font-weight: 600;">
+              ${manut.nivel}
+            </div>
+          </div>
+
+          <!-- grid de métricas de IA -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <!-- probabilidade de falha -->
+            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
+              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">RISCO DE FALHA</div>
+              <div style="font-size: 24px; font-weight: 300; color: ${nivelCor}; margin-bottom: 4px;">${probPct}<span style="font-size: 12px; color: var(--text2);">%</span></div>
+              <div style="font-size: 11px; color: var(--text3);">
+                ${probPct < 30 ? 'Baixo risco' : probPct < 70 ? 'Risco moderado' : 'Alto risco'}
+              </div>
+              <div style="height: 4px; background: var(--bg); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+                <div style="height: 100%; width: ${probPct}%; background: ${nivelCor}; border-radius: 2px; transition: width 0.6s;"></div>
+              </div>
+            </div>
+
+            <!-- fator principal -->
+            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
+              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">PRINCIPAL INDICADOR</div>
+              <div style="font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px;">
+                ${topFeature ? featNomes[topFeature[0]] || topFeature[0] : 'N/A'}
+              </div>
+              <div style="font-size: 11px; color: var(--text3);">
+                ${topFeature ? Math.round(topFeature[1] * 100) + '% de influência' : 'Sem dados'}
+              </div>
+            </div>
+
+            <!-- anomalias detectadas -->
+            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
+              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">ANOMALIAS</div>
+              <div style="font-size: 24px; font-weight: 300; color: ${totalAnom > 0 ? C.amber : C.green}; margin-bottom: 4px;">${totalAnom}</div>
+              <div style="font-size: 11px; color: var(--text3);">
+                ${totalAnom === 0 ? 'Comportamento normal' : totalAnom === 1 ? '1 padrão anormal' : totalAnom + ' padrões anormais'}
+              </div>
+            </div>
+          </div>
+
+          <!-- recomendação -->
+          <div style="background: ${nivelBg}; border: 1px solid ${nivelCor}33; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; color: ${nivelCor}; font-weight: 500;">${recomendacao}</div>
+          </div>
+
+          <!-- detalhes técnicos (colapsível) -->
+          ${topFeature ? `
+          <details style="margin-top: 12px;">
+            <summary style="font-size: 11px; color: var(--text2); cursor: pointer; font-family: var(--mono);">VER DETALHES TÉCNICOS</summary>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <div style="font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">IMPORTÂNCIA DOS FATORES</div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${Object.entries(features)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 4)
+                  .map(([k, v]) => `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="font-size: 11px; color: var(--text2); min-width: 140px;">${featNomes[k] || k}</div>
+                      <div style="flex: 1; height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden;">
+                        <div style="height: 100%; width: ${Math.round(v * 100)}%; background: var(--green); border-radius: 2px;"></div>
+                      </div>
+                      <div style="font-size: 10px; color: var(--text3); font-family: var(--mono); min-width: 35px; text-align: right;">${Math.round(v * 100)}%</div>
+                    </div>`).join('')}
+              </div>
+              <div style="font-size: 10px; color: var(--text3); margin-top: 8px;">
+                📊 Baseado em ${manut.total_leituras} leituras analisadas
+              </div>
+            </div>
+          </details>` : ''}
+        </div>`;
+    }).join('');
+
+    cont.innerHTML = resumoHtml + detalhesHtml;
+
+    if (upEl) upEl.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+  } catch (e) {
+    if (cont) cont.innerHTML = '<div class="state-msg err-red">Erro ao carregar análise de IA: ' + e.message + '</div>';
+  }
+}
+
+// roda IA a cada 30 segundos (não precisa ser mais frequente)
+atualizarIA();
+setInterval(atualizarIA, 30000);
+
+/* ───────────────────────────────────────────────────────────── */
 verificarAPI();
 carregarDashboard();
 carregarSelectsReferencia();

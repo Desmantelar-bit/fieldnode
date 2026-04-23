@@ -157,16 +157,26 @@ Documentação completa: `http://localhost:8000/swagger/`
 
 ---
 
+## Limitações conhecidas do protótipo
+
+- **Validação de `maquina_id`**: O endpoint `/api/telemetria/` aceita qualquer string como `maquina_id` sem validar se a máquina está cadastrada na tabela `Colheitadeira`. Isso significa que um ESP32 pode enviar `maquina_id: "qualquer_coisa"` e a leitura será salva normalmente. Em produção, adicione uma foreign key ou validação no serializer para garantir que apenas máquinas cadastradas podem enviar dados.
+- **Pipeline MQTT**: O `mqtt_listen.py` também aceita qualquer `maquina_id` via MQTT sem validação, mantendo a mesma limitação do endpoint REST.
+
+---
+
 ## Roadmap
 
 - [x] API REST com Django + DRF
 - [x] Deduplicação de leituras por UUID
 - [x] Dashboard web com Chart.js
 - [x] Documentação Swagger
+- [x] Pipeline MQTT: ESP32 → broker → Django → MySQL
+- [x] Detecção de anomalias com Isolation Forest
+- [x] Manutenção preditiva com Random Forest
+- [x] Dashboard com polling em tempo real (3s)
+- [x] Script de demo de pane para apresentação
 - [ ] Autenticação nos endpoints
 - [ ] Alertas via WhatsApp (Twilio / Z-API)
-- [ ] Modelo de ML para detecção de anomalias
-  (scikit-learn)
 - [ ] Integração ESP32 → Gateway → API (sync completo)
 - [ ] Testes automatizados com pytest
 

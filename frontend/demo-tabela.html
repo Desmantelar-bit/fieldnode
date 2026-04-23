@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo - Nova Tabela de Status FieldNode</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { padding: 20px; background: var(--bg); color: var(--text); }
+    .demo-container { max-width: 1200px; margin: 0 auto; }
+    .demo-title { font-size: 24px; font-weight: 600; margin-bottom: 20px; color: var(--green); }
+    .demo-description { font-size: 14px; color: var(--text2); margin-bottom: 30px; line-height: 1.6; }
+    .demo-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    .demo-feature { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .demo-feature-title { font-size: 14px; font-weight: 600; color: var(--green); margin-bottom: 8px; }
+    .demo-feature-desc { font-size: 12px; color: var(--text2); }
+  </style>
+</head>
+<body>
+
+<div class="demo-container">
+  <h1 class="demo-title">🚜 Nova Tabela de Status - FieldNode</h1>
+  
+  <div class="demo-description">
+    <strong>Nova estrutura implementada (formato banco de dados):</strong><br>
+    • <strong>Header:</strong> Apenas os nomes das máquinas (CASE-TC5000-01, CASE-TC5000-02, etc.)<br>
+    • <strong>Linha 1:</strong> Temperaturas de cada máquina (72°C, 78°C, 69°C)<br>
+    • <strong>Linha 2:</strong> Vibrações de cada máquina (0.3g, 0.6g, 0.2g)<br>
+    • <strong>Linha 3:</strong> RPM de cada máquina (2100, 2350, 1950)<br>
+    • <strong>Linha 4:</strong> Última leitura de cada máquina (14:32, 14:31, 14:33)<br>
+    • Sistema de busca e popup com histórico das últimas 20 leituras
+  </div>
+
+  <div class="demo-features">
+    <div class="demo-feature">
+      <div class="demo-feature-title">📊 Estrutura de Banco</div>
+      <div class="demo-feature-desc">Formato igual ao banco de dados: máquinas no header, dados diretamente nas linhas</div>
+    </div>
+    <div class="demo-feature">
+      <div class="demo-feature-title">🎠 Carrossel Inteligente</div>
+      <div class="demo-feature-desc">Navega em grupos de 3 máquinas. Botões habilitados apenas quando necessário</div>
+    </div>
+    <div class="demo-feature">
+      <div class="demo-feature-title">🔍 Busca Rápida</div>
+      <div class="demo-feature-desc">Digite o nome da máquina e seja levado diretamente aos detalhes</div>
+    </div>
+    <div class="demo-feature">
+      <div class="demo-feature-title">📋 Popup Detalhado</div>
+      <div class="demo-feature-desc">Histórico das últimas 20 leituras com scroll e cores de status</div>
+    </div>
+  </div>
+
+  <!-- Simulação da nova tabela -->
+  <div class="card">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>Status em tempo real por máquina</span>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="machine-search-container">
+          <input type="text" id="demo-search" placeholder="Buscar máquina..." class="machine-search-input">
+          <button class="machine-search-btn" onclick="demoSearch()">🔍</button>
+        </div>
+        <div class="carousel-controls">
+          <button class="carousel-btn" id="demo-prev" onclick="demoCarousel(-1)">‹</button>
+          <button class="carousel-btn" id="demo-next" onclick="demoCarousel(1)">›</button>
+        </div>
+        <span style="font-size:10px; color:var(--text3); font-family:var(--mono);">demo ativo</span>
+      </div>
+    </div>
+    <div class="status-table-container">
+      <table class="status-table">
+        <thead>
+          <tr>
+            <th class="machine-header" style="border-top: 4px solid #f87171; cursor: pointer;" onclick="demoPopup('CASE-TC5000-01')">
+              <div class="machine-name" style="color: #f87171;">CASE-TC5000-01</div>
+              <div class="machine-status-badge" style="background: var(--green-dim); color: var(--green); border: 1px solid var(--green)33;">NORMAL</div>
+            </th>
+            <th class="machine-header" style="border-top: 4px solid #f87171; background: linear-gradient(135deg, #f8717108 0%, #ef444408 100%); cursor: pointer;" onclick="demoPopup('CASE-TC5000-02')">
+              <div class="machine-name" style="background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">CASE-TC5000-02</div>
+              <div class="machine-status-badge" style="background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber)33;">ATENÇÃO</div>
+            </th>
+            <th class="machine-header" style="border-top: 4px solid #fbbf24; cursor: pointer;" onclick="demoPopup('NH-CR9000-01')">
+              <div class="machine-name" style="color: #fbbf24;">NH-CR9000-01</div>
+              <div class="machine-status-badge" style="background: var(--green-dim); color: var(--green); border: 1px solid var(--green)33;">NORMAL</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="status-value" style="color: var(--green);">72<span class="status-unit">°C</span></span></td>
+            <td><span class="status-value" style="color: var(--amber);">78<span class="status-unit">°C</span></span></td>
+            <td><span class="status-value" style="color: var(--green);">69<span class="status-unit">°C</span></span></td>
+          </tr>
+          <tr>
+            <td><span class="status-value" style="color: var(--green);">0.3<span class="status-unit">g</span></span></td>
+            <td><span class="status-value" style="color: var(--amber);">0.6<span class="status-unit">g</span></span></td>
+            <td><span class="status-value" style="color: var(--green);">0.2<span class="status-unit">g</span></span></td>
+          </tr>
+          <tr>
+            <td><span class="status-value">2100</span></td>
+            <td><span class="status-value">2350</span></td>
+            <td><span class="status-value">1950</span></td>
+          </tr>
+          <tr>
+            <td><span class="status-timestamp">14:32</span></td>
+            <td><span class="status-timestamp">14:31</span></td>
+            <td><span class="status-timestamp">14:33</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top: 30px; padding: 20px; background: var(--bg2); border-radius: var(--radius-lg); border: 1px solid var(--border);">
+    <h3 style="color: var(--green); margin-bottom: 15px;">💡 Como Testar</h3>
+    <ul style="color: var(--text2); line-height: 1.8;">
+      <li><strong>Busca:</strong> Digite "CASE-TC5000-02" no campo de busca e clique na lupa</li>
+      <li><strong>Popup:</strong> Clique em qualquer cabeçalho de máquina para ver detalhes</li>
+      <li><strong>Carrossel:</strong> Use as setas ‹ › para navegar entre grupos (simulado)</li>
+      <li><strong>Cores:</strong> Note o sistema bicolor na CASE-TC5000-02 (duplicata)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Popup de demonstração -->
+<div id="demo-popup" class="machine-popup-overlay" style="display: none;">
+  <div class="machine-popup">
+    <div class="machine-popup-header">
+      <h3 id="demo-popup-title">Detalhes da Máquina</h3>
+      <button class="machine-popup-close" onclick="closeDemoPopup()">×</button>
+    </div>
+    <div class="machine-popup-content" id="demo-popup-content">
+      <!-- Conteúdo será inserido aqui -->
+    </div>
+  </div>
+</div>
+
+<script>
+let demoCurrentIndex = 0;
+const demoMachines = ['CASE-TC5000-01', 'CASE-TC5000-02', 'NH-CR9000-01', 'JD-S700-01', 'MF-IDEAL9T-01'];
+
+function demoCarousel(direction) {
+  const maxGroups = Math.ceil(demoMachines.length / 3);
+  demoCurrentIndex = Math.max(0, Math.min(maxGroups - 1, demoCurrentIndex + direction));
+  
+  document.getElementById('demo-prev').disabled = demoCurrentIndex === 0;
+  document.getElementById('demo-next').disabled = demoCurrentIndex >= maxGroups - 1;
+  
+  alert(`Navegando para grupo ${demoCurrentIndex + 1} de ${maxGroups}\nMáquinas: ${demoMachines.slice(demoCurrentIndex * 3, (demoCurrentIndex + 1) * 3).join(', ')}`);
+}
+
+function demoSearch() {
+  const searchTerm = document.getElementById('demo-search').value.trim();
+  if (!searchTerm) {
+    alert('Digite o nome da máquina para buscar');
+    return;
+  }
+  
+  const found = demoMachines.find(m => m.toUpperCase().includes(searchTerm.toUpperCase()));
+  if (found) {
+    demoPopup(found);
+    document.getElementById('demo-search').value = '';
+  } else {
+    alert(`Máquina "${searchTerm}" não encontrada`);
+  }
+}
+
+function demoPopup(machineId) {
+  const popup = document.getElementById('demo-popup');
+  const title = document.getElementById('demo-popup-title');
+  const content = document.getElementById('demo-popup-content');
+  
+  title.textContent = `Detalhes - ${machineId}`;
+  
+  // Simula dados históricos
+  const historicData = Array.from({length: 20}, (_, i) => ({
+    timestamp: new Date(Date.now() - i * 300000).toLocaleString('pt-BR'),
+    temp: Math.round(70 + Math.random() * 20),
+    vib: (0.2 + Math.random() * 0.6).toFixed(1),
+    rpm: Math.round(1800 + Math.random() * 600)
+  }));
+  
+  const isBicolor = machineId.includes('02');
+  const primaryColor = machineId.includes('CASE') ? '#f87171' : machineId.includes('NH') ? '#fbbf24' : '#4ade80';
+  const secondaryColor = machineId.includes('CASE') ? '#ef4444' : machineId.includes('NH') ? '#f59e0b' : '#22c55e';
+  
+  content.innerHTML = `
+    <div class="popup-machine-header" style="border-left: 4px solid ${primaryColor}; ${isBicolor ? `background: linear-gradient(135deg, ${primaryColor}08 0%, ${secondaryColor}08 100%);` : ''}">
+      <div class="popup-machine-id" style="color: ${primaryColor}; ${isBicolor ? `background: linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
+        ${machineId}
+      </div>
+      <div class="popup-machine-status">
+        Status: <span style="color: var(--green)">NORMAL</span>
+      </div>
+    </div>
+    
+    <div class="popup-current-metrics">
+      <div class="popup-metric">
+        <span class="popup-metric-label">TEMPERATURA</span>
+        <span class="popup-metric-value" style="color: var(--green)">72°C</span>
+      </div>
+      <div class="popup-metric">
+        <span class="popup-metric-label">VIBRAÇÃO</span>
+        <span class="popup-metric-value" style="color: var(--green)">0.3g</span>
+      </div>
+      <div class="popup-metric">
+        <span class="popup-metric-label">RPM</span>
+        <span class="popup-metric-value">2100</span>
+      </div>
+    </div>
+    
+    <div class="popup-history-title">
+      Histórico das Últimas 20 Leituras (Simulado)
+    </div>
+    
+    <div class="popup-history-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Temp (°C)</th>
+            <th>Vib (g)</th>
+            <th>RPM</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${historicData.map(d => `
+            <tr>
+              <td class="popup-timestamp">${d.timestamp}</td>
+              <td style="color: ${d.temp > 85 ? '#f87171' : d.temp > 75 ? '#fbbf24' : '#4ade80'}">${d.temp}</td>
+              <td style="color: ${d.vib > 0.8 ? '#f87171' : d.vib > 0.5 ? '#fbbf24' : '#4ade80'}">${d.vib}</td>
+              <td style="color: ${d.rpm < 1300 ? '#fbbf24' : 'var(--text)'}">${d.rpm}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  popup.style.display = 'flex';
+}
+
+function closeDemoPopup() {
+  document.getElementById('demo-popup').style.display = 'none';
+}
+
+// Event listeners
+document.getElementById('demo-search').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') demoSearch();
+});
+
+document.addEventListener('click', function(e) {
+  const popup = document.getElementById('demo-popup');
+  if (e.target === popup) closeDemoPopup();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeDemoPopup();
+});
+
+// Inicializa botões
+document.getElementById('demo-prev').disabled = true;
+document.getElementById('demo-next').disabled = demoMachines.length <= 3;
+</script>
+
+</body>
+</html>
