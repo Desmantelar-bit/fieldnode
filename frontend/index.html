@@ -545,7 +545,6 @@ async function verificarAPI() {
   const txt  = document.getElementById('api-status-text');
   dot.classList.remove('online', 'offline', 'pulse');
   try {
-    console.log('Testando API:', API + '/Colheitadeira/');
     const response = await fetch(API + '/Colheitadeira/', {
       method: 'GET',
       mode: 'cors',
@@ -553,11 +552,9 @@ async function verificarAPI() {
         'Content-Type': 'application/json',
       },
     });
-    console.log('Response status:', response.status);
     if (response.ok) {
       dot.classList.add('online');
       txt.textContent = 'API online';
-      console.log('API online!');
     } else {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -1075,7 +1072,8 @@ function renderFuelChart(telemetria) {
   const maquinas = Object.values(porMaquina);
   const todasMaquinas = maquinas.map(m => ({ maquina_id: m.maquina_id }));
   
-  // Simula nível de combustível baseado na atividade da máquina
+  // Combustível não disponível no protótipo atual
+  // Requer sensor adicional no hardware físico
   const labels = [];
   const data = [];
   const colors = [];
@@ -1084,27 +1082,14 @@ function renderFuelChart(telemetria) {
     const cores = getMachineColor(m.maquina_id, todasMaquinas);
     const ultimaLeitura = m.leituras[m.leituras.length - 1];
     
-    // Simula combustível baseado em RPM e temperatura
-    // RPM alto + temperatura alta = mais consumo = menos combustível
-    const fatorConsumo = (ultimaLeitura.rpm / 2500) * (ultimaLeitura.temperatura / 100);
-    const combustivelSimulado = Math.max(15, Math.min(95, 85 - (fatorConsumo * 30) + (Math.random() * 20)));
+    // Combustível não disponível - requer sensor adicional
+    const combustivel = null; // N/D
     
     labels.push(m.maquina_id + (cores.isBicolor ? ' (M+O)' : ''));
-    data.push(Math.round(combustivelSimulado));
+    data.push(combustivel); // null para N/D
     
-    // Cor baseada no nível de combustível, mas considerando o sistema bicolor
-    const nivel = combustivelSimulado;
-    let corFinal;
-    if (nivel < 30) {
-      corFinal = C.red;
-    } else if (nivel < 60) {
-      corFinal = C.amber;
-    } else {
-      // Se é bicolor, usa a cor primária, senão usa verde padrão
-      corFinal = cores.isBicolor ? cores.primary : cores.primary;
-    }
-    
-    colors.push(corFinal);
+    // Cor neutra para N/D
+    colors.push(C.gray);
   });
   
   criarOuAtualizar('fuelChart', {
@@ -1130,9 +1115,7 @@ function renderFuelChart(telemetria) {
           callbacks: {
             label: function(context) {
               const maquina = context.label;
-              const valor = context.parsed.y;
-              const status = valor < 30 ? ' (CRÍTICO)' : valor < 60 ? ' (ATENÇÃO)' : ' (OK)';
-              return `${maquina}: ${valor}%${status}`;
+              return `${maquina}: N/D (requer sensor adicional)`;
             }
           }
         }
@@ -1151,7 +1134,7 @@ function renderFuelChart(telemetria) {
           },
           ticks: { 
             ...scaleDefaults().y.ticks, 
-            callback: v => v + '%' 
+            callback: v => v === null ? 'N/D' : v + '%' 
           } 
         },
         x: {
@@ -1877,8 +1860,6 @@ function renderStatusTable(maquinas, groupIndex = 0) {
   const endIndex = Math.min(startIndex + 3, maquinas.length);
   const maquinasGrupo = maquinas.slice(startIndex, endIndex);
   
-  console.log('Renderizando grupo', groupIndex, 'com máquinas:', maquinasGrupo.map(m => m.maquina_id));
-  
   // Cria headers das máquinas com sistema bicolor aprimorado
   const headers = ['<th class="info-label-header"><div class="diagonal-header"><span class="diagonal-top">Informações</span><span class="diagonal-bottom">Máquinas</span></div></th>'];
   
@@ -1904,8 +1885,6 @@ function renderStatusTable(maquinas, groupIndex = 0) {
       </th>`);
   });
   
-  console.log('Headers gerados:', headers);
-
   // Header da tabela - UMA LINHA com todas as máquinas
   tableHead.innerHTML = `<tr>${headers.join('')}</tr>`;
 
@@ -1951,58 +1930,14 @@ function renderStatusTable(maquinas, groupIndex = 0) {
     </tr>`
   ];
   
-  console.log('Linhas geradas:', linhas);
-
   tableBody.innerHTML = linhas.join('');
   
-  console.log('Tabela renderizada com sucesso!');
-  console.log('HTML final do head:', tableHead.innerHTML);
-  console.log('HTML final do body:', tableBody.innerHTML);
 }
 
 async function atualizarStatusMaquinas() {
   try {
-    // DADOS DE TESTE - remova esta seção quando a API estiver funcionando
-    const maquinasTeste = [
-      {
-        maquina_id: 'CASE-TC5000-01',
-        temperatura: 72,
-        vibracao: 0.3,
-        rpm: 2100,
-        timestamp: new Date().toISOString(),
-        nivel_risco: 'NORMAL'
-      },
-      {
-        maquina_id: 'CASE-TC5000-02',
-        temperatura: 78,
-        vibracao: 0.6,
-        rpm: 2350,
-        timestamp: new Date().toISOString(),
-        nivel_risco: 'ATENCAO'
-      },
-      {
-        maquina_id: 'NH-CR9000-01',
-        temperatura: 69,
-        vibracao: 0.2,
-        rpm: 1950,
-        timestamp: new Date().toISOString(),
-        nivel_risco: 'NORMAL'
-      },
-      {
-        maquina_id: 'CASE-C10000-01',
-        temperatura: 75,
-        vibracao: 0.4,
-        rpm: 2200,
-        timestamp: new Date().toISOString(),
-        nivel_risco: 'NORMAL'
-      }
-    ];
-    
-    // Usa dados de teste em vez da API
-    const maquinas = maquinasTeste;
-    
-    // Código original comentado:
-    // const maquinas = await apiFetch('/api/leituras/ultimas/');
+    // Código original - usa API real
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
     
     if (!maquinas.length) {
       const tableBody = document.getElementById('status-table-body');
@@ -2060,14 +1995,9 @@ function buscarMaquina() {
     return;
   }
   
-  console.log('Buscando máquina:', searchTerm);
-  console.log('Dados disponíveis:', allMachinesData);
-  
   const maquinaEncontrada = allMachinesData.find(m => 
     m.maquina_id.toUpperCase().includes(searchTerm)
   );
-  
-  console.log('Máquina encontrada:', maquinaEncontrada);
   
   if (maquinaEncontrada) {
     abrirPopupMaquina(maquinaEncontrada.maquina_id);
@@ -2494,7 +2424,6 @@ function gerarDetalhesIA(maquina) {
 }
 
 async function abrirPopupMaquina(maquinaId) {
-  console.log('Abrindo popup para máquina:', maquinaId);
   
   const popup = document.getElementById('machine-popup');
   const title = document.getElementById('popup-machine-title');

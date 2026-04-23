@@ -24,6 +24,14 @@ class AnomaliaView(APIView):
 class IngestaoTelemetriaView(APIView):
 
     def post(self, request):
+        # Verificação simples de API key (para produção, use tokens JWT)
+        api_key = request.headers.get('X-API-Key')
+        if not api_key or api_key != 'fieldnode-demo-2024':  # chave de demo
+            return Response(
+                {'status': 'erro', 'detalhes': 'API key inválida ou ausente'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
         uuid_recebido = request.data.get('id')
         if uuid_recebido:
             if LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
