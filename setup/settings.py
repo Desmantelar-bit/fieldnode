@@ -25,6 +25,7 @@ SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
+FIELDNODE_API_KEY = config('FIELDNODE_API_KEY', default='fieldnode-demo-2024')
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]  # Development
 

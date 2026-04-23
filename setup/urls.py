@@ -80,8 +80,4 @@ urlpatterns += [ # Rota para detecção de anomalias
     path('api/anomalias/', AnomaliaView.as_view(), name='anomalias'),
     path('api/leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
     path('api/manutencao/', ManutencaoView.as_view(), name='manutencao'),
-    # Frontend
-    path('', serve_frontend, name='frontend-index'),
-    path('frontend/', serve_frontend, name='frontend-root'),
-    path('frontend/<str:filename>', serve_frontend, name='frontend-files'),
 ]

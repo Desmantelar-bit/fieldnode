@@ -584,6 +584,7 @@ function criarOuAtualizar(id, config) {
 const C = {
   green: '#4ade80', amber: '#fbbf24', red: '#f87171',
   blue: '#60a5fa', purple: '#a78bfa', teal: '#2dd4bf',
+  gray: '#4a6055',
   grid: 'rgba(255,255,255,0.05)', tick: '#4a6055',
 };
 
@@ -768,21 +769,7 @@ function renderMetrics(colh, temp, comb, telemetria = []) {
   if (telemetria.length > 0) {
     // Dados dinâmicos de telemetria
     maxTemp = Math.max(...telemetria.map(t => t.temperatura)).toFixed(1);
-    
-    // Simula combustível médio baseado na atividade
-    const porMaquina = {};
-    telemetria.forEach(l => {
-      if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = [];
-      porMaquina[l.maquina_id].push(l);
-    });
-    
-    const combustiveis = Object.values(porMaquina).map(leituras => {
-      const ultima = leituras[leituras.length - 1];
-      const fatorConsumo = (ultima.rpm / 2500) * (ultima.temperatura / 100);
-      return Math.max(15, Math.min(95, 85 - (fatorConsumo * 30) + (Math.random() * 20)));
-    });
-    
-    mediaC = combustiveis.length ? (combustiveis.reduce((s, c) => s + c, 0) / combustiveis.length).toFixed(1) : '—';
+    mediaC = 'N/D';
   } else {
     // Fallback para dados estáticos
     maxTemp = temp.length ? Math.max(...temp.map(t => t.Temperatura)) : '—';
@@ -806,9 +793,9 @@ function renderMetrics(colh, temp, comb, telemetria = []) {
       <div class="metric-sub">${telemetria.length > 0 ? 'telemetria ativa' : 'última leitura'}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Combustível médio</div>
-      <div class="metric-value">${mediaC}<span class="metric-unit">%</span></div>
-      <div class="metric-sub">${telemetria.length > 0 ? 'estimado' : comb.length + ' registros'}</div>
+      <div class="metric-label">Combustível</div>
+      <div class="metric-value" style="color:var(--text2)">N/D</div>
+      <div class="metric-sub">requer sensor adicional</div>
     </div>
   `;
 }
@@ -2440,33 +2427,12 @@ async function abrirPopupMaquina(maquinaId) {
   content.innerHTML = '<div class="state-msg">Carregando histórico...</div>';
   
   try {
-    // Para dados de teste, simula histórico
-    const leiturasMaquina = [];
-    const agora = new Date();
-    
-    // Gera 10 leituras simuladas para a máquina
-    for (let i = 0; i < 10; i++) {
-      const timestamp = new Date(agora.getTime() - (i * 5 * 60 * 1000)); // A cada 5 minutos
-      const maquinaAtual = allMachinesData.find(m => m.maquina_id === maquinaId);
-      
-      if (maquinaAtual) {
-        leiturasMaquina.push({
-          maquina_id: maquinaId,
-          temperatura: maquinaAtual.temperatura + (Math.random() - 0.5) * 10,
-          vibracao: maquinaAtual.vibracao + (Math.random() - 0.5) * 0.2,
-          rpm: maquinaAtual.rpm + Math.floor((Math.random() - 0.5) * 200),
-          timestamp: timestamp.toISOString()
-        });
-      }
-    }
-    
-    // Código original para API real (comentado):
-    // const todasLeituras = await apiFetch('/api/telemetria/');
-    // const leiturasMaquina = todasLeituras
-    //   .filter(l => l.maquina_id === maquinaId)
-    //   .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    //   .slice(0, 20);
-    
+    const todasLeituras = await apiFetch('/api/telemetria/');
+    const leiturasMaquina = todasLeituras
+      .filter(l => l.maquina_id === maquinaId)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 20);
+
     if (!leiturasMaquina.length) {
       content.innerHTML = '<div class="state-msg">Nenhuma leitura encontrada para esta máquina.</div>';
       return;
@@ -2509,7 +2475,7 @@ async function abrirPopupMaquina(maquinaId) {
       </div>
       
       <div class="popup-history-title">
-        Histórico das Últimas ${leiturasMaquina.length} Leituras (Simulado)
+        Histórico das Últimas ${leiturasMaquina.length} Leituras
       </div>
       
       <div class="popup-history-table">

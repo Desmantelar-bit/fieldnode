@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
 from django.db import IntegrityError, connection
 from api_tcc.models import LeituraTelemetria
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
@@ -24,9 +25,9 @@ class AnomaliaView(APIView):
 class IngestaoTelemetriaView(APIView):
 
     def post(self, request):
-        # Verificação simples de API key (para produção, use tokens JWT)
+        # Verificação simples de API key
         api_key = request.headers.get('X-API-Key')
-        if not api_key or api_key != 'fieldnode-demo-2024':  # chave de demo
+        if not api_key or api_key != settings.FIELDNODE_API_KEY:
             return Response(
                 {'status': 'erro', 'detalhes': 'API key inválida ou ausente'},
                 status=status.HTTP_401_UNAUTHORIZED
