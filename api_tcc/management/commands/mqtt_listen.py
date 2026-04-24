@@ -25,10 +25,8 @@
 import json
 import logging
 from django.core.management.base import BaseCommand
-from django.utils.dateparse import parse_datetime
-from django.utils.timezone import make_aware, is_aware
 import paho.mqtt.client as mqtt
-from api_tcc.models import LeituraTelemetria
+from api_tcc.services.telemetria import registrar_leitura
 
 logger = logging.getLogger(__name__)
 
@@ -50,23 +48,21 @@ def on_message(client, userdata, msg):
         payload = json.loads(msg.payload.decode('utf-8'))
         print(f'[MQTT] Mensagem recebida em {msg.topic}: {payload}')
 
-        uuid_recebido = payload.get('id')
-
-        # Deduplicação — ignora se já existe no banco
-        if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
-            print(f'[MQTT] Duplicata ignorada: {uuid_recebido}')
-            return
-
-        LeituraTelemetria.objects.create(
-            id          = uuid_recebido,
-            maquina_id  = payload['maquina_id'],
-            temperatura = payload['temperatura'],
-            vibracao    = payload['vibracao'],
-            rpm         = payload['rpm'],
-            timestamp   = (lambda dt: make_aware(dt) if not is_aware(dt) else dt)(parse_datetime(payload['timestamp'])),
-        )
-        print(f'[MQTT] Salvo no banco: {uuid_recebido}')
-
+        # Usa o service layer para registrar a leitura
+        # Isso garante deduplicação, validação de range e logging consistente
+        resultado, detalhe = registrar_leitura(payload)
+        
+        if resultado == "criado":
+            print(f'[MQTT] Salvo: {detalhe}')
+        elif resultado == "duplicata":
+            print(f'[MQTT] Duplicata ignorada: {detalhe}')
+        elif resultado == "invalido":
+            print(f'[MQTT] Rejeitado — {detalhe}')
+        else:
+            print(f'[MQTT] Resultado: {resultado} - {detalhe}')
+            
+    except json.JSONDecodeError as e:
+        print(f'[MQTT] Erro ao decodificar JSON: {e}')
     except Exception as e:
         print(f'[MQTT] Erro ao processar mensagem: {e}')
 

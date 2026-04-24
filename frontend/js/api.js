@@ -5,20 +5,12 @@
  * Todas as requisições HTTP passam por aqui — nenhuma outra parte do frontend
  * usa fetch() diretamente.
  * 
- * Decisão: URL da API é descoberta dinamicamente para funcionar tanto
- * servida pelo Django quanto como arquivo local (file://).
- * Hardcodar localhost:8000 causava falha quando o frontend era servido
- * de outro IP durante testes em rede local.
+ * IMPORTANTE: Usa a variável API do config.js (sempre http://127.0.0.1:8000)
  */
 
-const API_BASE_URL = (() => {
-  // Se está sendo servido pelo próprio Django (mesmo host)
-  if (window.location.port === '8000' || window.location.hostname !== 'localhost' && window.location.protocol !== 'file:') {
-    return window.location.origin;
-  }
-  // Desenvolvimento local com frontend separado
-  return 'http://127.0.0.1:8000';
-})();
+// Usa a variável API definida em config.js
+// NÃO redefine aqui para evitar conflitos
+const API_BASE_URL = typeof API !== 'undefined' ? API : 'http://127.0.0.1:8000';
 
 /**
  * GET genérico com tratamento de erro padronizado.

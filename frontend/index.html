@@ -438,6 +438,9 @@
 <!-- Chart.js: biblioteca de graficos carregada do CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/colors.js"></script>
+<script src="js/status.js"></script>
 <script>
 /*
 =====================================================
@@ -504,34 +507,6 @@ function carregarPagina(name) {
   if (name === 'colheitadeiras') carregarColheitadeiras();
   if (name === 'operarios')      carregarOperarios();
   if (name === 'alertas')        carregarAlertas();
-}
-
-/* ─────────────────────────────────────────
-   3. FETCH GENERICO
-   apiFetch(endpoint) — faz GET na API e retorna JSON
-   apiPost(endpoint, body) — faz POST na API com dados JSON
-   
-   Exemplo de uso:
-     const colhs = await apiFetch('/Colheitadeira/');
-     await apiPost('/Marca/', { Nome: 'Case IH' });
-───────────────────────────────────────── */
-async function apiFetch(endpoint) {
-  const r = await fetch(API + endpoint);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
-}
-
-async function apiPost(endpoint, body) {
-  const r = await fetch(API + endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(JSON.stringify(err));
-  }
-  return r.json();
 }
 
 /* ─────────────────────────────────────────
@@ -1624,115 +1599,6 @@ async function cadastrarColheitadeira() {
    - Cores diferentes por marca de máquina
    - Controles de navegação
 ────────────────────────────────────────────────────────────── */
-function nivelCor(nivel) {
-  return nivel === 'CRITICO' ? C.red : nivel === 'ATENCAO' ? C.amber : C.green;
-}
-
-function nivelBg(nivel) {
-  return nivel === 'CRITICO' ? 'var(--red-dim)' : nivel === 'ATENCAO' ? 'var(--amber-dim)' : 'var(--green-dim)';
-}
-
-function getMachineColor(maquinaId, allMachines = []) {
-  // Sistema de cores únicas por máquina (não por marca)
-  // Cada máquina terá sua própria cor para evitar confusões
-  const coresPrimarias = [
-    '#f87171', // Vermelho
-    '#fbbf24', // Amarelo  
-    '#4ade80', // Verde
-    '#60a5fa', // Azul
-    '#a78bfa', // Roxo
-    '#f59e0b', // Laranja
-    '#10b981', // Verde esmeralda
-    '#ef4444', // Vermelho escuro
-    '#3b82f6', // Azul escuro
-    '#8b5cf6', // Roxo escuro
-    '#06b6d4', // Ciano
-    '#84cc16'  // Verde lima
-  ];
-  
-  // Cores secundárias para sistema bicolor (bem distintas das primárias)
-  const coresSecundarias = [
-    '#3b82f6', // Azul
-    '#10b981', // Verde esmeralda
-    '#f59e0b', // Laranja
-    '#ef4444', // Vermelho
-    '#06b6d4', // Ciano
-    '#8b5cf6', // Roxo
-    '#84cc16', // Verde lima
-    '#a78bfa', // Roxo claro
-    '#fbbf24', // Amarelo
-    '#4ade80', // Verde
-    '#f87171', // Vermelho claro
-    '#60a5fa'  // Azul claro
-  ];
-  
-  // Se não temos informações de todas as máquinas, usa cor padrão
-  if (!allMachines.length) {
-    return { primary: coresPrimarias[0], secondary: null, isBicolor: false };
-  }
-  
-  // Ordena as máquinas por ID para garantir consistência
-  const maquinasOrdenadas = [...allMachines].sort((a, b) => a.maquina_id.localeCompare(b.maquina_id));
-  
-  // Agrupa máquinas por modelo base para determinar herança de cores
-  const maquinasPorModelo = {};
-  const modelosUnicos = new Set();
-  
-  maquinasOrdenadas.forEach(m => {
-    // Extrai o modelo base do ID (ex: CASE-TC5000-01 -> CASE-TC5000)
-    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
-    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
-    
-    if (!maquinasPorModelo[modelo]) {
-      maquinasPorModelo[modelo] = [];
-    }
-    maquinasPorModelo[modelo].push(m);
-    modelosUnicos.add(modelo);
-  });
-  
-  // Ordena os modelos únicos para atribuição consistente de cores
-  const modelosOrdenados = Array.from(modelosUnicos).sort();
-  
-  // Encontra o modelo da máquina atual
-  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
-  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
-  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
-  
-  // Encontra o índice do modelo para atribuir cor primária
-  const indiceModelo = modelosOrdenados.indexOf(modeloAtual);
-  const corPrimariaDoModelo = coresPrimarias[indiceModelo % coresPrimarias.length];
-  
-  // Encontra a posição da máquina atual dentro do modelo
-  const indiceDentroDoModelo = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
-  
-  if (indiceDentroDoModelo === 0) {
-    // Primeira máquina do modelo: cor única (define a cor do modelo)
-    return { primary: corPrimariaDoModelo, secondary: null, isBicolor: false };
-  } else {
-    // Demais máquinas do modelo: herdam a cor primária + cor secundária independente
-    const indiceMaquinaGlobal = maquinasOrdenadas.findIndex(m => m.maquina_id === maquinaId);
-    const corSecundaria = coresSecundarias[indiceMaquinaGlobal % coresSecundarias.length];
-    
-    return {
-      primary: corPrimariaDoModelo,    // Herda a cor do modelo
-      secondary: corSecundaria,        // Cor secundária independente
-      isBicolor: true
-    };
-  }
-}
-
-function aplicarCorMaquina(elemento, cores) {
-  if (cores.isBicolor) {
-    // Aplica gradiente bicolor
-    elemento.style.background = `linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%)`;
-    elemento.style.borderLeft = `4px solid ${cores.primary}`;
-  } else {
-    // Aplica cor única
-    elemento.style.color = cores.primary;
-    elemento.style.borderLeft = `4px solid ${cores.primary}`;
-  }
-}
-
 let currentTableIndex = 0;
 let totalMachines = 0;
 let allMachinesData = []; // Armazena todos os dados das máquinas
@@ -1803,195 +1669,6 @@ function refreshAmbiente() {
 
 function refreshIA() {
   atualizarIA();
-}
-
-function refreshMachineTable() {
-  atualizarStatusMaquinas();
-}
-
-function scrollMaquinasTabela(direction) {
-  const table = document.getElementById('status-table');
-  const prevBtn = document.getElementById('carousel-prev');
-  const nextBtn = document.getElementById('carousel-next');
-  
-  if (!table || totalMachines <= 3) {
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
-    return;
-  }
-  
-  // Calcula novo índice (grupos de 3)
-  const maxIndex = Math.ceil(totalMachines / 3) - 1;
-  currentTableIndex = Math.max(0, Math.min(maxIndex, currentTableIndex + direction));
-  
-  // Atualiza estado dos botões
-  prevBtn.disabled = currentTableIndex === 0;
-  nextBtn.disabled = currentTableIndex >= maxIndex;
-  
-  // Atualiza a tabela com as máquinas do grupo atual
-  renderStatusTable(allMachinesData, currentTableIndex);
-}
-
-function renderStatusTable(maquinas, groupIndex = 0) {
-  const tableHead = document.getElementById('status-table-head');
-  const tableBody = document.getElementById('status-table-body');
-  
-  if (!maquinas.length) {
-    tableHead.innerHTML = '<tr><th colspan="100%" class="state-msg">Nenhuma leitura recebida do ESP32 ainda.</th></tr>';
-    tableBody.innerHTML = '';
-    return;
-  }
-
-  // Pega 3 máquinas do grupo atual
-  const startIndex = groupIndex * 3;
-  const endIndex = Math.min(startIndex + 3, maquinas.length);
-  const maquinasGrupo = maquinas.slice(startIndex, endIndex);
-  
-  // Cria headers das máquinas com sistema bicolor aprimorado
-  const headers = ['<th class="info-label-header"><div class="diagonal-header"><span class="diagonal-top">Informações</span><span class="diagonal-bottom">Máquinas</span></div></th>'];
-  
-  maquinasGrupo.forEach(m => {
-    const cores = getMachineColor(m.maquina_id, maquinas);
-    const cor = nivelCor(m.nivel_risco || 'NORMAL');
-    const bg = nivelBg(m.nivel_risco || 'NORMAL');
-    
-    // Aplica sistema bicolor se necessário
-    let nomeStyle = `color: ${cores.primary};`;
-    let borderStyle = `border-top: 4px solid ${cores.primary};`;
-    
-    if (cores.isBicolor) {
-      // Para máquinas bicolor, usa gradiente no nome e borda dupla
-      nomeStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
-      borderStyle = `border-top: 4px solid; border-image: linear-gradient(90deg, ${cores.primary} 0%, ${cores.secondary} 100%) 1;`;
-    }
-    
-    headers.push(`<th class="machine-header" style="${borderStyle}">
-        <div class="machine-name" style="${nomeStyle}">${m.maquina_id}</div>
-        <div class="machine-status-badge" style="background: ${bg}; color: ${cor}; border: 1px solid ${cor}33;">${m.nivel_risco || 'NORMAL'}</div>
-        ${cores.isBicolor ? `<div style="font-size: 8px; color: var(--text3); margin-top: 2px;">MÁQUINA + OPERADOR</div>` : ''}
-      </th>`);
-  });
-  
-  // Header da tabela - UMA LINHA com todas as máquinas
-  tableHead.innerHTML = `<tr>${headers.join('')}</tr>`;
-
-  // Corpo da tabela - 4 linhas com os dados de cada máquina
-  const linhas = [
-    // Linha 1: Temperaturas
-    `<tr class="status-row">
-      <td class="info-label">Temperatura</td>
-      ${maquinasGrupo.map(m => {
-        const cor = m.temperatura > 85 ? C.red : m.temperatura > 75 ? C.amber : C.green;
-        return `<td><span class="status-value" style="color: ${cor};">${m.temperatura}<span class="status-unit">°C</span></span></td>`;
-      }).join('')}
-    </tr>`,
-    
-    // Linha 2: Vibrações
-    `<tr class="status-row">
-      <td class="info-label">Vibração</td>
-      ${maquinasGrupo.map(m => {
-        const cor = m.vibracao > 0.8 ? C.red : m.vibracao > 0.5 ? C.amber : 'var(--text)';
-        return `<td><span class="status-value" style="color: ${cor};">${m.vibracao}<span class="status-unit">g</span></span></td>`;
-      }).join('')}
-    </tr>`,
-    
-    // Linha 3: RPM
-    `<tr class="status-row">
-      <td class="info-label">RPM</td>
-      ${maquinasGrupo.map(m => {
-        const cor = m.rpm < 1300 ? C.amber : 'var(--text)';
-        return `<td><span class="status-value" style="color: ${cor};">${m.rpm}</span></td>`;
-      }).join('')}
-    </tr>`,
-    
-    // Linha 4: Última leitura
-    `<tr class="status-row">
-      <td class="info-label">Última Leitura</td>
-      ${maquinasGrupo.map(m => {
-        const ts = new Date(m.timestamp).toLocaleTimeString('pt-BR', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-        return `<td><span class="status-timestamp">${ts}</span></td>`;
-      }).join('')}
-    </tr>`
-  ];
-  
-  tableBody.innerHTML = linhas.join('');
-  
-}
-
-async function atualizarStatusMaquinas() {
-  try {
-    // Código original - usa API real
-    const maquinas = await apiFetch('/api/leituras/ultimas/');
-    
-    if (!maquinas.length) {
-      const tableBody = document.getElementById('status-table-body');
-      if (tableBody) tableBody.innerHTML = '<tr><td colspan="100%" class="state-msg">Nenhuma leitura recebida do ESP32 ainda.</td></tr>';
-      return;
-    }
-
-    // Armazena dados globalmente para busca e navegação
-    allMachinesData = maquinas;
-    const novoTotalMachines = maquinas.length;
-    
-    // Só reseta o índice se o número de máquinas mudou
-    if (totalMachines !== novoTotalMachines) {
-      totalMachines = novoTotalMachines;
-      currentTableIndex = 0;
-    }
-    
-    // Renderiza a página atual (mantém a posição do usuário)
-    renderStatusTable(maquinas, currentTableIndex);
-    
-    // Atualiza controles do carrossel
-    const prevBtn = document.getElementById('carousel-prev');
-    const nextBtn = document.getElementById('carousel-next');
-    if (prevBtn && nextBtn) {
-      const maxIndex = Math.ceil(totalMachines / 3) - 1;
-      prevBtn.disabled = currentTableIndex === 0;
-      nextBtn.disabled = currentTableIndex >= maxIndex || totalMachines <= 3;
-    }
-
-    // Atualiza timestamp do último refresh
-    const upEl = document.getElementById('ultimo-update');
-    if (upEl) upEl.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
-
-  } catch (e) {
-    console.error('Erro ao atualizar status das máquinas:', e);
-    const tableBody = document.getElementById('status-table-body');
-    if (tableBody) tableBody.innerHTML = '<tr><td colspan="100%" class="state-msg err-red">Erro ao buscar status das máquinas.</td></tr>';
-  }
-}
-
-// inicia polling de status em tempo real
-atualizarStatusMaquinas();
-setInterval(atualizarStatusMaquinas, 3000);
-
-/* ─────────────────────────────────────────────────────────────
-   BUSCA E POPUP DE MÁQUINAS
-   Sistema de busca por nome da máquina e popup com detalhes
-───────────────────────────────────────────────────────────── */
-function buscarMaquina() {
-  const searchInput = document.getElementById('machine-search');
-  const searchTerm = searchInput.value.trim().toUpperCase();
-  
-  if (!searchTerm) {
-    alert('Digite o nome da máquina para buscar');
-    return;
-  }
-  
-  const maquinaEncontrada = allMachinesData.find(m => 
-    m.maquina_id.toUpperCase().includes(searchTerm)
-  );
-  
-  if (maquinaEncontrada) {
-    abrirPopupMaquina(maquinaEncontrada.maquina_id);
-    searchInput.value = ''; // Limpa o campo de busca
-  } else {
-    alert(`Máquina "${searchTerm}" não encontrada`);
-  }
 }
 
 // Permite buscar pressionando Enter e implementa sugestões
@@ -2116,6 +1793,13 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   
   // Inicializar campos de busca dos gráficos
+  initChartSearches();
+  
+  // Inicia polling de status em tempo real após DOM estar pronto
+  atualizarStatusMaquinas();
+  setInterval(atualizarStatusMaquinas, 3000);
+  
+  // Inicializa campos de busca dos gráficos
   initChartSearches();
 });
 
@@ -2753,8 +2437,5 @@ carregarDashboard();
 carregarSelectsReferencia();
 setInterval(verificarAPI, 30000);
 </script>
-<script src="js/api.js"></script>
-<script src="js/colors.js"></script>
-<script src="js/status.js"></script>
 </body>
 </html>
