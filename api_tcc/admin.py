@@ -4,10 +4,22 @@ from api_tcc import models
 
 @admin.register(models.LeituraTelemetria)
 class LeituraTelemetriaAdmin(admin.ModelAdmin):
-    list_display  = ('maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp', 'recebido_em')
-    list_filter   = ('maquina_id',)
-    search_fields = ('maquina_id',)
+    list_display   = ('maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp', 'recebido_em')
+    list_filter    = ('maquina_id',)
+    search_fields  = ('maquina_id',)
     readonly_fields = ('id', 'recebido_em')
+
+
+@admin.register(models.TelemetriaInvalida)
+class TelemetriaInvalidaAdmin(admin.ModelAdmin):
+    """
+    Payloads rejeitados ficam aqui para auditoria.
+    Útil para diagnosticar sensores com defeito ou tentativas de injeção.
+    """
+    list_display   = ('maquina_id', 'motivo_rejeicao', 'recebido_em')
+    list_filter    = ('maquina_id',)
+    search_fields  = ('maquina_id', 'motivo_rejeicao')
+    readonly_fields = ('recebido_em',)
 
 
 @admin.register(models.Colheitadeira)

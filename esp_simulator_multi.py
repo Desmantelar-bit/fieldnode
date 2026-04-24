@@ -20,24 +20,42 @@ BROKER_PORT = 1883
 TOPICO_BASE = 'fieldnode'
 INTERVALO_ENVIO = 2  # segundos entre leituras
 
-# Máquinas cadastradas no banco
+# Máquinas cadastradas no banco (devem corresponder aos IDs criados pelo popular_banco.py)
 MAQUINAS = [
     {
-        'id': 'NH-C10000-01',
-        'modelo': 'New Holland C10000',
-        'operario': 'Ana Furlaneto',
+        'id': 'CASE-TC5000-01',
+        'modelo': 'Case IH TC5000',
+        'operario': 'João Silva',
         'cenario': 'normal'  # normal, aquecendo, critico
     },
     {
         'id': 'CASE-TC5000-02', 
         'modelo': 'Case IH TC5000',
-        'operario': 'Letícia Terrete',
+        'operario': 'Maria Santos',
         'cenario': 'aquecendo'
     },
     {
-        'id': 'CASE-TC5000-03',
-        'modelo': 'Case IH TC5000', 
-        'operario': 'João Matheus',
+        'id': 'DEERE-S780-01',
+        'modelo': 'John Deere S780', 
+        'operario': 'Pedro Costa',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'DEERE-S780-02',
+        'modelo': 'John Deere S780',
+        'operario': 'Ana Oliveira',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'NH-CR9090-01',
+        'modelo': 'New Holland CR9090',
+        'operario': 'João Silva',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'NH-CR9090-02',
+        'modelo': 'New Holland CR9090',
+        'operario': 'Maria Santos',
         'cenario': 'normal'
     }
 ]

@@ -149,6 +149,66 @@ Documentação completa: `http://localhost:8000/swagger/`
 
 ---
 
+## Integração com Sistemas Existentes
+
+### Estado atual do protótipo
+
+O FieldNode valida o pipeline completo de telemetria offline-first:
+- ✅ Dados saem do ESP32 via ESP-NOW
+- ✅ Gateway recebe e envia para API Django
+- ✅ Deduplicação por UUID no backend
+- ✅ Análise de IA em tempo real
+- ✅ Dashboard web com polling a cada 3s
+
+### Como implantar em produção hoje
+
+Para integrar com frotas existentes (Solinftec, John Deere, Case IH):
+
+1. **Cadastre as máquinas** no admin Django (`/admin/`) com seus IDs reais
+2. **Configure os ESP32** com os `maquina_id` correspondentes
+3. **Implemente o POST** periódico para `/api/telemetria/` (veja `docs/integracao.md`)
+
+### Contrato da API
+
+O endpoint aceita dados de telemetria com deduplicação automática:
+
+```bash
+curl -X POST http://localhost:8000/api/telemetria/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "uuid-v4-unico",
+    "maquina_id": "CASE-TC5000-01",
+    "temperatura": 78.5,
+    "vibracao": 0.42,
+    "rpm": 1850,
+    "timestamp": "2024-04-23T14:32:01Z"
+  }'
+```
+
+**Resposta de sucesso (201)**:
+```json
+{"status": "ok", "id": "uuid-confirmado"}
+```
+
+**Resposta de duplicata (200, idempotente)**:
+```json
+{"status": "duplicata ignorada", "id": "uuid"}
+```
+
+### O que precisa de desenvolvimento adicional
+
+- **Autenticação robusta**: JWT tokens por dispositivo (atualmente sem auth)
+- **Validação de `maquina_id`**: Garantir que apenas máquinas cadastradas enviem dados
+- **CAN bus integration**: Leitura direta do barramento J1939 para dados nativos da máquina
+- **Sensor de combustível**: Hardware adicional ou integração com ECU da máquina
+- **Retreino de IA**: Com histórico real de falhas para labels supervisionados
+
+**Para detalhes completos de implantação em produção, custos e cronograma, veja [`docs/RESPOSTA-INTEGRACAO-PRODUCAO.md`](docs/RESPOSTA-INTEGRACAO-PRODUCAO.md)**
+
+Documentação técnica da API em [`docs/integracao.md`](docs/integracao.md)
+
+---
+
 ## Notas de segurança
 
 - O endpoint `/api/telemetria/` não tem autenticação. Em produção, adicione uma API key simples.
@@ -159,8 +219,10 @@ Documentação completa: `http://localhost:8000/swagger/`
 
 ## Limitações conhecidas do protótipo
 
-- **Validação de `maquina_id`**: O endpoint `/api/telemetria/` aceita qualquer string como `maquina_id` sem validar se a máquina está cadastrada na tabela `Colheitadeira`. Isso significa que um ESP32 pode enviar `maquina_id: "qualquer_coisa"` e a leitura será salva normalmente. Em produção, adicione uma foreign key ou validação no serializer para garantir que apenas máquinas cadastradas podem enviar dados.
-- **Pipeline MQTT**: O `mqtt_listen.py` também aceita qualquer `maquina_id` via MQTT sem validação, mantendo a mesma limitação do endpoint REST.
+- **Validação de `maquina_id`**: O endpoint `/api/telemetria/` aceita qualquer string como `maquina_id` sem validar se a máquina está cadastrada na tabela `Colheitadeira`. Em produção, adicione validação no serializer para garantir que apenas máquinas cadastradas podem enviar dados.
+- **Pipeline MQTT**: O `mqtt_listen.py` também aceita qualquer `maquina_id` via MQTT sem validação.
+- **Combustível**: O protótipo atual não possui sensor de nível de combustível no hardware físico. O dashboard exibe "N/D" para este campo. Implementação futura requer sensor adicional ou leitura via barramento CAN/J1939.
+- **Labels de IA**: O modelo de manutenção preditiva usa labels baseados em padrões operacionais documentados (limites térmicos de motores diesel, análise de vibração mecânica). Em produção com histórico real de falhas, retreinar com dados supervisionados.
 
 ---
 

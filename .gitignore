@@ -1,58 +1,44 @@
-# Ignorar o virtualenv
-.venv/
-
-# Ignorar arquivos e diretórios do Python
-*.pyc
-*.pyo
-*.pyd
-__pycache__/
-**/__pycache__/
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.venv/
-
+# Ignorar arquivos compilados
+# Ignorar arquivos de compilação de frontend
 # Ignorar arquivos de configuração do editor
-.vscode/
-.idea/
-
-# Ignorar bancos de dados locais
-db.sqlite3
-db.sqlite3-journal
-
-
 # Ignorar arquivos de logs
+# Ignorar arquivos de media (uploads)
+# Ignorar arquivos do sistema operacional
+# Ignorar arquivos do staticfiles quando coletados
+# Ignorar arquivos e diretórios do Python
+# Ignorar bancos de dados locais
+# Ignorar configurações locais
+# Ignorar o virtualenv
+**/__pycache__/
+*.css.map
 *.log
+*.mo
 *.pot
 *.py[cod]
-*.mo
-*.swp
-
-# Ignorar arquivos de media (uploads)
-media/
-
-# Ignorar configurações locais
-local_settings.py
-.env
-
-# Ignorar arquivos do staticfiles quando coletados
-staticfiles/
-
-# Ignorar arquivos compilados
+*.pyc
+*.pyd
+*.pyo
 *.sass-cache
-*.css.map
-
-# Ignorar arquivos de compilação de frontend
+*.swp
+.DS_Store
+.env
+.idea/
+.Python
+.venv/
+.vscode/
+__pycache__/
+db.sqlite3
+db.sqlite3-journal
+env.bak/
+env/
+local_settings.py
+media/
 node_modules/
 npm-debug.log
+staticfiles/
+Thumbs.db
+venv.bak/
+venv/
 yarn-debug.log
 yarn-error.log
 
-# Ignorar arquivos do sistema operacional
-.DS_Store
-Thumbs.db
