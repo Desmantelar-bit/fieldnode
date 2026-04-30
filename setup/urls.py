@@ -22,7 +22,7 @@ from django.conf import settings
 import os
 from rest_framework import routers
 from api_tcc.api import viewsets
-from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView
+from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -80,8 +80,12 @@ urlpatterns += [ # Rota para detecção de anomalias
     path('api/anomalias/', AnomaliaView.as_view(), name='anomalias'),
     path('api/leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
     path('api/manutencao/', ManutencaoView.as_view(), name='manutencao'),
-    # Frontend
-    path('', serve_frontend, name='frontend-index'),
-    path('frontend/', serve_frontend, name='frontend-root'),
-    path('frontend/<str:filename>', serve_frontend, name='frontend-files'),
+    path('api/metricas/', MetricasView.as_view(), name='metricas'),
+]
+
+# Rotas para o frontend
+urlpatterns += [
+    path('frontend/<path:filename>', serve_frontend, name='frontend-file'),
+    path('frontend/', serve_frontend, name='frontend-index'),
+    path('', serve_frontend, name='root'),
 ]

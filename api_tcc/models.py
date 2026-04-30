@@ -193,3 +193,27 @@ class LeituraTelemetria(models.Model):
 
     def __str__(self):
         return f'{self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
+
+class TelemetriaInvalida(models.Model):
+    """
+    Dead-letter para payloads rejeitados na ingestão.
+ 
+    Payload é preservado para auditoria e diagnóstico de sensor.
+    Não usamos tabela compartilhada com LeituraTelemetria porque
+    dados inválidos frequentemente chegam sem os campos obrigatórios.
+    """
+    payload_raw      = models.TextField(verbose_name='Payload Bruto',
+                                        help_text='JSON original, truncado em 2000 chars')
+    motivo_rejeicao  = models.CharField(max_length=500, verbose_name='Motivo da Rejeição')
+    maquina_id       = models.CharField(max_length=50, verbose_name='ID da Máquina',
+                                        default='desconhecida', db_index=True)
+    recebido_em      = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em',
+                                            db_index=True)
+ 
+    class Meta:
+        ordering = ['-recebido_em']
+        verbose_name = 'Telemetria Inválida'
+        verbose_name_plural = 'Telemetrias Inválidas'
+ 
+    def __str__(self):
+        return f'{self.maquina_id} — {self.motivo_rejeicao[:60]} — {self.recebido_em}'

@@ -20,24 +20,42 @@ BROKER_PORT = 1883
 TOPICO_BASE = 'fieldnode'
 INTERVALO_ENVIO = 2  # segundos entre leituras
 
-# Máquinas cadastradas no banco
+# Máquinas cadastradas no banco (devem corresponder aos IDs criados pelo popular_banco.py)
 MAQUINAS = [
     {
-        'id': 'NH-C10000-01',
-        'modelo': 'New Holland C10000',
-        'operario': 'Ana Furlaneto',
+        'id': 'CASE-TC5000-01',
+        'modelo': 'Case IH TC5000',
+        'operario': 'João Silva',
         'cenario': 'normal'  # normal, aquecendo, critico
     },
     {
         'id': 'CASE-TC5000-02', 
         'modelo': 'Case IH TC5000',
-        'operario': 'Letícia Terrete',
+        'operario': 'Maria Santos',
         'cenario': 'aquecendo'
     },
     {
-        'id': 'CASE-TC5000-03',
-        'modelo': 'Case IH TC5000', 
-        'operario': 'João Matheus',
+        'id': 'DEERE-S780-01',
+        'modelo': 'John Deere S780', 
+        'operario': 'Pedro Costa',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'DEERE-S780-02',
+        'modelo': 'John Deere S780',
+        'operario': 'Ana Oliveira',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'NH-CR9090-01',
+        'modelo': 'New Holland CR9090',
+        'operario': 'João Silva',
+        'cenario': 'normal'
+    },
+    {
+        'id': 'NH-CR9090-02',
+        'modelo': 'New Holland CR9090',
+        'operario': 'Maria Santos',
         'cenario': 'normal'
     }
 ]
@@ -50,6 +68,7 @@ class SimuladorMaquina:
         self.vib_base = 0.5
         self.rpm_base = 1800
         self.tendencia_temp = 0
+        self._ultimo_uuid = None
         
     def gerar_leitura(self):
         """Gera leitura dinâmica baseada no cenário da máquina"""
@@ -82,8 +101,8 @@ class SimuladorMaquina:
         # Muda cenário ocasionalmente
         if self.contador % 20 == 0:
             self._mudar_cenario()
-            
-        return {
+        
+        leitura = {
             'id': str(uuid.uuid4()),
             'maquina_id': self.info['id'],
             'temperatura': temperatura,
@@ -91,6 +110,27 @@ class SimuladorMaquina:
             'rpm': rpm,
             'timestamp': datetime.now().isoformat()
         }
+        
+        # ========== CAOS CONTROLADO: Simula condições reais de falha ==========
+        # 5% de chance total de algo dar errado
+        sorteio = random.random()
+        if sorteio < 0.03:
+            # Duplicata: reenvia o mesmo UUID (simula timeout/retry de rede)
+            if self._ultimo_uuid:
+                leitura['id'] = self._ultimo_uuid
+                
+        elif sorteio < 0.05:
+            # Sensor com defeito: temperatura impossível
+            leitura['temperatura'] = 999.9
+        
+        elif sorteio < 0.07:
+            # Payload corrompido: falta campo obrigatório
+            del leitura['rpm']
+        
+        # Armazena UUID para possível duplicata no próximo ciclo
+        self._ultimo_uuid = leitura.get('id', self._ultimo_uuid)
+        
+        return leitura
     
     def _mudar_cenario(self):
         """Muda cenário ocasionalmente para simular condições reais"""

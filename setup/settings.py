@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
+from decouple import config as env_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,6 +26,7 @@ SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
+FIELDNODE_API_KEY = config('FIELDNODE_API_KEY', default='fieldnode-demo-2024')
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]  # Development
 
@@ -165,3 +167,60 @@ if DEBUG:
     CORS_ALLOWED_ORIGIN_REGEXES = [
         r"^null$",  # Permite origem null (file://)
     ]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+ 
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} — {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+ 
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'arquivo_erros': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'fieldnode_errors.log',
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB por arquivo
+            'backupCount': 3,
+            'formatter': 'verbose',
+            'level': 'WARNING',
+        },
+    },
+ 
+    'loggers': {
+        # Logger da aplicação FieldNode
+        'api_tcc': {
+            'handlers': ['console', 'arquivo_erros'],
+            'level': env_config('LOG_LEVEL', default='INFO'),
+            'propagate': False,
+        },
+        # Django interno — só warnings e acima em produção
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING' if not DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+ 
+    # Root logger — captura qualquer coisa não tratada acima
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}
+ 
+# Cria pasta de logs se não existir
+import os
+os.makedirs(BASE_DIR / 'logs', exist_ok=True)
