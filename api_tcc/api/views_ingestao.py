@@ -201,3 +201,36 @@ class ManutencaoView(APIView):
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
         resultado = prever_manutencao(maquina_id=maquina)
         return Response(resultado)
+
+
+class MetricasView(APIView):
+    """
+    GET /api/metricas/
+    
+    Métricas operacionais do sistema em tempo real.
+    Retorna:
+    - leituras_validas: total de leituras aceitas
+    - leituras_invalidas: total de leituras rejeitadas (TelemetriaInvalida)
+    - taxa_rejeicao_pct: percentual de rejeição
+    - maquinas_ativas: número de máquinas com pelo menos uma leitura
+    
+    Uso: Dashboard / apresentações para demonstrar observabilidade e
+    resiliência do sistema em campo.
+    """
+    def get(self, request):
+        from api_tcc.models import TelemetriaInvalida
+        
+        total_validas = LeituraTelemetria.objects.count()
+        total_invalidas = TelemetriaInvalida.objects.count()
+        total_geral = total_validas + total_invalidas
+        
+        return Response({
+            'leituras_validas': total_validas,
+            'leituras_invalidas': total_invalidas,
+            'taxa_rejeicao_pct': round(
+                (total_invalidas / max(total_geral, 1)) * 100, 1
+            ),
+            'maquinas_ativas': LeituraTelemetria.objects.values(
+                'maquina_id'
+            ).distinct().count(),
+        })
