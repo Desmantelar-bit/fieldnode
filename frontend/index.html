@@ -1,2441 +1,1280 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FieldNode — Telemetria Agrícola</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FieldNode — Telemetria Off-Grid para Colheitadeiras</title>
+<meta name="description" content="O dado existe. O FieldNode garante que ele chegue. Telemetria offline-first para máquinas agrícolas em áreas sem sinal."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0a0b09;
+  --bg2:      #111310;
+  --bg3:      #181a15;
+  --surface:  #1e211a;
+  --wire:     rgba(255,255,255,0.06);
+  --wire2:    rgba(255,255,255,0.12);
+  --amber:    #e8a020;
+  --amber-dim:#2a1e05;
+  --green:    #3dba6f;
+  --green-dim:#0b2118;
+  --red:      #e05252;
+  --red-dim:  #2a0d0d;
+  --text:     #e8ece2;
+  --text2:    #8a9080;
+  --text3:    #4a5244;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'IBM Plex Sans', sans-serif;
+  --display:  'Syne', sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  overflow-x:hidden;
+  line-height:1.6;
+}
+
+a{color:inherit;text-decoration:none}
+
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(var(--wire) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wire) 1px, transparent 1px);
+  background-size:60px 60px;
+  pointer-events:none;
+  z-index:0;
+}
+
+nav{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:100;
+  padding:0 40px;
+  height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:rgba(10,11,9,0.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--wire2);
+}
+.nav-logo{
+  font-family:var(--display);
+  font-weight:800;
+  font-size:17px;
+  letter-spacing:-0.02em;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.nav-logo .logo-mark{
+  width:28px;height:28px;
+  border:1.5px solid var(--amber);
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.nav-logo .logo-mark::before{
+  content:'';
+  width:8px;height:8px;
+  border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 8px var(--amber);
+}
+.nav-links{
+  display:flex;
+  align-items:center;
+  gap:32px;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  color:var(--text2);
+}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  padding:8px 18px;
+  border:1px solid var(--amber);
+  border-radius:2px;
+  color:var(--amber);
+  transition:all .2s;
+  cursor:pointer;
+}
+.nav-cta:hover{background:var(--amber);color:#000}
+
+.hero{
+  position:relative;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:120px 80px 80px;
+  overflow:hidden;
+  z-index:1;
+}
+
+.hero-bg-viz{
+  position:absolute;
+  top:50%;right:0;
+  transform:translateY(-50%);
+  width:520px;
+  height:520px;
+  pointer-events:none;
+}
+
+.status-ring{
+  position:absolute;
+  border-radius:50%;
+  border:1px solid;
+  animation:ring-pulse 3s ease-in-out infinite;
+}
+.sr-1{
+  width:140px;height:140px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.4);
+  animation-delay:0s;
+}
+.sr-2{
+  width:260px;height:260px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.18);
+  animation-delay:0.6s;
+}
+.sr-3{
+  width:380px;height:380px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.08);
+  animation-delay:1.2s;
+}
+.sr-4{
+  width:500px;height:500px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.04);
+  animation-delay:1.8s;
+}
+@keyframes ring-pulse{
+  0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  50%{opacity:0.5;transform:translate(-50%,-50%) scale(1.02)}
+}
+
+.hero-bg-viz .center-dot{
+  position:absolute;
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 24px var(--amber), 0 0 48px rgba(232,160,32,0.3);
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+
+.live-ticker{
+  position:absolute;
+  right:40px;
+  top:50%;
+  transform:translateY(-50%);
+  width:160px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.ticker-row{
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:2px;
+  padding:8px 12px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text2);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.ticker-row .val{font-size:13px;font-weight:500}
+.ticker-row .val.ok{color:var(--green)}
+.ticker-row .val.warn{color:var(--amber)}
+.ticker-row .val.crit{color:var(--red)}
+.ticker-row .blink{
+  width:5px;height:5px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:blink-dot 1.5s ease-in-out infinite;
+}
+@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:0.2}}
+
+.hero-kicker{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.15em;
+  color:var(--amber);
+  margin-bottom:24px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.hero-kicker::before{
+  content:'';
+  width:32px;height:1px;
+  background:var(--amber);
+}
+
+.hero h1{
+  font-family:var(--display);
+  font-weight:800;
+  font-size:clamp(48px, 6vw, 88px);
+  line-height:0.95;
+  letter-spacing:-0.03em;
+  margin-bottom:32px;
+  max-width:700px;
+}
+.hero h1 em{
+  font-style:normal;
+  color:var(--amber);
+  position:relative;
+}
+
+.hero-sub{
+  font-size:16px;
+  color:var(--text2);
+  max-width:480px;
+  margin-bottom:48px;
+  line-height:1.7;
+  font-weight:300;
+}
+.hero-sub strong{color:var(--text);font-weight:500}
+
+.hero-actions{
+  display:flex;
+  gap:16px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:var(--amber);
+  color:#000;
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.06em;
+  font-weight:500;
+  padding:14px 28px;
+  border:none;
+  border-radius:2px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-primary:hover{background:#f0b030;transform:translateY(-1px)}
+.btn-secondary{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:transparent;
+  color:var(--text2);
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.06em;
+  padding:14px 28px;
+  border:1px solid var(--wire2);
+  border-radius:2px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-secondary:hover{border-color:var(--wire);color:var(--text)}
+
+.hero-stat-strip{
+  margin-top:80px;
+  display:flex;
+  gap:48px;
+  padding-top:40px;
+  border-top:1px solid var(--wire2);
+}
+.hero-stat .n{
+  font-family:var(--display);
+  font-size:36px;
+  font-weight:800;
+  letter-spacing:-0.02em;
+  color:var(--amber);
+}
+.hero-stat .label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-top:4px;
+}
+
+section{
+  position:relative;
+  z-index:1;
+}
+.section-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.15em;
+  color:var(--text3);
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.section-label::before{
+  content:'';
+  width:20px;height:1px;
+  background:var(--text3);
+}
+.section-title{
+  font-family:var(--display);
+  font-weight:700;
+  font-size:clamp(32px,4vw,52px);
+  line-height:1.05;
+  letter-spacing:-0.025em;
+  margin-bottom:16px;
+}
+.section-sub{
+  font-size:15px;
+  color:var(--text2);
+  max-width:480px;
+  line-height:1.7;
+  font-weight:300;
+}
+
+.problem{
+  padding:100px 80px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:center;
+}
+.problem-story{
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  padding:32px;
+  position:relative;
+}
+.problem-story::before{
+  content:'RELATO DE CAMPO';
+  position:absolute;
+  top:-1px;left:20px;
+  background:var(--red);
+  color:#fff;
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.15em;
+  padding:3px 10px;
+  border-radius:0 0 2px 2px;
+}
+.problem-story p{
+  font-size:15px;
+  color:var(--text2);
+  line-height:1.8;
+  font-style:italic;
+  font-weight:300;
+}
+.problem-story p strong{color:var(--text);font-style:normal;font-weight:500}
+
+.problem-cost{
+  margin-top:24px;
+  padding-top:24px;
+  border-top:1px solid var(--wire2);
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+.cost-num{
+  font-family:var(--display);
+  font-size:42px;
+  font-weight:800;
+  color:var(--red);
+  letter-spacing:-0.02em;
+}
+.cost-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  line-height:1.5;
+}
+
+.arch{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+  border-bottom:1px solid var(--wire2);
+}
+.arch-header{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:end;
+  margin-bottom:60px;
+}
+
+.pipeline{
+  display:flex;
+  align-items:stretch;
+  gap:0;
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.pipeline-step{
+  flex:1;
+  padding:28px 20px;
+  border-right:1px solid var(--wire2);
+  position:relative;
+}
+.pipeline-step:last-child{border-right:none}
+.pipeline-step.active{background:var(--surface)}
+
+.pipe-num{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-bottom:16px;
+}
+.pipe-icon{
+  width:36px;height:36px;
+  border:1.5px solid var(--wire2);
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+  font-size:16px;
+}
+.pipe-name{
+  font-family:var(--display);
+  font-size:14px;
+  font-weight:700;
+  margin-bottom:8px;
+  letter-spacing:-0.01em;
+}
+.pipe-desc{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text2);
+  line-height:1.6;
+}
+.pipe-status{
+  margin-top:16px;
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  padding:3px 8px;
+  border-radius:2px;
+  display:inline-block;
+}
+.ps-ok{background:var(--green-dim);color:var(--green)}
+.ps-warn{background:var(--amber-dim);color:var(--amber)}
+.ps-sync{background:var(--bg);color:var(--text3);border:1px solid var(--wire2)}
+
+.features{
+  padding:100px 80px;
+}
+.features-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.feature-cell{
+  background:var(--bg);
+  padding:36px 32px;
+  position:relative;
+  transition:background .2s;
+}
+.feature-cell:hover{background:var(--bg2)}
+.feature-cell.highlight{background:var(--bg2)}
+.feature-cell.highlight::after{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:2px;
+  background:var(--amber);
+}
+
+.feat-tag{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.12em;
+  color:var(--text3);
+  margin-bottom:20px;
+}
+.feat-num{
+  font-family:var(--display);
+  font-size:48px;
+  font-weight:800;
+  letter-spacing:-0.03em;
+  line-height:1;
+  margin-bottom:16px;
+  color:var(--text3);
+}
+.feature-cell.highlight .feat-num{color:var(--amber)}
+
+.feat-title{
+  font-family:var(--display);
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  margin-bottom:12px;
+}
+.feat-desc{
+  font-size:13px;
+  color:var(--text2);
+  line-height:1.7;
+  font-weight:300;
+}
+
+.specs{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+  border-bottom:1px solid var(--wire2);
+}
+.specs-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.spec-row{
+  background:var(--bg2);
+  padding:20px 28px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  transition:background .15s;
+}
+.spec-row:hover{background:var(--bg3)}
+.spec-key{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.06em;
+  color:var(--text2);
+}
+.spec-val{
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:500;
+  color:var(--text);
+}
+.spec-val.good{color:var(--green)}
+.spec-val.warn{color:var(--amber)}
+
+.stack{
+  padding:100px 80px;
+}
+.stack-header{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:end;
+  margin-bottom:60px;
+}
+.stack-table{
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.stack-row{
+  display:grid;
+  grid-template-columns:140px 1fr 80px;
+  padding:16px 24px;
+  border-bottom:1px solid var(--wire2);
+  align-items:center;
+  gap:16px;
+  transition:background .15s;
+}
+.stack-row:last-child{border-bottom:none}
+.stack-row:hover{background:var(--bg2)}
+.stack-layer{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.12em;
+  color:var(--text3);
+}
+.stack-tech{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text);
+}
+.stack-status{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  text-align:right;
+  padding:3px 8px;
+  border-radius:2px;
+}
+.ss-done{background:var(--green-dim);color:var(--green)}
+.ss-road{background:var(--bg3);color:var(--text3);border:1px solid var(--wire)}
+
+.team{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+}
+.team-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:1px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.team-card{
+  background:var(--bg2);
+  padding:32px 28px;
+  transition:background .2s;
+}
+.team-card:hover{background:var(--bg3)}
+.team-avatar{
+  width:48px;height:48px;
+  border-radius:50%;
+  border:1.5px solid var(--wire2);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:500;
+  color:var(--amber);
+  background:var(--amber-dim);
+  margin-bottom:16px;
+}
+.team-name{
+  font-family:var(--display);
+  font-size:16px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  margin-bottom:4px;
+}
+.team-role{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+  margin-bottom:16px;
+}
+.team-links{
+  display:flex;
+  gap:8px;
+}
+.team-link{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  border:1px solid var(--wire2);
+  padding:4px 8px;
+  border-radius:2px;
+  transition:all .15s;
+}
+.team-link:hover{color:var(--amber);border-color:var(--amber)}
+
+.cta-final{
+  padding:120px 80px;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+.cta-final::before{
+  content:'';
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:600px;height:600px;
+  border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(232,160,32,0.06) 0%, transparent 70%);
+  pointer-events:none;
+}
+.cta-final .tagline{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.2em;
+  color:var(--amber);
+  margin-bottom:24px;
+}
+.cta-final h2{
+  font-family:var(--display);
+  font-size:clamp(36px,5vw,72px);
+  font-weight:800;
+  line-height:0.95;
+  letter-spacing:-0.03em;
+  margin-bottom:24px;
+}
+.cta-final .sub{
+  font-size:15px;
+  color:var(--text2);
+  max-width:400px;
+  margin:0 auto 48px;
+  font-weight:300;
+  line-height:1.7;
+}
+.cta-actions{
+  display:flex;
+  gap:16px;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+
+footer{
+  padding:32px 80px;
+  border-top:1px solid var(--wire2);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+footer .copy{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+}
+footer .badge{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+  border:1px solid var(--wire2);
+  padding:4px 12px;
+  border-radius:2px;
+}
+
+.reveal{
+  opacity:0;
+  transform:translateY(20px);
+  transition:opacity .6s ease, transform .6s ease;
+}
+.reveal.visible{opacity:1;transform:none}
+
+@media(max-width:900px){
+  nav{padding:0 20px}
+  .nav-links{display:none}
+  .hero{padding:100px 24px 60px}
+  .hero-bg-viz{display:none}
+  .live-ticker{display:none}
+  .hero-stat-strip{gap:28px;flex-wrap:wrap}
+  .problem,.arch-header,.stack-header{grid-template-columns:1fr;gap:40px;padding:60px 24px}
+  .arch{padding:60px 24px}
+  .pipeline{flex-direction:column}
+  .pipeline-step{border-right:none;border-bottom:1px solid var(--wire2)}
+  .pipeline-step:last-child{border-bottom:none}
+  .features{padding:60px 24px}
+  .features-grid{grid-template-columns:1fr}
+  .specs{padding:60px 24px}
+  .specs-grid{grid-template-columns:1fr}
+  .stack{padding:60px 24px}
+  .team{padding:60px 24px}
+  .team-grid{grid-template-columns:1fr 1fr}
+  .cta-final{padding:80px 24px}
+  footer{padding:24px;flex-direction:column;gap:12px;text-align:center}
+}
+</style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════
-     SIDEBAR — Menu lateral fixo
-     Cada .nav-item chama showPage(nome, this)
-     para trocar a pagina visivel no conteudo
-════════════════════════════════════════════ -->
-<aside class="sidebar">
-  <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+<nav>
+  <div class="nav-logo">
+    <div class="logo-mark"></div>
+    FieldNode
+  </div>
+  <div class="nav-links">
+    <a href="#problema">Problema</a>
+    <a href="#arquitetura">Arquitetura</a>
+    <a href="#specs">Specs</a>
+    <a href="#stack">Stack</a>
+    <a href="#equipe">Equipe</a>
+  </div>
+  <a class="nav-cta" href="#contato">VER DEMO</a>
+</nav>
+
+<section class="hero">
+  <div class="hero-bg-viz">
+    <div class="status-ring sr-4"></div>
+    <div class="status-ring sr-3"></div>
+    <div class="status-ring sr-2"></div>
+    <div class="status-ring sr-1"></div>
+    <div class="center-dot"></div>
+    <canvas id="orbit-canvas" width="520" height="520" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+  </div>
+
+  <div class="live-ticker">
+    <div class="ticker-row">
+      <span>TEMP</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val warn" id="t-temp">78.3°C</span>
+        <div class="blink"></div>
+      </div>
     </div>
-    <div>
-      <div class="logo-text">FieldNode</div>
-      <div class="logo-sub">TELEMETRIA</div>
+    <div class="ticker-row">
+      <span>RPM</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val ok" id="t-rpm">1847</span>
+        <div class="blink" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+      </div>
+    </div>
+    <div class="ticker-row">
+      <span>VIB</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val ok" id="t-vib">0.38g</span>
+        <div class="blink" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+      </div>
+    </div>
+    <div class="ticker-row" style="margin-top:8px;background:var(--amber-dim);border-color:rgba(232,160,32,0.2);">
+      <span style="color:var(--amber)">STATUS</span>
+      <span class="val warn" style="font-size:10px;letter-spacing:0.08em;">OFFLINE</span>
+    </div>
+    <div class="ticker-row">
+      <span>BUFFER</span>
+      <span class="val ok">247 reg</span>
+    </div>
+    <div class="ticker-row">
+      <span>SYNC</span>
+      <span class="val" style="color:var(--text3);font-size:10px;">PENDENTE</span>
     </div>
   </div>
 
-  <nav>
-    <div class="nav-item active" onclick="showPage('dashboard', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      Dashboard
-    </div>
-    <div class="nav-item" onclick="showPage('colheitadeiras', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      Colheitadeiras
-    </div>
-    <div class="nav-item" onclick="showPage('operarios', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Operários
-    </div>
-    <div class="nav-item" onclick="showPage('cadastros', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Cadastros
-    </div>
-    <div class="nav-item" onclick="showPage('alertas', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      Alertas
-    </div>
-  </nav>
+  <div class="hero-kicker">TELEMETRIA AGRÍCOLA OFF-GRID</div>
+  <h1>O dado existe.<br/><em>O problema</em><br/>é que ele não chega.</h1>
+  <p class="hero-sub">
+    <strong>FieldNode</strong> captura temperatura, vibração e RPM em campo,
+    exibe dashboard local via Wi-Fi e sincroniza automaticamente quando
+    a conectividade retorna. Sem app. Sem sinal. Sem perda.
+  </p>
 
-  <div class="sidebar-footer">
-    <div class="api-status">
-      <div class="api-dot pulse" id="api-dot"></div>
-      <span id="api-status-text">verificando...</span>
-    </div>
-    <div class="api-url">127.0.0.1:8000</div>
-  </div>
-</aside>
-
-<!-- ═══════════════════════════════════════════
-     AREA PRINCIPAL
-     Cada pagina (.page) fica oculta por padrao (display:none)
-     e so aparece quando tem a classe .active
-════════════════════════════════════════════ -->
-<main class="main">
-
-  <!-- TOPBAR -->
-  <div class="topbar">
-    <div>
-      <div class="topbar-title" id="page-title">Dashboard</div>
-      <div class="topbar-sub" id="page-sub">Visão geral da frota</div>
-    </div>
-    <button class="btn btn-ghost btn-refresh" onclick="recarregarPagina()">↻ Atualizar</button>
+  <div class="hero-actions">
+    <a class="btn-primary" href="#arquitetura">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      VER ARQUITETURA
+    </a>
+    <a class="btn-secondary" href="#specs">
+      ESPECIFICAÇÕES TÉCNICAS →
+    </a>
   </div>
 
-  <div class="content">
-
-    <!-- ══ DASHBOARD ══ -->
-    <div id="pg-dashboard" class="page active">
-      <div class="metrics-grid" id="metrics-container">
-        <div class="state-msg metrics-full">Carregando métricas...</div>
-      </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Temperatura das máquinas (°C)</span>
-            <div class="chart-search-container">
-              <div class="chart-search-wrapper">
-                <input type="text" id="temp-chart-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
-                <div id="temp-chart-suggestions" class="chart-suggestions"></div>
-              </div>
-              <button class="chart-search-clear" onclick="clearTempFilter()" title="Limpar filtro">✕</button>
-              <button class="chart-refresh-btn" onclick="refreshTempChart()" title="Atualizar gráfico">🔄</button>
-            </div>
-          </div>
-          <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Nível de combustível (%)</span>
-            <div class="chart-search-container">
-              <div class="chart-search-wrapper">
-                <input type="text" id="fuel-chart-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
-                <div id="fuel-chart-suggestions" class="chart-suggestions"></div>
-              </div>
-              <button class="chart-search-clear" onclick="clearFuelFilter()" title="Limpar filtro">✕</button>
-              <button class="chart-refresh-btn" onclick="refreshFuelChart()" title="Atualizar gráfico">🔄</button>
-            </div>
-          </div>
-          <div class="chart-wrap"><canvas id="fuelChart"></canvas></div>
-        </div>
-      </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Ambiente — última leitura</div>
-          <div id="ambiente-container"><div class="state-msg">Carregando...</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Movimentação da frota</div>
-          <div class="chart-wrap chart-move"><canvas id="moveChart"></canvas></div>
-        </div>
-      </div>
-      <div class="card" style="margin-bottom: 14px;">
-        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>Status em tempo real por máquina</span>
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div class="machine-search-container">
-              <div class="search-wrapper">
-                <input type="text" id="machine-search" placeholder="Buscar máquina..." class="machine-search-input" autocomplete="off">
-                <div id="search-suggestions" class="search-suggestions"></div>
-              </div>
-              <button class="machine-search-btn" onclick="buscarMaquina()">🔍</button>
-            </div>
-            <div class="carousel-controls">
-              <button class="carousel-btn" id="carousel-prev" onclick="scrollMaquinasTabela(-1)">‹</button>
-              <button class="carousel-btn" id="carousel-next" onclick="scrollMaquinasTabela(1)">›</button>
-            </div>
-            <span id="ultimo-update" style="font-size:10px; color:var(--text3); font-family:var(--mono);">atualizando...</span>
-          </div>
-        </div>
-        <div class="status-table-container">
-          <div class="status-table-wrapper" id="status-table-wrapper">
-            <table class="status-table" id="status-table">
-              <thead id="status-table-head">
-                <tr>
-                </tr>
-              </thead>
-              <tbody id="status-table-body">
-                <tr>
-                  <td colspan="100%" class="state-msg">Carregando...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <!-- card de inteligência artificial -->
-      <div class="card" style="margin-bottom: 14px;">
-        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>Análise de IA — Visão Geral da Frota</span>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div class="chart-search-container">
-              <div class="chart-search-wrapper">
-                <input type="text" id="ia-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
-                <div id="ia-suggestions" class="chart-suggestions"></div>
-              </div>
-              <button class="chart-search-clear" onclick="clearIAFilter()" title="Limpar filtro">✕</button>
-              <button class="chart-refresh-btn" onclick="refreshIA()" title="Atualizar análise">🔄</button>
-            </div>
-            <span id="ia-update" style="font-size:10px; color:var(--text3); font-family:var(--mono);">aguardando dados...</span>
-          </div>
-        </div>
-        <div id="ia-container">
-          <div class="state-msg">Aguardando leituras suficientes para análise...</div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>ESP32 — últimas leituras de telemetria</span>
-          <div class="chart-search-container">
-            <div class="chart-search-wrapper">
-              <input type="text" id="telemetria-search" placeholder="Filtrar máquinas..." class="chart-search-input" autocomplete="off">
-              <div id="telemetria-suggestions" class="chart-suggestions"></div>
-            </div>
-            <button class="chart-search-clear" onclick="clearTelemetriaFilter()" title="Limpar filtro">✕</button>
-            <button class="chart-refresh-btn" onclick="refreshTelemetria()" title="Atualizar dados">🔄</button>
-          </div>
-        </div>
-        <div id="telemetria-container"><div class="state-msg">Carregando...</div></div>
-      </div>
+  <div class="hero-stat-strip reveal">
+    <div class="hero-stat">
+      <div class="n">R$12k</div>
+      <div class="label">PERDA MÉDIA<br/>POR PARADA</div>
     </div>
-
-    <!-- ══ COLHEITADEIRAS ══ -->
-    <div id="pg-colheitadeiras" class="page">
-      <div class="colh-header">
-        <div class="colh-sub">Frota registrada na API</div>
-      </div>
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th><th>Modelo</th><th>Operário</th>
-                <th>Combustível</th><th>Temp. máquina</th>
-                <th>Velocidade</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="colheitadeiras-tbody">
-              <tr><td colspan="7" class="state-msg">Carregando...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div class="hero-stat">
+      <div class="n">30–40%</div>
+      <div class="label">DAS OPERAÇÕES<br/>SEM SINAL</div>
     </div>
-
-    <!-- ══ OPERÁRIOS ══ -->
-    <div id="pg-operarios" class="page">
-      <div class="card operarios-card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>ID</th><th>Nome</th><th>Tempo de serviço</th><th>No banco</th></tr>
-            </thead>
-            <tbody id="operarios-tbody">
-              <tr><td colspan="4" class="state-msg">Carregando...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div class="hero-stat">
+      <div class="n">&lt;3s</div>
+      <div class="label">LATÊNCIA DO<br/>ALERTA LOCAL</div>
     </div>
-
-    <!-- CADASTROS -->
-    <div id="pg-cadastros" class="page">
-
-      <div class="cad-tabs">
-        <button class="cad-tab active" onclick="showCadTab('referencia',this)">Referencia</button>
-        <button class="cad-tab" onclick="showCadTab('leituras',this)">Leituras</button>
-        <button class="cad-tab" onclick="showCadTab('maquina',this)">Colheitadeira</button>
-      </div>
-
-      <!-- ABA 1: Referencia -->
-      <div id="cad-referencia" class="cad-pane">
-        <div class="two-col">
-          <div class="card">
-            <div class="card-title">Nova marca</div>
-            <div class="form-group"><label>Nome da marca</label><input type="text" id="marca-nome" placeholder="Ex: Case IH"></div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarMarca()">Salvar</button>
-              <span id="marca-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Novo modelo</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Nome do modelo</label><input type="text" id="mod-nome" placeholder="Ex: TC5000"></div>
-              <div class="form-group"><label>Marca</label><select id="mod-marca"><option value="">Carregando...</option></select></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarModelo()">Salvar</button>
-              <span id="mod-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Novo combustivel</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Tipo</label><input type="text" id="comb-tipo" placeholder="Ex: Diesel S10"></div>
-              <div class="form-group"><label>Porcentagem (%)</label><input type="number" id="comb-pct" placeholder="0-100" min="0" max="100"></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarCombustivel()">Salvar</button>
-              <span id="comb-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Novo operario</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Nome</label><input type="text" id="op-nome" placeholder="Nome completo"></div>
-              <div class="form-group"><label>Tempo de servico (anos)</label><input type="number" id="op-tempo" placeholder="Ex: 5" min="0" max="99"></div>
-            </div>
-            <div class="form-group cad-op-banco">
-              <label>No banco</label>
-              <select id="op-banco"><option value="true">Sim</option><option value="false">Nao</option></select>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarOperario()">Salvar</button>
-              <span id="op-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Nova unidade de medida</div>
-            <div class="form-group"><label>Nome</label><input type="text" id="um-nome" placeholder="Ex: PSI, bar, grau C, cm"></div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarUnidade()">Salvar</button>
-              <span id="um-feedback" class="fb"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ABA 2: Leituras -->
-      <div id="cad-leituras" class="cad-pane cad-leituras-pane">
-        <div class="two-col">
-          <div class="card">
-            <div class="card-title">Nova pressao dos pneus</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Pressao</label><input type="number" id="pneu-pressao" placeholder="Ex: 32"></div>
-              <div class="form-group"><label>Unidade</label><select id="pneu-unidade"><option value="">Carregando...</option></select></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarPressaoPneus()">Salvar</button>
-              <span id="pneu-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Nova altura de corte</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Altura</label><input type="number" id="alt-altura" placeholder="Ex: 45"></div>
-              <div class="form-group"><label>Unidade</label><select id="alt-unidade"><option value="">Carregando...</option></select></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarAltura()">Salvar</button>
-              <span id="alt-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Nova pressao de corte</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Pressao</label><input type="number" id="pcorte-pressao" placeholder="Ex: 120"></div>
-              <div class="form-group"><label>Unidade</label><select id="pcorte-unidade"><option value="">Carregando...</option></select></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarPressaoCorte()">Salvar</button>
-              <span id="pcorte-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Nova leitura de ambiente</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Temperatura (grau C)</label><input type="number" id="amb-temp" placeholder="Ex: 31.4"></div>
-              <div class="form-group"><label>Umidade (%)</label><input type="number" id="amb-umi" placeholder="Ex: 68"></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarAmbiente()">Salvar</button>
-              <span id="amb-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Nova temperatura de maquina</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Temperatura (grau C)</label><input type="number" id="tmaq-temp" placeholder="Ex: 82.3"></div>
-              <div class="form-group"><label>Modelo da maquina</label><select id="tmaq-modelo"><option value="">Carregando...</option></select></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarTempMaquina()">Salvar</button>
-              <span id="tmaq-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Novo status de operacao</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Em operacao</label><select id="sop-status"><option value="true">Sim</option><option value="false">Nao</option></select></div>
-              <div class="form-group"><label>Tempo de operacao (h)</label><input type="number" id="sop-tempo" placeholder="Ex: 4.5"></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarStatusOp()">Salvar</button>
-              <span id="sop-feedback" class="fb"></span>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Novo estado de movimento</div>
-            <div class="form-grid">
-              <div class="form-group"><label>Em movimento</label><select id="mov-status"><option value="true">Sim</option><option value="false">Nao</option></select></div>
-              <div class="form-group"><label>Velocidade (km/h)</label><input type="number" id="mov-vel" placeholder="Ex: 12.3"></div>
-            </div>
-            <div class="cad-form-actions">
-              <button class="btn btn-primary" onclick="cadastrarMovimento()">Salvar</button>
-              <span id="mov-feedback" class="fb"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ABA 3: Colheitadeira -->
-      <div id="cad-maquina" class="cad-pane cad-maquina-pane">
-        <div class="card cad-maquina-card">
-          <div class="card-title">Nova colheitadeira</div>
-          <div class="form-grid cad-maquina-grid">
-            <div class="form-group"><label>Modelo</label><select id="col-modelo"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Combustivel</label><select id="col-comb"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Operario</label><select id="col-operario"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Pressao dos pneus</label><select id="col-pneus"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Altura de corte</label><select id="col-altura"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Pressao de corte</label><select id="col-pcorte"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Temp. / Umidade Ambiente</label><select id="col-ambiente"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Temperatura da maquina</label><select id="col-tmaq"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Status de operacao</label><select id="col-status"><option value="">Carregando...</option></select></div>
-            <div class="form-group"><label>Estado de movimento</label><select id="col-mov"><option value="">Carregando...</option></select></div>
-          </div>
-          <div class="cad-maquina-actions">
-            <button class="btn btn-primary" onclick="cadastrarColheitadeira()">Cadastrar colheitadeira</button>
-            <span id="col-feedback" class="fb"></span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ══ ALERTAS ══ -->
-    <div id="pg-alertas" class="page">
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Alertas automáticos</div>
-          <div id="alertas-container"><div class="state-msg">Carregando...</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Resumo por tipo</div>
-          <div class="chart-wrap chart-alert"><canvas id="alertChart"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</main>
-
-<!-- POPUP DE DETALHES DA MÁQUINA -->
-<div id="machine-popup" class="machine-popup-overlay" style="display: none;">
-  <div class="machine-popup">
-    <div class="machine-popup-header">
-      <h3 id="popup-machine-title">Detalhes da Máquina</h3>
-      <button class="machine-popup-close" onclick="fecharPopupMaquina()">×</button>
-    </div>
-    <div class="machine-popup-content" id="popup-machine-content">
-      <div class="state-msg">Carregando...</div>
+    <div class="hero-stat">
+      <div class="n">30d</div>
+      <div class="label">BUFFER OFFLINE<br/>SEM SOBRESCREVER</div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- Chart.js: biblioteca de graficos carregada do CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="config.js"></script>
-<script src="js/api.js"></script>
-<script src="js/colors.js"></script>
-<script src="js/status.js"></script>
+<section class="problem" id="problema">
+  <div class="reveal">
+    <div class="section-label">O PROBLEMA</div>
+    <h2 class="section-title">Máquinas que valem milhões operando às cegas</h2>
+    <p class="section-sub">
+      Plataformas como John Deere Operations Center e Solinftec funcionam apenas com
+      conectividade contínua. Em campo aberto, durante a safra, essa premissa quebra.
+      O sensor registra, o alarme não chega.
+    </p>
+  </div>
+  <div class="problem-story reveal">
+    <p>
+      "Quinta-feira de safra, duas da tarde. Operador a oito quilômetros da sede,
+      <strong>zero sinal de celular.</strong> A máquina começa a vibrar diferente.
+      Ele segue trabalhando — não tem como saber que o rolamento está aquecendo fora
+      do padrão há mais de trinta minutos."
+    </p>
+    <p style="margin-top:16px;color:var(--text3);font-size:13px;">
+      "Três horas depois, a colhedora para."
+    </p>
+    <div class="problem-cost">
+      <div class="cost-num">R$12k</div>
+      <div class="cost-label">PREJUÍZO IMEDIATO<br/>SAFRA PERDIDA<br/>HORA PARADA</div>
+    </div>
+  </div>
+</section>
+
+<section class="arch" id="arquitetura">
+  <div class="arch-header">
+    <div class="reveal">
+      <div class="section-label">ARQUITETURA</div>
+      <h2 class="section-title">Offline-first.<br/>Por design.</h2>
+    </div>
+    <p class="section-sub reveal" style="max-width:360px;">
+      O sistema opera completamente sem internet. A conectividade é otimização,
+      não dependência. Princípio DTN aplicado ao campo.
+    </p>
+  </div>
+
+  <div class="pipeline reveal">
+    <div class="pipeline-step">
+      <div class="pipe-num">01</div>
+      <div class="pipe-icon">📡</div>
+      <div class="pipe-name">Nó Sensor</div>
+      <div class="pipe-desc">ESP32 #1 — DS18B20 + SW-420<br/>1 leitura / 2 segundos<br/>JSON serializado</div>
+      <div class="pipe-status ps-ok">● EMBARCADO</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="pipe-num">02</div>
+      <div class="pipe-icon" style="border-color:rgba(232,160,32,0.3);">🔗</div>
+      <div class="pipe-name">ESP-NOW</div>
+      <div class="pipe-desc">Protocolo direto<br/>50–500m alcance<br/>Latência &lt;10ms</div>
+      <div class="pipe-status ps-warn">◆ SEM ROTEADOR</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipe-num">03</div>
+      <div class="pipe-icon">🖥</div>
+      <div class="pipe-name">Gateway de Campo</div>
+      <div class="pipe-desc">ESP32 #2 — dashboard HTML<br/>Buffer 30 dias<br/>Wi-Fi hotspot local</div>
+      <div class="pipe-status ps-ok">● OFFLINE OK</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipe-num">04</div>
+      <div class="pipe-icon">☁️</div>
+      <div class="pipe-name">Sync Django</div>
+      <div class="pipe-desc">POST com retry + UUID<br/>Deduplicação automática<br/>Random Forest + Isolation Forest</div>
+      <div class="pipe-status ps-sync">↺ QUANDO ONLINE</div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="reveal" style="margin-bottom:0">
+    <div class="section-label">DIFERENCIAIS</div>
+    <h2 class="section-title">Seis coisas que nenhuma<br/>plataforma existente entrega</h2>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-cell highlight reveal">
+      <div class="feat-tag">FEATURE 01</div>
+      <div class="feat-num">00</div>
+      <div class="feat-title">Dashboard 100% offline</div>
+      <p class="feat-desc">O supervisor abre o Wi-Fi do gateway no celular e acessa telemetria em tempo real. Sem app, sem sinal, sem servidor externo.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 02</div>
+      <div class="feat-num">30d</div>
+      <div class="feat-title">Buffer que não sobrescreve</div>
+      <p class="feat-desc">Até 30 dias de leituras armazenadas no dispositivo. Nenhum dado é perdido por falta de conectividade.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 03</div>
+      <div class="feat-num">&lt;3s</div>
+      <div class="feat-title">Alerta embarcado</div>
+      <p class="feat-desc">Regras de alerta rodam diretamente no ESP32. Latência do sensor ao dashboard menor que 3 segundos, sem depender de backend.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 04</div>
+      <div class="feat-num">AI</div>
+      <div class="feat-title">Análise retroativa de risco</div>
+      <p class="feat-desc">Ao sincronizar, o backend roda Isolation Forest + Random Forest sobre toda a sessão offline e gera relatório automático de manutenção.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 05</div>
+      <div class="feat-num">UUID</div>
+      <div class="feat-title">Sync idempotente</div>
+      <p class="feat-desc">Retry com backoff exponencial. Deduplicação por UUID garante que o mesmo pacote enviado N vezes resulte em exatamente 1 registro no banco.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 06</div>
+      <div class="feat-num">∞</div>
+      <div class="feat-title">Compatível com frota antiga</div>
+      <p class="feat-desc">Funciona com qualquer máquina via sensores físicos externos. Não exige acesso ao barramento CAN/J1939 — amplia a vida tecnológica da frota.</p>
+    </div>
+  </div>
+</section>
+
+<section class="specs" id="specs">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:end;margin-bottom:60px;">
+    <div class="reveal">
+      <div class="section-label">MÉTRICAS OPERACIONAIS</div>
+      <h2 class="section-title">Números que<br/>a banca vai perguntar.</h2>
+    </div>
+    <p class="section-sub reveal">
+      Tudo aqui é resultado de teste real ou especificação de componente documentada.
+      Nenhum número inventado.
+    </p>
+  </div>
+
+  <div class="specs-grid reveal">
+    <div class="spec-row">
+      <span class="spec-key">TAXA DE AMOSTRAGEM</span>
+      <span class="spec-val good">1 leitura / 2 segundos</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">LATÊNCIA DO ALERTA</span>
+      <span class="spec-val good">&lt; 3 segundos</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ALCANCE ESP-NOW (TÍPICO)</span>
+      <span class="spec-val">50 – 200m</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ALCANCE ESP-NOW (CAMPO ABERTO)</span>
+      <span class="spec-val good">até 500m</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">CAPACIDADE DE BUFFER</span>
+      <span class="spec-val good">30 dias sem sobrescrever</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">LATÊNCIA ESP-NOW</span>
+      <span class="spec-val good">&lt; 10ms</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">FALSO POSITIVO (META)</span>
+      <span class="spec-val">&lt; 5%</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ACURÁCIA IA (META LABORATÓRIO)</span>
+      <span class="spec-val good">&gt; 85%</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">SINCRONIZAÇÃO</span>
+      <span class="spec-val">Automática + retry exponencial</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">DEDUPLICAÇÃO</span>
+      <span class="spec-val good">UUID — idempotente</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">PEERS ESP-NOW SIMULTÂNEOS</span>
+      <span class="spec-val">até 20 nós</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">CUSTO ESTIMADO / MÁQUINA</span>
+      <span class="spec-val warn">~R$ 150 hardware</span>
+    </div>
+  </div>
+</section>
+
+<section class="stack" id="stack">
+  <div class="stack-header">
+    <div class="reveal">
+      <div class="section-label">STACK TÉCNICA</div>
+      <h2 class="section-title">Cada decisão<br/>tem justificativa.</h2>
+    </div>
+    <p class="section-sub reveal">
+      Nenhuma tecnologia foi escolhida por familiaridade.
+      Cada item foi selecionado pelo trade-off custo/confiabilidade no contexto de campo.
+    </p>
+  </div>
+
+  <div class="stack-table reveal">
+    <div class="stack-row" style="background:var(--bg3);border-bottom:1px solid var(--wire2);">
+      <span class="stack-layer" style="color:var(--text2);font-weight:500;">CAMADA</span>
+      <span class="stack-tech" style="color:var(--text2);">TECNOLOGIA</span>
+      <span class="stack-status" style="color:var(--text3);">STATUS</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">HARDWARE</span>
+      <span class="stack-tech">2× ESP32 — C++ / Arduino IDE</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">WIRELESS</span>
+      <span class="stack-tech">ESP-NOW (protótipo) · LoRa (roadmap)</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">BACKEND</span>
+      <span class="stack-tech">Django 5.2 + DRF + MySQL 8</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">INGESTÃO</span>
+      <span class="stack-tech">MQTT + paho · REST API com UUID dedup</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">IA</span>
+      <span class="stack-tech">scikit-learn — Isolation Forest + Random Forest</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">DASHBOARD WEB</span>
+      <span class="stack-tech">HTML · CSS · JS · Chart.js · Bootstrap 5</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">DEPLOY</span>
+      <span class="stack-tech">Docker + Docker Compose · Render/Railway</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">SEGURANÇA</span>
+      <span class="stack-tech">API key (protótipo) · AES-128 + JWT (roadmap)</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">ALERTAS</span>
+      <span class="stack-tech">WhatsApp via Twilio / Z-API</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">INTEGRAÇÃO</span>
+      <span class="stack-tech">John Deere Operations Center · Solinftec</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+  </div>
+</section>
+
+<section class="team" id="equipe">
+  <div class="reveal" style="margin-bottom:0">
+    <div class="section-label">EQUIPE · SENAI 2026</div>
+    <h2 class="section-title">Técnico em Desenvolvimento de Sistemas</h2>
+    <p class="section-sub" style="margin-top:12px;">Desenvolvido como Trabalho de Conclusão de Curso com seriedade de engenharia.</p>
+  </div>
+
+  <div class="team-grid">
+    <div class="team-card reveal">
+      <div class="team-avatar">PM</div>
+      <div class="team-name">Paola Machado</div>
+      <div class="team-role">ARQUITETURA · PRODUTO</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/Paola5858" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/paolasoaresmachado/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">VM</div>
+      <div class="team-name">Vinícius Morales</div>
+      <div class="team-role">BACKEND · ESP32</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/ViniciusMorales" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/vin%C3%ADcius-morales-609744368/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">AF</div>
+      <div class="team-name">Ana Furlaneto</div>
+      <div class="team-role">FRONTEND · UX</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/acfurlaneto" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/ana-furlaneto-a47746368/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">GD</div>
+      <div class="team-name">Giovana D'Angelo</div>
+      <div class="team-role">IA · DADOS</div>
+      <div class="team-links">
+        <a class="team-link" href="https://www.linkedin.com/in/giovanamdangelo/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final" id="contato">
+  <div class="tagline">FIELDNODE · TCC SENAI 2026</div>
+  <h2 class="reveal">O dado existe.<br/>O FieldNode garante<br/>que ele chegue.</h2>
+  <p class="sub reveal">
+    Telemetria offline-first para colheitadeiras agrícolas.
+    Sem sinal. Sem perda. Sem desculpa.
+  </p>
+  <div class="cta-actions reveal">
+    <a class="btn-primary" href="https://github.com/Desmantelar-bit/Api-TCC" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      VER REPOSITÓRIO
+    </a>
+    <a class="btn-secondary" href="http://localhost:8000/swagger/" target="_blank">
+      API DOCS (SWAGGER) →
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="copy">© 2026 FieldNode · SENAI Técnico em Desenvolvimento de Sistemas · Araçatuba, SP</div>
+  <div class="badge">TCC · MIT License</div>
+</footer>
+
 <script>
-/*
-=====================================================
-  JAVASCRIPT — LOGICA DO FRONTEND FIELDNODE
-  
-  Secoes:
-    1. CONFIGURACAO     — endereco da API
-    2. NAVEGACAO        — troca de paginas e abas
-    3. FETCH            — funcoes de comunicacao com API
-    4. STATUS DA API    — verifica se Django esta rodando
-    5. CHARTS           — configuracao dos graficos
-    6. DASHBOARD        — carrega dados da pagina inicial
-    7. COLHEITADEIRAS   — lista da frota
-    8. OPERARIOS        — lista de operarios
-    9. ALERTAS          — analise automatica de riscos
-   10. CADASTROS        — formularios de cadastro
-   11. INIT             — inicializacao ao abrir a pagina
-=====================================================
-*/
-/* ─────────────────────────────────────────
-   CONFIGURAÇÃO
-───────────────────────────────────────── */
-/* ─────────────────────────────────────────
-   1. CONFIGURACAO
-   Se mudar o endereco ou porta do servidor Django,
-   altere apenas esta variavel — ela e usada em todo o codigo.
-───────────────────────────────────────── */
-
-/* ─────────────────────────────────────────
-   2. NAVEGACAO
-   showPage(name, el) — troca a pagina visivel
-   pageTitles         — mapa de titulos para o topbar
-   recarregarPagina() — recarrega a pagina atual
-───────────────────────────────────────── */
-const pageTitles = {
-  dashboard:      ['Dashboard',     'Visão geral da frota'],
-  colheitadeiras: ['Colheitadeiras','Frota registrada'],
-  operarios:      ['Operários',     'Equipe de campo'],
-  cadastros:      ['Cadastros',     'Adicionar registros na API'],
-  alertas:        ['Alertas',       'Monitoramento automático'],
-};
-
-function showPage(name, el) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('pg-' + name).classList.add('active');
-  el.classList.add('active');
-  const [title, sub] = pageTitles[name];
-  document.getElementById('page-title').textContent = title;
-  document.getElementById('page-sub').textContent   = sub;
-  carregarPagina(name);
-}
-
-function recarregarPagina() {
-  const active = document.querySelector('.nav-item.active');
-  const name = Object.keys(pageTitles).find(k =>
-    document.getElementById('pg-' + k).classList.contains('active')
-  );
-  if (name) carregarPagina(name);
-}
-
-function carregarPagina(name) {
-  if (name === 'dashboard')      carregarDashboard();
-  if (name === 'colheitadeiras') carregarColheitadeiras();
-  if (name === 'operarios')      carregarOperarios();
-  if (name === 'alertas')        carregarAlertas();
-}
-
-/* ─────────────────────────────────────────
-   4. STATUS DA API
-   Tenta acessar /Colheitadeira/ e atualiza o
-   indicador verde/vermelho no rodape da sidebar.
-   Chamado na inicializacao e a cada 30 segundos.
-───────────────────────────────────────── */
-async function verificarAPI() {
-  const dot  = document.getElementById('api-dot');
-  const txt  = document.getElementById('api-status-text');
-  dot.classList.remove('online', 'offline', 'pulse');
-  try {
-    const response = await fetch(API + '/Colheitadeira/', {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+const canvas = document.getElementById('orbit-canvas');
+if(canvas){
+  const ctx = canvas.getContext('2d');
+  const cx = 260, cy = 260;
+  const nodes = [
+    {r:130, angle:0,     speed:0.012, color:'#3dba6f', size:5},
+    {r:200, angle:2.1,   speed:0.007, color:'#e05252', size:4},
+    {r:130, angle:3.7,   speed:0.012, color:'#e8a020', size:5},
+    {r:200, angle:5.2,   speed:0.007, color:'#3dba6f', size:3},
+    {r:260, angle:1.0,   speed:0.004, color:'#e8a020', size:3},
+  ];
+  function drawOrbit(){
+    ctx.clearRect(0,0,520,520);
+    nodes.forEach(n=>{
+      n.angle += n.speed;
+      const x = cx + n.r * Math.cos(n.angle);
+      const y = cy + n.r * Math.sin(n.angle);
+      ctx.beginPath();
+      ctx.arc(x, y, n.size, 0, Math.PI*2);
+      ctx.fillStyle = n.color;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = n.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
     });
-    if (response.ok) {
-      dot.classList.add('online');
-      txt.textContent = 'API online';
-    } else {
-      throw new Error(`HTTP ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Erro na verificação da API:', error);
-    dot.classList.add('offline');
-    txt.textContent = 'API offline';
+    requestAnimationFrame(drawOrbit);
   }
+  drawOrbit();
 }
 
-/* ─────────────────────────────────────────
-   5. CHARTS
-   charts{}          — guarda instancias dos graficos para
-                        destruir antes de recriar (evita vazamento)
-   criarOuAtualizar() — destroi o grafico anterior e cria novo
-   C{}               — paleta de cores dos graficos
-   scaleDefaults()   — configuracao padrao dos eixos X e Y
-───────────────────────────────────────── */
-const charts = {};
-function criarOuAtualizar(id, config) {
-  if (charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  charts[id] = new Chart(ctx, config);
+function randomInRange(min, max){ return (Math.random()*(max-min)+min).toFixed(1); }
+function animateTicker(){
+  const temp = document.getElementById('t-temp');
+  const rpm  = document.getElementById('t-rpm');
+  const vib  = document.getElementById('t-vib');
+  if(!temp) return;
+  const t = parseFloat(randomInRange(74, 82));
+  temp.textContent = t + '°C';
+  temp.className = 'val ' + (t>80?'crit':t>76?'warn':'ok');
+  rpm.textContent = Math.round(randomInRange(1800,1950));
+  vib.textContent = randomInRange(0.28,0.52) + 'g';
 }
+setInterval(animateTicker, 2000);
 
-const C = {
-  green: '#4ade80', amber: '#fbbf24', red: '#f87171',
-  blue: '#60a5fa', purple: '#a78bfa', teal: '#2dd4bf',
-  gray: '#4a6055',
-  grid: 'rgba(255,255,255,0.05)', tick: '#4a6055',
-};
-
-function scaleDefaults() {
-  return {
-    y: { grid: { color: C.grid }, ticks: { color: C.tick, font: { size: 11 } } },
-    x: { grid: { display: false }, ticks: { color: C.tick, font: { size: 11 } } },
-  };
-}
-
-/* ─────────────────────────────────────────
-   6. DASHBOARD
-   carregarDashboard() — busca dados de 5 endpoints em paralelo
-                          e renderiza metricas + graficos
-   renderMetrics()     — cards de numeros no topo
-   renderAmbiente()    — card de temperatura/umidade
-   renderTempChart()   — grafico de linha de temperatura
-   renderFuelChart()   — grafico de barras de combustivel
-   renderMoveChart()   — grafico de rosca de movimento
-───────────────────────────────────────── */
-let chartsInitialized = false;
-
-async function carregarDashboard() {
-  try {
-    const [colh, temp, comb, amb, movimentos, telemetria] = await Promise.all([
-      apiFetch('/Colheitadeira/'),
-      apiFetch('/Temperaturamaquina/'),
-      apiFetch('/Combustivel/'),
-      apiFetch('/Tempumi_ambiente/'),
-      apiFetch('/Estadodemovimento/'),
-      apiFetch('/api/telemetria/'),
-    ]);
-
-    renderMetrics(colh, temp, comb, telemetria);
-    renderAmbiente(amb);
-    
-    // Usa dados de telemetria para gráficos dinâmicos
-    renderTempChart(telemetria);
-    renderFuelChart(telemetria);
-    
-    renderMoveChart(colh, movimentos);
-    renderTelemetria(telemetria);
-
-  } catch (e) {
-    document.getElementById('metrics-container').innerHTML =
-      `<div class="state-msg err-full">Erro ao conectar na API. Verifique se o Django está rodando.</div>`;
-  }
-}
-
-function renderTelemetria(leituras) {
-  const cont = document.getElementById('telemetria-container');
-  if (!leituras.length) {
-    cont.innerHTML = '<div class="state-msg">Nenhuma leitura recebida do ESP32 ainda.</div>';
-    return;
-  }
-
-  // Aplica filtro se existir
-  let dadosFiltrados = leituras;
-  if (telemetriaFilter.length > 0) {
-    dadosFiltrados = leituras.filter(l => telemetriaFilter.includes(l.maquina_id));
-  }
-
-  // Se não há dados após filtro, mostra mensagem
-  if (dadosFiltrados.length === 0) {
-    cont.innerHTML = '<div class="state-msg">Nenhuma máquina encontrada com o filtro aplicado. <button onclick="clearTelemetriaFilter()" style="color:var(--green);background:none;border:none;cursor:pointer;text-decoration:underline;">Limpar filtro</button></div>';
-    return;
-  }
-
-  // Agrupa a leitura mais recente por maquina_id para o resumo de cards
-  const porMaquina = {};
-  dadosFiltrados.forEach(l => {
-    if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = l;
+const reveals = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting) e.target.classList.add('visible');
   });
-
-  const tempColor = t => t > 85 ? C.red : t > 75 ? C.amber : C.green;
-  const rpmColor  = r => r > 3000 ? C.red : r > 2000 ? C.amber : C.green;
-  const vibColor  = v => v > 8 ? C.red : v > 5 ? C.amber : C.green;
-
-  // Prepara dados para o sistema de cores inteligente
-  const todasMaquinas = Object.values(porMaquina);
-
-  const cards = todasMaquinas.map(l => {
-    const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
-      day: '2-digit', month: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-    const cores = getMachineColor(l.maquina_id, todasMaquinas);
-    
-    // Estilo do card baseado no sistema bicolor
-    let cardStyle = `border-left: 3px solid ${cores.primary};`;
-    let idStyle = `color: ${cores.primary};`;
-    
-    if (cores.isBicolor) {
-      cardStyle = `border-left: 4px solid; border-image: linear-gradient(180deg, ${cores.primary} 0%, ${cores.secondary} 100%) 1; background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);`;
-      idStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
-    }
-    
-    return `
-      <div class="telemetria-card" style="${cardStyle}">
-        <div class="telemetria-id" style="${idStyle}">
-          ${l.maquina_id}${cores.isBicolor ? ' (Máq+Op)' : ''}
-        </div>
-        <div class="telemetria-metrics">
-          <div class="telemetria-metric">
-            <span class="telemetria-label">TEMP</span>
-            <span class="telemetria-value" style="color:${tempColor(l.temperatura)}">
-              ${l.temperatura}<span class="metric-unit">°C</span>
-            </span>
-          </div>
-          <div class="telemetria-metric">
-            <span class="telemetria-label">RPM</span>
-            <span class="telemetria-value" style="color:${rpmColor(l.rpm)}">${l.rpm}</span>
-          </div>
-          <div class="telemetria-metric">
-            <span class="telemetria-label">VIB</span>
-            <span class="telemetria-value" style="color:${vibColor(l.vibracao)}">
-              ${l.vibracao}<span class="metric-unit">g</span>
-            </span>
-          </div>
-        </div>
-        <div class="telemetria-ts">${ts}</div>
-      </div>`;
-  }).join('');
-
-  // Tabela com as últimas 10 leituras brutas com cores por máquina
-  const linhas = dadosFiltrados.slice(0, 10).map(l => {
-    const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
-      day: '2-digit', month: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-    const cores = getMachineColor(l.maquina_id, todasMaquinas);
-    
-    // Estilo do nome da máquina com sistema bicolor
-    let nomeStyle = `color: ${cores.primary}; font-weight: 600;`;
-    if (cores.isBicolor) {
-      nomeStyle = `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;`;
-    }
-    
-    return `
-      <tr>
-        <td class="mono" style="${nomeStyle}">
-          ${l.maquina_id}${cores.isBicolor ? ' (M+O)' : ''}
-        </td>
-        <td style="color:${tempColor(l.temperatura)}">${l.temperatura} °C</td>
-        <td style="color:${vibColor(l.vibracao)}">${l.vibracao} g</td>
-        <td style="color:${rpmColor(l.rpm)}">${l.rpm}</td>
-        <td class="mono" style="color:var(--text3);font-size:11px">${ts}</td>
-      </tr>`;
-  }).join('');
-
-  const totalMaquinasFiltradas = Object.keys(porMaquina).length;
-  const totalLeiturasFiltradas = dadosFiltrados.length;
-  const filtroAtivo = telemetriaFilter.length > 0;
-
-  cont.innerHTML = `
-    <div class="telemetria-cards">${cards}</div>
-    <div class="table-wrap" style="margin-top:16px">
-      <table>
-        <thead>
-          <tr>
-            <th>Máquina</th><th>Temperatura</th>
-            <th>Vibração</th><th>RPM</th><th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>${linhas}</tbody>
-      </table>
-    </div>
-    <div style="margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono)">
-      ${totalLeiturasFiltradas} leitura${totalLeiturasFiltradas !== 1 ? 's' : ''} ${filtroAtivo ? 'filtrada' : 'recebida'}${totalLeiturasFiltradas !== 1 ? 's' : ''}
-      &nbsp;•&nbsp; ${totalMaquinasFiltradas} máquina${totalMaquinasFiltradas !== 1 ? 's' : ''} ${filtroAtivo ? 'selecionada' : 'ativa'}${totalMaquinasFiltradas !== 1 ? 's' : ''}
-      ${filtroAtivo ? '&nbsp;•&nbsp; <span style="color:var(--amber);">Filtro ativo</span>' : ''}
-    </div>`;
-}
-
-function renderMetrics(colh, temp, comb, telemetria = []) {
-  const total = colh.length;
-  const emOp = colh.filter(c => c.StatusdeOperacao).length;
-  
-  // Usa dados de telemetria se disponíveis, senão usa dados estáticos
-  let maxTemp, mediaC;
-  
-  if (telemetria.length > 0) {
-    // Dados dinâmicos de telemetria
-    maxTemp = Math.max(...telemetria.map(t => t.temperatura)).toFixed(1);
-    mediaC = 'N/D';
-  } else {
-    // Fallback para dados estáticos
-    maxTemp = temp.length ? Math.max(...temp.map(t => t.Temperatura)) : '—';
-    mediaC = comb.length ? (comb.reduce((s, c) => s + c.Porcentagem, 0) / comb.length).toFixed(1) : '—';
-  }
-
-  document.getElementById('metrics-container').innerHTML = `
-    <div class="metric-card">
-      <div class="metric-label">Colheitadeiras</div>
-      <div class="metric-value">${total}</div>
-      <div class="metric-sub">cadastradas</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Status de operação</div>
-      <div class="metric-value">${emOp}</div>
-      <div class="metric-sub">registros ativos</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Temp. máx. ${telemetria.length > 0 ? '(ESP32)' : '(máq.)'}</div>
-      <div class="metric-value">${maxTemp}<span class="metric-unit">°C</span></div>
-      <div class="metric-sub">${telemetria.length > 0 ? 'telemetria ativa' : 'última leitura'}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Combustível</div>
-      <div class="metric-value" style="color:var(--text2)">N/D</div>
-      <div class="metric-sub">requer sensor adicional</div>
-    </div>
-  `;
-}
-
-function renderAmbiente(amb) {
-  if (!amb.length) {
-    document.getElementById('ambiente-container').innerHTML = '<div class="state-msg">Sem dados de ambiente.</div>';
-    return;
-  }
-  const u = amb[amb.length - 1];
-  document.getElementById('ambiente-container').innerHTML = `
-    <div class="data-row"><span class="data-key">Temperatura</span><span class="data-val">${u.Temperatura} °C</span></div>
-    <div class="data-row"><span class="data-key">Umidade</span><span class="data-val">${u.Umidade}%</span></div>
-    <div class="data-row"><span class="data-key">Total de leituras</span><span class="data-val">${amb.length}</span></div>
-  `;
-}
-
-function renderTempChart(telemetria) {
-  if (!telemetria || !telemetria.length) {
-    // Se não há dados de telemetria, usa dados estáticos como fallback
-    const labels = ['Sem dados'];
-    const data = [0];
-    criarOuAtualizar('tempChart', {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Temperatura', data,
-          borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
-          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: scaleDefaults(),
-      }
-    });
-    return;
-  }
-
-  // Aplica filtro se existir
-  let dadosFiltrados = telemetria;
-  if (tempChartFilter.length > 0) {
-    dadosFiltrados = telemetria.filter(l => tempChartFilter.includes(l.maquina_id));
-  }
-
-  // Se não há dados após filtro, mostra mensagem
-  if (dadosFiltrados.length === 0) {
-    criarOuAtualizar('tempChart', {
-      type: 'line',
-      data: {
-        labels: ['Filtro aplicado'],
-        datasets: [{
-          label: 'Temperatura', data: [0],
-          borderColor: C.amber, backgroundColor: 'rgba(251,191,36,.08)',
-          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { 
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: () => 'Nenhuma máquina encontrada',
-              label: () => 'Ajuste o filtro ou limpe-o'
-            }
-          }
-        },
-        scales: scaleDefaults(),
-      }
-    });
-    return;
-  }
-
-  // Agrupa por máquina e pega as últimas 10 leituras de cada uma
-  const porMaquina = {};
-  dadosFiltrados.forEach(l => {
-    if (!porMaquina[l.maquina_id]) porMaquina[l.maquina_id] = [];
-    porMaquina[l.maquina_id].push(l);
-  });
-
-  // Prepara datasets para cada máquina com suas cores
-  const datasets = [];
-  const todasMaquinas = Object.keys(porMaquina).map(id => ({ maquina_id: id }));
-  
-  Object.entries(porMaquina).forEach(([maquinaId, leituras]) => {
-    const cores = getMachineColor(maquinaId, todasMaquinas);
-    const ultimasLeituras = leituras.slice(-10); // Últimas 10 leituras
-    
-    // Configuração de cores para o gráfico
-    let borderColor = cores.primary;
-    let backgroundColor = `${cores.primary}20`;
-    let pointBackgroundColor = cores.primary;
-    let pointBorderColor = cores.primary;
-    let pointBorderWidth = 0;
-    
-    // Se é bicolor, aplica gradiente e borda secundária
-    if (cores.isBicolor) {
-      // Cria gradiente para a linha
-      borderColor = cores.primary;
-      backgroundColor = `${cores.primary}15`;
-      pointBackgroundColor = cores.primary;
-      pointBorderColor = cores.secondary;
-      pointBorderWidth = 3;
-    }
-    
-    datasets.push({
-      label: maquinaId,
-      data: ultimasLeituras.map(l => l.temperatura),
-      borderColor: borderColor,
-      backgroundColor: backgroundColor,
-      borderWidth: cores.isBicolor ? 3 : 2,
-      pointRadius: cores.isBicolor ? 6 : 4,
-      pointBackgroundColor: pointBackgroundColor,
-      pointBorderColor: pointBorderColor,
-      pointBorderWidth: pointBorderWidth,
-      tension: 0.4,
-      fill: false
-    });
-  });
-
-  // Labels baseados no número máximo de leituras
-  const maxLeituras = Math.max(...Object.values(porMaquina).map(l => l.length));
-  const labels = Array.from({length: Math.min(maxLeituras, 10)}, (_, i) => `#${i + 1}`);
-
-  criarOuAtualizar('tempChart', {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, 
-      maintainAspectRatio: false,
-      plugins: { 
-        legend: { 
-          display: true,
-          position: 'top',
-          labels: {
-            color: C.tick,
-            font: { size: 10 },
-            usePointStyle: true,
-            pointStyle: 'circle'
-          }
-        }
-      },
-      scales: {
-        ...scaleDefaults(),
-        y: {
-          ...scaleDefaults().y,
-          title: {
-            display: true,
-            text: 'Temperatura (°C)',
-            color: C.tick,
-            font: { size: 11 }
-          }
-        }
-      },
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      }
-    }
-  });
-}
-
-function renderFuelChart(telemetria) {
-  if (!telemetria || !telemetria.length) {
-    // Fallback para dados estáticos se não há telemetria
-    criarOuAtualizar('fuelChart', {
-      type: 'bar',
-      data: {
-        labels: ['Sem dados'],
-        datasets: [{ 
-          label: 'Combustível %', 
-          data: [0], 
-          backgroundColor: [C.red], 
-          borderRadius: 4, 
-          borderSkipped: false 
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { 
-          ...scaleDefaults(), 
-          y: { 
-            ...scaleDefaults().y, 
-            min: 0, 
-            max: 100, 
-            ticks: { 
-              ...scaleDefaults().y.ticks, 
-              callback: v => v + '%' 
-            } 
-          } 
-        },
-      }
-    });
-    return;
-  }
-
-  // Aplica filtro se existir
-  let dadosFiltrados = telemetria;
-  if (fuelChartFilter.length > 0) {
-    dadosFiltrados = telemetria.filter(l => fuelChartFilter.includes(l.maquina_id));
-  }
-
-  // Se não há dados após filtro, mostra mensagem
-  if (dadosFiltrados.length === 0) {
-    criarOuAtualizar('fuelChart', {
-      type: 'bar',
-      data: {
-        labels: ['Filtro aplicado'],
-        datasets: [{ 
-          label: 'Combustível %', 
-          data: [0], 
-          backgroundColor: [C.amber], 
-          borderRadius: 4, 
-          borderSkipped: false 
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { 
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: () => 'Nenhuma máquina encontrada',
-              label: () => 'Ajuste o filtro ou limpe-o'
-            }
-          }
-        },
-        scales: { 
-          ...scaleDefaults(), 
-          y: { 
-            ...scaleDefaults().y, 
-            min: 0, 
-            max: 100, 
-            ticks: { 
-              ...scaleDefaults().y.ticks, 
-              callback: v => v + '%' 
-            } 
-          } 
-        },
-      }
-    });
-    return;
-  }
-
-  // Agrupa por máquina e simula nível de combustível baseado na atividade
-  const porMaquina = {};
-  dadosFiltrados.forEach(l => {
-    if (!porMaquina[l.maquina_id]) {
-      porMaquina[l.maquina_id] = {
-        leituras: [],
-        maquina_id: l.maquina_id
-      };
-    }
-    porMaquina[l.maquina_id].leituras.push(l);
-  });
-
-  const maquinas = Object.values(porMaquina);
-  const todasMaquinas = maquinas.map(m => ({ maquina_id: m.maquina_id }));
-  
-  // Combustível não disponível no protótipo atual
-  // Requer sensor adicional no hardware físico
-  const labels = [];
-  const data = [];
-  const colors = [];
-  
-  maquinas.forEach(m => {
-    const cores = getMachineColor(m.maquina_id, todasMaquinas);
-    const ultimaLeitura = m.leituras[m.leituras.length - 1];
-    
-    // Combustível não disponível - requer sensor adicional
-    const combustivel = null; // N/D
-    
-    labels.push(m.maquina_id + (cores.isBicolor ? ' (M+O)' : ''));
-    data.push(combustivel); // null para N/D
-    
-    // Cor neutra para N/D
-    colors.push(C.gray);
-  });
-  
-  criarOuAtualizar('fuelChart', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ 
-        label: 'Combustível %', 
-        data, 
-        backgroundColor: colors,
-        borderRadius: 6, 
-        borderSkipped: false,
-        borderWidth: 2,
-        borderColor: colors.map(c => c + '80')
-      }]
-    },
-    options: {
-      responsive: true, 
-      maintainAspectRatio: false,
-      plugins: { 
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const maquina = context.label;
-              return `${maquina}: N/D (requer sensor adicional)`;
-            }
-          }
-        }
-      },
-      scales: { 
-        ...scaleDefaults(), 
-        y: { 
-          ...scaleDefaults().y, 
-          min: 0, 
-          max: 100,
-          title: {
-            display: true,
-            text: 'Nível de Combustível (%)',
-            color: C.tick,
-            font: { size: 11 }
-          },
-          ticks: { 
-            ...scaleDefaults().y.ticks, 
-            callback: v => v === null ? 'N/D' : v + '%' 
-          } 
-        },
-        x: {
-          ...scaleDefaults().x,
-          ticks: {
-            ...scaleDefaults().x.ticks,
-            maxRotation: 45,
-            font: { size: 10 }
-          }
-        }
-      },
-    }
-  });
-}
-
-function renderMoveChart(colh, movimentos) {
-  // Para cada colheitadeira, busca o registro de movimento pelo FK
-  // e verifica o campo Em_Movimento (true/false) — nao apenas se existe
-  const emMov   = colh.filter(c => {
-    const mov = movimentos.find(m => m.id === c.EstadodeMovimento);
-    return mov && mov.Em_Movimento === true;
-  }).length;
-  const paradas = colh.length - emMov;
-  criarOuAtualizar('moveChart', {
-    type: 'doughnut',
-    data: {
-      labels: ['Em movimento', 'Parada'],
-      datasets: [{ data: [emMov, paradas], backgroundColor: [C.green, '#1c2420'], borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { color: C.tick, font: { size: 12 }, padding: 16, boxWidth: 10, boxHeight: 10 } } },
-      cutout: '65%',
-    }
-  });
-}
-
-/* ─────────────────────────────────────────
-   7. COLHEITADEIRAS
-   Busca /Colheitadeira/ e monta a tabela da frota.
-   Cada linha e clicavel e abre maquina.html?id=N
-───────────────────────────────────────── */
-async function carregarColheitadeiras() {
-  const tbody = document.getElementById('colheitadeiras-tbody');
-  tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Carregando...</td></tr>';
-  try {
-    // Busca colheitadeiras + tabelas de referencia em paralelo para resolver os IDs
-    const [data, modelos, operarios, combustiveis, tempmaq, movimentos, statuses] = await Promise.all([
-      apiFetch('/Colheitadeira/'),
-      apiFetch('/Modelo/'),
-      apiFetch('/Operario/'),
-      apiFetch('/Combustivel/'),
-      apiFetch('/Temperaturamaquina/'),
-      apiFetch('/Estadodemovimento/'),
-      apiFetch('/Statusdeoperacao/'),
-    ]);
-
-    if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Nenhuma colheitadeira cadastrada.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = data.map(c => {
-      // Resolve cada FK pelo id correspondente na tabela de referencia
-      const modelo    = modelos.find(m => m.id === c.Modelo);
-      const operario  = operarios.find(o => o.id === c.Operario);
-      const comb      = combustiveis.find(cb => cb.id === c.Combustivel);
-      const temp      = tempmaq.find(t => t.id === c.TemperaturaMaquina);
-      const mov       = movimentos.find(mv => mv.id === c.EstadodeMovimento);
-      const status    = statuses.find(s => s.id === c.StatusdeOperacao);
-
-      const emOp  = status?.Em_Operacao;
-      const badge = emOp
-        ? `<span class="badge badge-green">Em operacao</span>`
-        : `<span class="badge badge-gray">Parada</span>`;
-
-      // Monta exibicao de temperatura com cor de alerta
-      const tempVal  = temp?.Temperatura ?? null;
-      const tempClass = tempVal > 85 ? 'temp-red' : tempVal > 75 ? 'temp-amber' : 'temp-ok';
-      const tempText = tempVal !== null ? `<span class="${tempClass}">${tempVal} C</span>` : '—';
-
-      // Monta exibicao de velocidade
-      const velText = mov ? (mov.Em_Movimento ? mov.Velocidade + ' km/h' : 'Parada') : '—';
-
-      return `
-        <tr class="colh-row" onclick="window.location='maquina.html?id=${c.id}'" title="Ver detalhes">
-          <td class="mono">#${String(c.id).padStart(2,'0')}</td>
-          <td class="colh-modelo">${modelo?.Nome ?? '—'}</td>
-          <td>${operario?.Nome ?? '—'}</td>
-          <td>${comb ? comb.Tipo + ' (' + comb.Porcentagem + '%)' : '—'}</td>
-          <td>${tempText}</td>
-          <td>${velText}</td>
-          <td>${badge} <span class="colh-arrow">→</span></td>
-        </tr>`;
-    }).join('');
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="state-msg err-red">Erro ao carregar. Verifique a API.</td></tr>';
-  }
-}
-
-/* ─────────────────────────────────────────
-   8. OPERARIOS
-   Busca /Operario/ e monta a tabela com nome,
-   tempo de servico e status "no banco".
-───────────────────────────────────────── */
-async function carregarOperarios() {
-  const tbody = document.getElementById('operarios-tbody');
-  tbody.innerHTML = '<tr><td colspan="4" class="state-msg">Carregando...</td></tr>';
-  try {
-    const data = await apiFetch('/Operario/');
-    if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="state-msg">Nenhum operário cadastrado.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = data.map(o => `
-      <tr>
-        <td class="mono">${o.id}</td>
-        <td>${o.Nome}</td>
-        <td>${o.TempodeServico} ano${o.TempodeServico !== 1 ? 's' : ''}</td>
-        <td>${o.Nobanco
-          ? '<span class="badge badge-green">Sim</span>'
-          : '<span class="badge badge-amber">Não</span>'}</td>
-      </tr>`
-    ).join('');
-  } catch {
-    tbody.innerHTML = '<tr><td colspan="4" class="state-msg err-red">Erro ao carregar.</td></tr>';
-  }
-}
-
-/* ─────────────────────────────────────────
-   9. ALERTAS
-   Analise automatica dos dados de telemetria em tempo real.
-   Regras atuais:
-     - Temperatura > 85°C  → CRITICO (vermelho)
-     - Temperatura > 75°C  → ATENCAO (amarelo)
-     - Vibração > 0.8      → CRITICO (vermelho)
-     - Vibração > 0.5      → ATENCAO (amarelo)
-     - RPM < 1300          → ATENCAO (amarelo)
-───────────────────────────────────────── */
-async function carregarAlertas() {
-  const cont = document.getElementById('alertas-container');
-  cont.innerHTML = '<div class="state-msg">Analisando dados...</div>';
-  try {
-    // Usa os dados reais de telemetria em vez das tabelas antigas
-    const maquinas = await apiFetch('/api/leituras/ultimas/');
-
-    const alertas = [];
-
-    // Analisa cada máquina com base nos dados de telemetria atuais
-    maquinas.forEach(m => {
-      // Alertas de temperatura
-      if (m.temperatura > 85)
-        alertas.push({ 
-          nivel: 'red', 
-          msg: `Temperatura crítica: ${m.temperatura}°C (${m.maquina_id})`, 
-          meta: 'Limite: 85°C - Risco de superaquecimento!' 
-        });
-      else if (m.temperatura > 75)
-        alertas.push({ 
-          nivel: 'amber', 
-          msg: `Temperatura elevada: ${m.temperatura}°C (${m.maquina_id})`, 
-          meta: 'Limite: 85°C - Monitorar de perto' 
-        });
-
-      // Alertas de vibração
-      if (m.vibracao > 0.8)
-        alertas.push({ 
-          nivel: 'red', 
-          msg: `Vibração crítica: ${m.vibracao} (${m.maquina_id})`, 
-          meta: 'Limite: 0.8 - Possível falha mecânica!' 
-        });
-      else if (m.vibracao > 0.5)
-        alertas.push({ 
-          nivel: 'amber', 
-          msg: `Vibração elevada: ${m.vibracao} (${m.maquina_id})`, 
-          meta: 'Limite: 0.8 - Verificar componentes' 
-        });
-
-      // Alertas de RPM
-      if (m.rpm < 1300)
-        alertas.push({ 
-          nivel: 'amber', 
-          msg: `RPM baixo: ${m.rpm} (${m.maquina_id})`, 
-          meta: 'Mínimo: 1300 RPM - Verificar motor' 
-        });
-    });
-
-    if (!alertas.length) {
-      cont.innerHTML = '<div class="state-msg ok-green">✓ Nenhum alerta ativo no momento.</div>';
-    } else {
-      cont.innerHTML = alertas.map(a => `
-        <div class="alert-item">
-          <div class="alert-dot alert-dot-${a.nivel}"></div>
-          <div>
-            <div class="alert-msg">${a.msg}</div>
-            <div class="alert-meta">${a.meta}</div>
-          </div>
-        </div>`
-      ).join('');
-    }
-
-    // Atualiza o gráfico com base nos dados reais
-    const criticos = alertas.filter(a => a.nivel === 'red').length;
-    const avisos   = alertas.filter(a => a.nivel === 'amber').length;
-    const ok       = maquinas.length - Math.ceil((criticos + avisos) / 2);
-
-    criarOuAtualizar('alertChart', {
-      type: 'doughnut',
-      data: {
-        labels: ['Normal', 'Atenção', 'Crítico'],
-        datasets: [{ data: [Math.max(0, ok), avisos, criticos], backgroundColor: [C.green, C.amber, C.red], borderWidth: 0 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: C.tick, font: { size: 12 }, padding: 14, boxWidth: 10, boxHeight: 10 } } },
-        cutout: '60%',
-      }
-    });
-
-  } catch {
-    cont.innerHTML = '<div class="state-msg err-red">Erro ao carregar alertas.</div>';
-  }
-}
-
-/* ─────────────────────────────────────────
-   10. CADASTROS
-   feedback(id, msg, ok) — mostra mensagem de sucesso/erro
-                            abaixo do botao Salvar por 3 segundos
-   
-   Cada funcao cadastrar*():
-     1. Le os valores do formulario
-     2. Valida se estao preenchidos
-     3. Faz POST na API via apiPost()
-     4. Limpa o formulario em caso de sucesso
-───────────────────────────────────────── */
-function feedback(id, msg, ok) {
-  const el = document.getElementById(id);
-  el.textContent = msg;
-  el.style.color = ok ? 'var(--green)' : 'var(--red)';
-  setTimeout(() => el.textContent = '', 3000);
-}
-
-async function cadastrarMarca() {
-  const nome = document.getElementById('marca-nome').value.trim();
-  if (!nome) return feedback('marca-feedback', 'Preencha o nome.', false);
-  try {
-    await apiPost('/Marca/', { Nome: nome });
-    feedback('marca-feedback', '✓ Salvo!', true);
-    document.getElementById('marca-nome').value = '';
-  } catch (e) {
-    feedback('marca-feedback', 'Erro: ' + e.message, false);
-  }
-}
-
-async function cadastrarCombustivel() {
-  const tipo = document.getElementById('comb-tipo').value.trim();
-  const pct  = parseFloat(document.getElementById('comb-pct').value);
-  if (!tipo || isNaN(pct)) return feedback('comb-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Combustivel/', { Tipo: tipo, Porcentagem: pct });
-    feedback('comb-feedback', '✓ Salvo!', true);
-    document.getElementById('comb-tipo').value = '';
-    document.getElementById('comb-pct').value  = '';
-  } catch (e) {
-    feedback('comb-feedback', 'Erro: ' + e.message, false);
-  }
-}
-
-async function cadastrarOperario() {
-  const nome  = document.getElementById('op-nome').value.trim();
-  const tempo = parseInt(document.getElementById('op-tempo').value);
-  const banco = document.getElementById('op-banco').value === 'true';
-  if (!nome || isNaN(tempo)) return feedback('op-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Operario/', { Nome: nome, TempodeServico: tempo, Nobanco: banco });
-    feedback('op-feedback', '✓ Salvo!', true);
-    document.getElementById('op-nome').value  = '';
-    document.getElementById('op-tempo').value = '';
-  } catch (e) {
-    feedback('op-feedback', 'Erro: ' + e.message, false);
-  }
-}
-
-async function cadastrarUnidade() {
-  const nome = document.getElementById('um-nome').value.trim();
-  if (!nome) return feedback('um-feedback', 'Preencha o nome.', false);
-  try {
-    await apiPost('/Unidadedemedida/', { Nome: nome });
-    feedback('um-feedback', '✓ Salvo!', true);
-    document.getElementById('um-nome').value = '';
-  } catch (e) {
-    feedback('um-feedback', 'Erro: ' + e.message, false);
-  }
-}
-
-/* ─────────────────────────────────────────
-   ABAS DE CADASTRO
-   showCadTab(name, btn) — troca a aba visivel dentro da
-                            pagina de Cadastros
-   
-   Ao abrir a aba "Leituras" ou "Colheitadeira",
-   os selects sao populados automaticamente com
-   dados da API (evita carregar tudo de uma vez).
-───────────────────────────────────────── */
-function showCadTab(name, btn) {
-  document.querySelectorAll('.cad-pane').forEach(p => p.style.display = 'none');
-  document.querySelectorAll('.cad-tab').forEach(b => b.classList.remove('active'));
-  document.getElementById('cad-' + name).style.display = 'block';
-  btn.classList.add('active');
-  if (name === 'leituras') carregarSelectsLeituras();
-  if (name === 'maquina')  carregarSelectsColheitadeira();
-}
-
-/* ─────────────────────────────────────────
-   POPULA SELECTS
-   popularSelect(id, endpoint, labelFn)
-     id        — id do elemento <select> no HTML
-     endpoint  — rota da API a ser consultada
-     labelFn   — funcao que define o texto de cada opcao
-   
-   Exemplo:
-     popularSelect('mod-marca', '/Marca/', d => d.Nome)
-     Busca /Marca/ e preenche o select com os nomes das marcas
-───────────────────────────────────────── */
-async function popularSelect(id, endpoint, labelFn) {
-  try {
-    const data = await apiFetch(endpoint);
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = '<option value="">Selecione...</option>' +
-      data.map(d => `<option value="${d.id}">${labelFn(d)}</option>`).join('');
-  } catch (err) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.innerHTML = '<option value="">Erro ao carregar</option>';
-      el.style.borderColor = 'var(--red)';
-    }
-  }
-}
-
-async function carregarSelectsReferencia() {
-  await popularSelect('mod-marca', '/Marca/', d => d.Nome);
-}
-
-async function carregarSelectsLeituras() {
-  await Promise.all([
-    popularSelect('pneu-unidade',  '/Unidadedemedida/', d => d.Nome),
-    popularSelect('alt-unidade',   '/Unidadedemedida/', d => d.Nome),
-    popularSelect('pcorte-unidade','/Unidadedemedida/', d => d.Nome),
-    popularSelect('tmaq-modelo',   '/Modelo/',          d => d.Nome),
-  ]);
-}
-
-async function carregarSelectsColheitadeira() {
-  await Promise.all([
-    popularSelect('col-modelo',   '/Modelo/',            d => d.Nome),
-    popularSelect('col-comb',     '/Combustivel/',       d => `${d.Tipo} (${d.Porcentagem}%)`),
-    popularSelect('col-operario', '/Operario/',          d => d.Nome),
-    popularSelect('col-pneus',    '/Pressaopneus/',      d => `${d.Pressao} ${d.UnidadedeMedida?.Nome || ''}`),
-    popularSelect('col-altura',   '/Alturadocorte/',     d => `${d.Altura} ${d.UnidadedeMedida?.Nome || ''}`),
-    popularSelect('col-pcorte',   '/Pressaodocorte/',    d => `${d.Pressao} ${d.UnidadedeMedida?.Nome || ''}`),
-    popularSelect('col-ambiente', '/Tempumi_ambiente/',  d => `${d.Temperatura}grau C / ${d.Umidade}%`),
-    popularSelect('col-tmaq',     '/Temperaturamaquina/',d => `${d.Temperatura}grau C`),
-    popularSelect('col-status',   '/Statusdeoperacao/',  d => `${d.Em_Operacao ? 'Em op.' : 'Parada'} - ${d.Tempo_de_Operacao}h`),
-    popularSelect('col-mov',      '/Estadodemovimento/', d => `${d.Em_Movimento ? 'Movimento' : 'Parada'} - ${d.Velocidade}km/h`),
-  ]);
-}
-
-/* ─────────────────────────────────────────
-   NOVOS CADASTROS — funcoes individuais
-   Cada funcao corresponde a um formulario da pagina.
-   Os endpoints seguem os nomes registrados em urls.py.
-───────────────────────────────────────── */
-async function cadastrarModelo() {
-  const nome  = document.getElementById('mod-nome').value.trim();
-  const marca = document.getElementById('mod-marca').value;
-  if (!nome || !marca) return feedback('mod-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Modelo/', { Nome: nome, Marca: parseInt(marca) });
-    feedback('mod-feedback', 'Salvo!', true);
-    document.getElementById('mod-nome').value = '';
-    await carregarSelectsReferencia();
-  } catch(e) { feedback('mod-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarPressaoPneus() {
-  const pressao  = parseFloat(document.getElementById('pneu-pressao').value);
-  const unidade  = document.getElementById('pneu-unidade').value;
-  if (isNaN(pressao) || !unidade) return feedback('pneu-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Pressaopneus/', { Pressao: pressao, UnidadedeMedida: parseInt(unidade) });
-    feedback('pneu-feedback', 'Salvo!', true);
-    document.getElementById('pneu-pressao').value = '';
-  } catch(e) { feedback('pneu-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarAltura() {
-  const altura  = parseFloat(document.getElementById('alt-altura').value);
-  const unidade = document.getElementById('alt-unidade').value;
-  if (isNaN(altura) || !unidade) return feedback('alt-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Alturadocorte/', { Altura: altura, UnidadedeMedida: parseInt(unidade) });
-    feedback('alt-feedback', 'Salvo!', true);
-    document.getElementById('alt-altura').value = '';
-  } catch(e) { feedback('alt-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarPressaoCorte() {
-  const pressao  = parseFloat(document.getElementById('pcorte-pressao').value);
-  const unidade  = document.getElementById('pcorte-unidade').value;
-  if (isNaN(pressao) || !unidade) return feedback('pcorte-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Pressaodocorte/', { Pressao: pressao, UnidadedeMedida: parseInt(unidade) });
-    feedback('pcorte-feedback', 'Salvo!', true);
-    document.getElementById('pcorte-pressao').value = '';
-  } catch(e) { feedback('pcorte-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarAmbiente() {
-  const temp = parseFloat(document.getElementById('amb-temp').value);
-  const umi  = parseFloat(document.getElementById('amb-umi').value);
-  if (isNaN(temp) || isNaN(umi)) return feedback('amb-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Tempumi_ambiente/', { Temperatura: temp, Umidade: umi });
-    feedback('amb-feedback', 'Salvo!', true);
-    document.getElementById('amb-temp').value = '';
-    document.getElementById('amb-umi').value  = '';
-  } catch(e) { feedback('amb-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarTempMaquina() {
-  const temp   = parseFloat(document.getElementById('tmaq-temp').value);
-  const modelo = document.getElementById('tmaq-modelo').value;
-  if (isNaN(temp) || !modelo) return feedback('tmaq-feedback', 'Preencha todos os campos.', false);
-  try {
-    await apiPost('/Temperaturamaquina/', { Temperatura: temp, Maquina: parseInt(modelo) });
-    feedback('tmaq-feedback', 'Salvo!', true);
-    document.getElementById('tmaq-temp').value = '';
-  } catch(e) { feedback('tmaq-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarStatusOp() {
-  const emOp = document.getElementById('sop-status').value === 'true';
-  const tempo = parseFloat(document.getElementById('sop-tempo').value);
-  if (isNaN(tempo)) return feedback('sop-feedback', 'Preencha o tempo.', false);
-  try {
-    await apiPost('/Statusdeoperacao/', { Em_Operacao: emOp, Tempo_de_Operacao: tempo });
-    feedback('sop-feedback', 'Salvo!', true);
-    document.getElementById('sop-tempo').value = '';
-  } catch(e) { feedback('sop-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarMovimento() {
-  const emMov = document.getElementById('mov-status').value === 'true';
-  const vel   = parseFloat(document.getElementById('mov-vel').value);
-  if (isNaN(vel)) return feedback('mov-feedback', 'Preencha a velocidade.', false);
-  try {
-    await apiPost('/Estadodemovimento/', { Em_Movimento: emMov, Velocidade: vel });
-    feedback('mov-feedback', 'Salvo!', true);
-    document.getElementById('mov-vel').value = '';
-  } catch(e) { feedback('mov-feedback', 'Erro: ' + e.message, false); }
-}
-
-async function cadastrarColheitadeira() {
-  const campos = {
-    Modelo:           parseInt(document.getElementById('col-modelo').value),
-    Combustivel:      parseInt(document.getElementById('col-comb').value),
-    Operario:         parseInt(document.getElementById('col-operario').value),
-    PressaoPneus:     parseInt(document.getElementById('col-pneus').value),
-    AlturadoCorte:    parseInt(document.getElementById('col-altura').value),
-    PressaodoCorte:   parseInt(document.getElementById('col-pcorte').value),
-    TempUmi_Ambiente: parseInt(document.getElementById('col-ambiente').value),
-    TemperaturaMaquina:parseInt(document.getElementById('col-tmaq').value),
-    StatusdeOperacao: parseInt(document.getElementById('col-status').value),
-    EstadodeMovimento:parseInt(document.getElementById('col-mov').value),
-  };
-  if (Object.values(campos).some(v => isNaN(v))) 
-    return feedback('col-feedback', 'Selecione todos os campos.', false);
-  try {
-    await apiPost('/Colheitadeira/', campos);
-    feedback('col-feedback', 'Colheitadeira cadastrada!', true);
-  } catch(e) { feedback('col-feedback', 'Erro: ' + e.message, false); }
-}
-
-/* ─────────────────────────────────────────
-   11. INICIALIZACAO
-   Executado automaticamente quando a pagina abre:
-     - Verifica se a API esta online
-     - Carrega os dados do Dashboard
-     - Popula o select de Marcas (aba Referencia)
-     - Agenda nova verificacao da API a cada 30 segundos
-───────────────────────────────────────── */
-/* ─────────────────────────────────────────────────────────────
-   STATUS EM TEMPO REAL — polling a cada 3 segundos
-   Consome /api/leituras/ultimas/ e atualiza os cards
-   sem precisar recarregar a página
-   
-   MELHORIAS IMPLEMENTADAS:
-   - Layout em carrossel com 12 status (3 tabelas de 4 informações)
-   - Cores diferentes por marca de máquina
-   - Controles de navegação
-────────────────────────────────────────────────────────────── */
-let currentTableIndex = 0;
-let totalMachines = 0;
-let allMachinesData = []; // Armazena todos os dados das máquinas
-
-// Variáveis globais para filtros dos gráficos
-let tempChartFilter = [];
-let fuelChartFilter = [];
-let telemetriaFilter = [];
-let iaFilter = [];
-
-// Funções de limpeza de filtros
-function clearTempFilter() {
-  tempChartFilter = [];
-  document.getElementById('temp-chart-search').value = '';
-  document.getElementById('temp-chart-suggestions').classList.remove('show');
-  refreshTempChart();
-}
-
-function clearFuelFilter() {
-  fuelChartFilter = [];
-  document.getElementById('fuel-chart-search').value = '';
-  document.getElementById('fuel-chart-suggestions').classList.remove('show');
-  refreshFuelChart();
-}
-
-function clearTelemetriaFilter() {
-  telemetriaFilter = [];
-  document.getElementById('telemetria-search').value = '';
-  document.getElementById('telemetria-suggestions').classList.remove('show');
-  refreshTelemetria();
-}
-
-function clearIAFilter() {
-  iaFilter = [];
-  document.getElementById('ia-search').value = '';
-  document.getElementById('ia-suggestions').classList.remove('show');
-  refreshIA();
-}
-
-// Funções de refresh individuais
-function refreshTempChart() {
-  if (allMachinesData.length) {
-    renderTempChart(allMachinesData);
-  } else {
-    carregarDashboard();
-  }
-}
-
-function refreshFuelChart() {
-  if (allMachinesData.length) {
-    renderFuelChart(allMachinesData);
-  } else {
-    carregarDashboard();
-  }
-}
-
-function refreshTelemetria() {
-  if (allMachinesData.length) {
-    renderTelemetria(allMachinesData);
-  } else {
-    carregarDashboard();
-  }
-}
-
-function refreshAmbiente() {
-  carregarDashboard();
-}
-
-function refreshIA() {
-  atualizarIA();
-}
-
-// Permite buscar pressionando Enter e implementa sugestões
-document.addEventListener('DOMContentLoaded', function() {
-  const searchInput = document.getElementById('machine-search');
-  const suggestionsContainer = document.getElementById('search-suggestions');
-  let selectedSuggestionIndex = -1;
-  
-  if (searchInput) {
-    // Busca com Enter
-    searchInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (selectedSuggestionIndex >= 0) {
-          // Se há uma sugestão selecionada, usa ela
-          const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
-          if (suggestions[selectedSuggestionIndex]) {
-            const maquinaId = suggestions[selectedSuggestionIndex].dataset.machineId;
-            searchInput.value = maquinaId;
-            hideSuggestions();
-            buscarMaquina();
-          }
-        } else {
-          buscarMaquina();
-        }
-      }
-    });
-    
-    // Navegação com setas nas sugestões
-    searchInput.addEventListener('keydown', function(e) {
-      const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
-      
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
-        updateSelectedSuggestion();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
-        updateSelectedSuggestion();
-      } else if (e.key === 'Escape') {
-        hideSuggestions();
-      }
-    });
-    
-    // Mostra sugestões conforme digita
-    searchInput.addEventListener('input', function(e) {
-      const query = e.target.value.trim();
-      selectedSuggestionIndex = -1;
-      
-      if (query.length >= 1) {
-        showSuggestions(query);
-      } else {
-        hideSuggestions();
-      }
-    });
-    
-    // Esconde sugestões quando clica fora
-    document.addEventListener('click', function(e) {
-      if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
-        hideSuggestions();
-      }
-    });
-  }
-  
-  function showSuggestions(query) {
-    if (!allMachinesData || !allMachinesData.length) {
-      hideSuggestions();
-      return;
-    }
-    
-    const queryUpper = query.toUpperCase();
-    const matches = allMachinesData.filter(m => 
-      m.maquina_id.toUpperCase().includes(queryUpper)
-    ).slice(0, 5); // Máximo 5 sugestões
-    
-    if (matches.length === 0) {
-      hideSuggestions();
-      return;
-    }
-    
-    const suggestionsHTML = matches.map(m => {
-      const cores = getMachineColor(m.maquina_id, allMachinesData);
-      const status = m.nivel_risco || 'NORMAL';
-      const statusColor = status === 'CRITICO' ? 'var(--red)' : status === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
-      
-      return `
-        <div class="suggestion-item" data-machine-id="${m.maquina_id}" onclick="selectSuggestion('${m.maquina_id}')">
-          <div class="suggestion-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
-            ${m.maquina_id}
-          </div>
-          <div class="suggestion-status" style="color: ${statusColor};">${status}</div>
-        </div>
-      `;
-    }).join('');
-    
-    suggestionsContainer.innerHTML = suggestionsHTML;
-    suggestionsContainer.classList.add('show');
-  }
-  
-  function hideSuggestions() {
-    suggestionsContainer.classList.remove('show');
-    selectedSuggestionIndex = -1;
-  }
-  
-  function updateSelectedSuggestion() {
-    const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
-    suggestions.forEach((item, index) => {
-      if (index === selectedSuggestionIndex) {
-        item.classList.add('selected');
-      } else {
-        item.classList.remove('selected');
-      }
-    });
-  }
-  
-  // Função global para seleção de sugestão
-  window.selectSuggestion = function(maquinaId) {
-    searchInput.value = maquinaId;
-    hideSuggestions();
-    buscarMaquina();
-  };
-  
-  // Inicializar campos de busca dos gráficos
-  initChartSearches();
-  
-  // Inicia polling de status em tempo real após DOM estar pronto
-  atualizarStatusMaquinas();
-  setInterval(atualizarStatusMaquinas, 3000);
-  
-  // Inicializa campos de busca dos gráficos
-  initChartSearches();
-});
-
-// Função para inicializar buscas dos gráficos
-function initChartSearches() {
-  // Busca do gráfico de temperatura
-  const tempSearch = document.getElementById('temp-chart-search');
-  const tempSuggestions = document.getElementById('temp-chart-suggestions');
-  
-  if (tempSearch) {
-    tempSearch.addEventListener('input', function(e) {
-      const query = e.target.value.trim();
-      if (query.length >= 1) {
-        showChartSuggestions(query, tempSuggestions, 'temp');
-      } else {
-        tempSuggestions.classList.remove('show');
-      }
-    });
-    
-    tempSearch.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        applyTempFilter(e.target.value.trim());
-      }
-    });
-  }
-  
-  // Busca do gráfico de combustível
-  const fuelSearch = document.getElementById('fuel-chart-search');
-  const fuelSuggestions = document.getElementById('fuel-chart-suggestions');
-  
-  if (fuelSearch) {
-    fuelSearch.addEventListener('input', function(e) {
-      const query = e.target.value.trim();
-      if (query.length >= 1) {
-        showChartSuggestions(query, fuelSuggestions, 'fuel');
-      } else {
-        fuelSuggestions.classList.remove('show');
-      }
-    });
-    
-    fuelSearch.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        applyFuelFilter(e.target.value.trim());
-      }
-    });
-  }
-  
-  // Busca da telemetria
-  const telemetriaSearch = document.getElementById('telemetria-search');
-  const telemetriaSuggestions = document.getElementById('telemetria-suggestions');
-  
-  if (telemetriaSearch) {
-    telemetriaSearch.addEventListener('input', function(e) {
-      const query = e.target.value.trim();
-      if (query.length >= 1) {
-        showChartSuggestions(query, telemetriaSuggestions, 'telemetria');
-      } else {
-        telemetriaSuggestions.classList.remove('show');
-      }
-    });
-    
-    telemetriaSearch.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        applyTelemetriaFilter(e.target.value.trim());
-      }
-    });
-  }
-  
-  // Busca da IA
-  const iaSearch = document.getElementById('ia-search');
-  const iaSuggestions = document.getElementById('ia-suggestions');
-  
-  if (iaSearch) {
-    iaSearch.addEventListener('input', function(e) {
-      const query = e.target.value.trim();
-      if (query.length >= 1) {
-        showChartSuggestions(query, iaSuggestions, 'ia');
-      } else {
-        iaSuggestions.classList.remove('show');
-      }
-    });
-    
-    iaSearch.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        applyIAFilter(e.target.value.trim());
-      }
-    });
-  }
-}
-
-// Função para mostrar sugestões dos gráficos
-function showChartSuggestions(query, container, type) {
-  if (!allMachinesData || !allMachinesData.length) {
-    container.classList.remove('show');
-    return;
-  }
-  
-  const queryUpper = query.toUpperCase();
-  const matches = allMachinesData.filter(m => 
-    m.maquina_id.toUpperCase().includes(queryUpper)
-  ).slice(0, 4); // Máximo 4 sugestões para gráficos
-  
-  if (matches.length === 0) {
-    container.classList.remove('show');
-    return;
-  }
-  
-  const suggestionsHTML = matches.map(m => {
-    const cores = getMachineColor(m.maquina_id, allMachinesData);
-    const status = m.nivel_risco || 'NORMAL';
-    const statusColor = status === 'CRITICO' ? 'var(--red)' : status === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
-    
-    return `
-      <div class="chart-suggestion-item" onclick="selectChartSuggestion('${m.maquina_id}', '${type}')">
-        <div class="chart-suggestion-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
-          ${m.maquina_id}
-        </div>
-        <div class="chart-suggestion-status" style="color: ${statusColor};">${status}</div>
-      </div>
-    `;
-  }).join('');
-  
-  container.innerHTML = suggestionsHTML;
-  container.classList.add('show');
-}
-
-// Função para selecionar sugestão dos gráficos
-function selectChartSuggestion(maquinaId, type) {
-  const searchInput = document.getElementById(`${type}-chart-search`) || document.getElementById(`${type}-search`);
-  const suggestions = document.getElementById(`${type}-chart-suggestions`) || document.getElementById(`${type}-suggestions`);
-  
-  if (searchInput) searchInput.value = maquinaId;
-  if (suggestions) suggestions.classList.remove('show');
-  
-  // Aplica o filtro
-  if (type === 'temp') applyTempFilter(maquinaId);
-  else if (type === 'fuel') applyFuelFilter(maquinaId);
-  else if (type === 'telemetria') applyTelemetriaFilter(maquinaId);
-  else if (type === 'ia') applyIAFilter(maquinaId);
-}
-
-// Funções para aplicar filtros
-function applyTempFilter(query) {
-  if (!query) return;
-  const matches = allMachinesData.filter(m => 
-    m.maquina_id.toUpperCase().includes(query.toUpperCase())
-  );
-  tempChartFilter = matches.map(m => m.maquina_id);
-  renderTempChart(allMachinesData);
-  document.getElementById('temp-chart-suggestions').classList.remove('show');
-}
-
-function applyFuelFilter(query) {
-  if (!query) return;
-  const matches = allMachinesData.filter(m => 
-    m.maquina_id.toUpperCase().includes(query.toUpperCase())
-  );
-  fuelChartFilter = matches.map(m => m.maquina_id);
-  renderFuelChart(allMachinesData);
-  document.getElementById('fuel-chart-suggestions').classList.remove('show');
-}
-
-function applyTelemetriaFilter(query) {
-  if (!query) return;
-  const matches = allMachinesData.filter(m => 
-    m.maquina_id.toUpperCase().includes(query.toUpperCase())
-  );
-  telemetriaFilter = matches.map(m => m.maquina_id);
-  renderTelemetria(allMachinesData);
-  document.getElementById('telemetria-suggestions').classList.remove('show');
-}
-
-function applyIAFilter(query) {
-  if (!query) return;
-  const matches = allMachinesData.filter(m => 
-    m.maquina_id.toUpperCase().includes(query.toUpperCase())
-  );
-  
-  if (matches.length === 0) {
-    // Se não encontrou nenhuma máquina, mostra popup
-    mostrarPopupIA('Nenhuma máquina encontrada', `Não foi possível encontrar máquinas com o termo "${query}". Verifique se o nome está correto.`);
-    return;
-  }
-  
-  if (matches.length === 1) {
-    // Se encontrou apenas uma máquina, mostra popup com detalhes
-    const maquina = matches[0];
-    mostrarPopupIA(`Detalhes da Máquina ${maquina.maquina_id}`, gerarDetalhesIA(maquina));
-  } else {
-    // Se encontrou múltiplas máquinas, aplica filtro normal
-    iaFilter = matches.map(m => m.maquina_id);
-    atualizarIA();
-  }
-  
-  document.getElementById('ia-suggestions').classList.remove('show');
-}
-
-function mostrarPopupIA(titulo, conteudo) {
-  // Cria o popup se não existir
-  let popup = document.getElementById('ia-popup');
-  if (!popup) {
-    popup = document.createElement('div');
-    popup.id = 'ia-popup';
-    popup.className = 'ia-popup-overlay';
-    popup.style.display = 'none';
-    popup.innerHTML = `
-      <div class="ia-popup">
-        <div class="ia-popup-header">
-          <h3 id="ia-popup-title">Título</h3>
-          <button class="ia-popup-close" onclick="fecharPopupIA()">×</button>
-        </div>
-        <div class="ia-popup-content" id="ia-popup-content">
-          Conteúdo
-        </div>
-      </div>
-    `;
-    document.body.appendChild(popup);
-  }
-  
-  // Atualiza conteúdo e mostra
-  document.getElementById('ia-popup-title').textContent = titulo;
-  document.getElementById('ia-popup-content').innerHTML = conteudo;
-  popup.style.display = 'flex';
-}
-
-function fecharPopupIA() {
-  const popup = document.getElementById('ia-popup');
-  if (popup) popup.style.display = 'none';
-}
-
-function gerarDetalhesIA(maquina) {
-  const cores = getMachineColor(maquina.maquina_id, [maquina]);
-  const nivel = maquina.nivel_risco || 'NORMAL';
-  const nivelCor = nivel === 'CRITICO' ? 'var(--red)' : nivel === 'ATENCAO' ? 'var(--amber)' : 'var(--green)';
-  
-  return `
-    <div class="ia-popup-machine-header" style="border-left: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
-      <div class="ia-popup-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
-        ${maquina.maquina_id}
-      </div>
-      <div class="ia-popup-machine-status">
-        Status: <span style="color: ${nivelCor}">${nivel}</span>
-      </div>
-    </div>
-    
-    <div class="ia-popup-metrics">
-      <div class="ia-popup-metric">
-        <span class="ia-popup-metric-label">TEMPERATURA</span>
-        <span class="ia-popup-metric-value" style="color: ${maquina.temperatura > 85 ? 'var(--red)' : maquina.temperatura > 75 ? 'var(--amber)' : 'var(--green)'}">
-          ${maquina.temperatura}°C
-        </span>
-      </div>
-      <div class="ia-popup-metric">
-        <span class="ia-popup-metric-label">VIBRAÇÃO</span>
-        <span class="ia-popup-metric-value" style="color: ${maquina.vibracao > 0.8 ? 'var(--red)' : maquina.vibracao > 0.5 ? 'var(--amber)' : 'var(--green)'}">
-          ${maquina.vibracao}g
-        </span>
-      </div>
-      <div class="ia-popup-metric">
-        <span class="ia-popup-metric-label">RPM</span>
-        <span class="ia-popup-metric-value" style="color: ${maquina.rpm < 1300 ? 'var(--amber)' : 'var(--text)'}">
-          ${maquina.rpm}
-        </span>
-      </div>
-    </div>
-    
-    <div class="ia-popup-analysis">
-      <h4>Análise de IA</h4>
-      <div class="ia-popup-analysis-item">
-        <strong>Risco de Falha:</strong> 
-        <span style="color: ${nivelCor}">${nivel === 'CRITICO' ? 'Alto (>70%)' : nivel === 'ATENCAO' ? 'Moderado (30-70%)' : 'Baixo (<30%)'}</span>
-      </div>
-      <div class="ia-popup-analysis-item">
-        <strong>Principal Indicador:</strong> 
-        ${maquina.temperatura > 85 ? 'Temperatura crítica' : maquina.vibracao > 0.8 ? 'Vibração excessiva' : maquina.rpm < 1300 ? 'RPM baixo' : 'Parâmetros normais'}
-      </div>
-      <div class="ia-popup-analysis-item">
-        <strong>Recomendação:</strong> 
-        ${nivel === 'CRITICO' ? '⚠️ URGENTE: Parar operação e realizar inspeção imediata' : 
-          nivel === 'ATENCAO' ? '🔍 Agendar manutenção preventiva nas próximas 24-48h' : 
-          '✅ Máquina operando dentro dos parâmetros normais'}
-      </div>
-    </div>
-    
-    <div class="ia-popup-timestamp">
-      Última atualização: ${new Date().toLocaleString('pt-BR')}
-    </div>
-  `;
-}
-
-async function abrirPopupMaquina(maquinaId) {
-  
-  const popup = document.getElementById('machine-popup');
-  const title = document.getElementById('popup-machine-title');
-  const content = document.getElementById('popup-machine-content');
-  
-  if (!popup || !title || !content) {
-    console.error('Elementos do popup não encontrados');
-    return;
-  }
-  
-  // Mostra o popup
-  popup.style.display = 'flex';
-  title.textContent = `Detalhes - ${maquinaId}`;
-  content.innerHTML = '<div class="state-msg">Carregando histórico...</div>';
-  
-  try {
-    const todasLeituras = await apiFetch('/api/telemetria/');
-    const leiturasMaquina = todasLeituras
-      .filter(l => l.maquina_id === maquinaId)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 20);
-
-    if (!leiturasMaquina.length) {
-      content.innerHTML = '<div class="state-msg">Nenhuma leitura encontrada para esta máquina.</div>';
-      return;
-    }
-    
-    // Dados da máquina atual
-    const maquinaAtual = allMachinesData.find(m => m.maquina_id === maquinaId);
-    const cores = getMachineColor(maquinaId, allMachinesData);
-    
-    // Renderiza o conteúdo do popup
-    content.innerHTML = `
-      <div class="popup-machine-header" style="border-left: 4px solid ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary}08 0%, ${cores.secondary}08 100%);` : ''}">
-        <div class="popup-machine-id" style="color: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">
-          ${maquinaId}
-        </div>
-        <div class="popup-machine-status">
-          Status: <span style="color: ${nivelCor(maquinaAtual?.nivel_risco || 'NORMAL')}">${maquinaAtual?.nivel_risco || 'NORMAL'}</span>
-        </div>
-      </div>
-      
-      <div class="popup-current-metrics">
-        <div class="popup-metric">
-          <span class="popup-metric-label">TEMPERATURA</span>
-          <span class="popup-metric-value" style="color: ${maquinaAtual?.temperatura > 85 ? C.red : maquinaAtual?.temperatura > 75 ? C.amber : C.green}">
-            ${maquinaAtual?.temperatura || '—'}°C
-          </span>
-        </div>
-        <div class="popup-metric">
-          <span class="popup-metric-label">VIBRAÇÃO</span>
-          <span class="popup-metric-value" style="color: ${maquinaAtual?.vibracao > 0.8 ? C.red : maquinaAtual?.vibracao > 0.5 ? C.amber : C.green}">
-            ${maquinaAtual?.vibracao || '—'}g
-          </span>
-        </div>
-        <div class="popup-metric">
-          <span class="popup-metric-label">RPM</span>
-          <span class="popup-metric-value" style="color: ${maquinaAtual?.rpm < 1300 ? C.amber : 'var(--text)'}">
-            ${maquinaAtual?.rpm || '—'}
-          </span>
-        </div>
-      </div>
-      
-      <div class="popup-history-title">
-        Histórico das Últimas ${leiturasMaquina.length} Leituras
-      </div>
-      
-      <div class="popup-history-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Temp (°C)</th>
-              <th>Vib (g)</th>
-              <th>RPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${leiturasMaquina.map(l => {
-              const ts = new Date(l.timestamp).toLocaleString('pt-BR', {
-                day: '2-digit', month: '2-digit', year: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit'
-              });
-              const tempColor = l.temperatura > 85 ? C.red : l.temperatura > 75 ? C.amber : C.green;
-              const vibColor = l.vibracao > 0.8 ? C.red : l.vibracao > 0.5 ? C.amber : C.green;
-              const rpmColor = l.rpm < 1300 ? C.amber : 'var(--text)';
-              
-              return `
-                <tr>
-                  <td class="popup-timestamp">${ts}</td>
-                  <td style="color: ${tempColor}">${l.temperatura.toFixed(1)}</td>
-                  <td style="color: ${vibColor}">${l.vibracao.toFixed(2)}</td>
-                  <td style="color: ${rpmColor}">${Math.round(l.rpm)}</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-    
-  } catch (error) {
-    console.error('Erro ao carregar dados do popup:', error);
-    content.innerHTML = `<div class="state-msg err-red">Erro ao carregar dados: ${error.message}</div>`;
-  }
-}
-
-function fecharPopupMaquina() {
-  const popup = document.getElementById('machine-popup');
-  popup.style.display = 'none';
-}
-
-// Fecha popup clicando fora dele
-document.addEventListener('click', function(e) {
-  const popup = document.getElementById('machine-popup');
-  if (e.target === popup) {
-    fecharPopupMaquina();
-  }
-  
-  const iaPopup = document.getElementById('ia-popup');
-  if (e.target === iaPopup) {
-    fecharPopupIA();
-  }
-});
-
-// Fecha popup com ESC
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    fecharPopupMaquina();
-    fecharPopupIA();
-  }
-});
-
-/* ─────────────────────────────────────────────────────────────
-   ANÁLISE DE IA — consome /api/manutencao/ e /api/anomalias/
-   Atualiza a cada 30 segundos (não precisa ser tão frequente
-   quanto o polling de sensores — a IA é pesada)
-───────────────────────────────────────────────────────────── */
-async function atualizarIA() {
-  const cont = document.getElementById('ia-container');
-  const upEl = document.getElementById('ia-update');
-  if (!cont) return;
-
-  try {
-    // busca as máquinas ativas primeiro
-    const maquinas = await apiFetch('/api/leituras/ultimas/');
-    if (!maquinas.length) {
-      cont.innerHTML = '<div class="state-msg">Sem máquinas ativas para analisar.</div>';
-      return;
-    }
-
-    // roda análise pra cada máquina ativa em paralelo
-    const resultados = await Promise.all(
-      maquinas.map(m =>
-        Promise.all([
-          apiFetch('/api/manutencao/?maquina_id=' + m.maquina_id),
-          apiFetch('/api/anomalias/?maquina_id=' + m.maquina_id),
-        ]).then(([manut, anom]) => ({ maquina: m.maquina_id, manut, anom }))
-      )
-    );
-
-    // Cria resumo geral da frota
-    const totalMaquinas = resultados.length;
-    const maquinasComDados = resultados.filter(r => r.manut.status === 'ok').length;
-    const maquinasCriticas = resultados.filter(r => r.manut.status === 'ok' && r.manut.nivel === 'CRITICO').length;
-    const maquinasAtencao = resultados.filter(r => r.manut.status === 'ok' && r.manut.nivel === 'ATENCAO').length;
-    const totalAnomalias = resultados.reduce((sum, r) => sum + (r.anom.status === 'ok' ? r.anom.total : 0), 0);
-
-    let resumoHtml = `
-      <div style="background: var(--bg3); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-        <div style="font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 12px;">RESUMO GERAL DA FROTA</div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-          <div style="text-align: center;">
-            <div style="font-size: 20px; font-weight: 300; color: var(--green);">${totalMaquinas}</div>
-            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">MÁQUINAS ATIVAS</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 20px; font-weight: 300; color: ${maquinasCriticas > 0 ? C.red : C.green};">${maquinasCriticas}</div>
-            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">ESTADO CRÍTICO</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 20px; font-weight: 300; color: ${maquinasAtencao > 0 ? C.amber : C.green};">${maquinasAtencao}</div>
-            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">REQUER ATENÇÃO</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 20px; font-weight: 300; color: ${totalAnomalias > 0 ? C.amber : C.green};">${totalAnomalias}</div>
-            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">ANOMALIAS DETECTADAS</div>
-          </div>
-        </div>
-      </div>`;
-
-    const detalhesHtml = resultados.map(r => {
-      const manut = r.manut;
-      const anom = r.anom;
-      const cores = getMachineColor(r.maquina, maquinas);
-
-      // card de manutenção preditiva
-      if (manut.status === 'dados_insuficientes') {
-        return `
-          <div style="padding: 16px 0; border-bottom: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-              <div style="font-size: 12px; font-family: var(--mono); color: ${cores.primary}; font-weight: 600; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">${r.maquina}</div>
-              <div style="background: var(--amber-dim); border: 1px solid ${C.amber}33; border-radius: 4px; padding: 2px 8px; font-size: 10px; color: ${C.amber};">COLETANDO DADOS</div>
-            </div>
-            <div style="font-size: 13px; color: var(--text2); margin-bottom: 8px;">
-              📈 Aguardando mais ${manut.minimo - manut.atual} leituras para iniciar análise preditiva
-            </div>
-            <div style="font-size: 11px; color: var(--text3); font-family: var(--mono);">
-              Progresso: ${manut.atual}/${manut.minimo} leituras (${Math.round((manut.atual / manut.minimo) * 100)}%)
-            </div>
-          </div>`;
-      }
-
-      const nivelCor = manut.nivel === 'CRITICO' ? C.red : manut.nivel === 'ATENCAO' ? C.amber : C.green;
-      const nivelBg = manut.nivel === 'CRITICO' ? 'var(--red-dim)' : manut.nivel === 'ATENCAO' ? 'var(--amber-dim)' : 'var(--green-dim)';
-      const probPct = Math.round(manut.prob_risco * 100);
-
-      // feature mais importante
-      const features = manut.features || {};
-      const topFeature = Object.entries(features).sort((a, b) => b[1] - a[1])[0];
-      const featNomes = {
-        temperatura: 'Temperatura do motor',
-        vibracao: 'Nível de vibração',
-        rpm: 'Rotação do motor',
-        temp_media_movel: 'Tendência de aquecimento',
-        vib_media_movel: 'Tendência de vibração',
-        temp_tendencia: 'Variação térmica'
-      };
-
-      // anomalias detectadas
-      const totalAnom = anom.status === 'ok' ? anom.total : 0;
-      const totalAnal = anom.status === 'ok' ? anom.analisadas : 0;
-
-      // Recomendações baseadas no nível de risco
-      let recomendacao = '';
-      if (manut.nivel === 'CRITICO') {
-        recomendacao = '⚠️ URGENTE: Parar operação e realizar inspeção imediata';
-      } else if (manut.nivel === 'ATENCAO') {
-        recomendacao = '🔍 Agendar manutenção preventiva nas próximas 24-48h';
-      } else {
-        recomendacao = '✅ Máquina operando dentro dos parâmetros normais';
-      }
-
-      return `
-        <div style="padding: 20px 0; border-bottom: 1px solid var(--border);">
-          <!-- header da máquina -->
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div style="font-size: 12px; font-family: var(--mono); color: ${cores.primary}; font-weight: 600; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''}">${r.maquina}</div>
-              <div style="width: 4px; height: 4px; border-radius: 50%; background: ${cores.primary}; ${cores.isBicolor ? `background: linear-gradient(135deg, ${cores.primary} 0%, ${cores.secondary} 100%);` : ''}"></div>
-            </div>
-            <div style="background: ${nivelBg}; border: 1px solid ${nivelCor}33; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-family: var(--mono); color: ${nivelCor}; font-weight: 600;">
-              ${manut.nivel}
-            </div>
-          </div>
-
-          <!-- grid de métricas de IA -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-            <!-- probabilidade de falha -->
-            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
-              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">RISCO DE FALHA</div>
-              <div style="font-size: 24px; font-weight: 300; color: ${nivelCor}; margin-bottom: 4px;">${probPct}<span style="font-size: 12px; color: var(--text2);">%</span></div>
-              <div style="font-size: 11px; color: var(--text3);">
-                ${probPct < 30 ? 'Baixo risco' : probPct < 70 ? 'Risco moderado' : 'Alto risco'}
-              </div>
-              <div style="height: 4px; background: var(--bg); border-radius: 2px; margin-top: 8px; overflow: hidden;">
-                <div style="height: 100%; width: ${probPct}%; background: ${nivelCor}; border-radius: 2px; transition: width 0.6s;"></div>
-              </div>
-            </div>
-
-            <!-- fator principal -->
-            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
-              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">PRINCIPAL INDICADOR</div>
-              <div style="font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px;">
-                ${topFeature ? featNomes[topFeature[0]] || topFeature[0] : 'N/A'}
-              </div>
-              <div style="font-size: 11px; color: var(--text3);">
-                ${topFeature ? Math.round(topFeature[1] * 100) + '% de influência' : 'Sem dados'}
-              </div>
-            </div>
-
-            <!-- anomalias detectadas -->
-            <div style="background: var(--bg3); border-radius: 8px; padding: 14px;">
-              <div style="font-size: 9px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">ANOMALIAS</div>
-              <div style="font-size: 24px; font-weight: 300; color: ${totalAnom > 0 ? C.amber : C.green}; margin-bottom: 4px;">${totalAnom}</div>
-              <div style="font-size: 11px; color: var(--text3);">
-                ${totalAnom === 0 ? 'Comportamento normal' : totalAnom === 1 ? '1 padrão anormal' : totalAnom + ' padrões anormais'}
-              </div>
-            </div>
-          </div>
-
-          <!-- recomendação -->
-          <div style="background: ${nivelBg}; border: 1px solid ${nivelCor}33; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; color: ${nivelCor}; font-weight: 500;">${recomendacao}</div>
-          </div>
-
-          <!-- detalhes técnicos (colapsível) -->
-          ${topFeature ? `
-          <details style="margin-top: 12px;">
-            <summary style="font-size: 11px; color: var(--text2); cursor: pointer; font-family: var(--mono);">VER DETALHES TÉCNICOS</summary>
-            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-              <div style="font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 8px;">IMPORTÂNCIA DOS FATORES</div>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                ${Object.entries(features)
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 4)
-                  .map(([k, v]) => `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="font-size: 11px; color: var(--text2); min-width: 140px;">${featNomes[k] || k}</div>
-                      <div style="flex: 1; height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden;">
-                        <div style="height: 100%; width: ${Math.round(v * 100)}%; background: var(--green); border-radius: 2px;"></div>
-                      </div>
-                      <div style="font-size: 10px; color: var(--text3); font-family: var(--mono); min-width: 35px; text-align: right;">${Math.round(v * 100)}%</div>
-                    </div>`).join('')}
-              </div>
-              <div style="font-size: 10px; color: var(--text3); margin-top: 8px;">
-                📊 Baseado em ${manut.total_leituras} leituras analisadas
-              </div>
-            </div>
-          </details>` : ''}
-        </div>`;
-    }).join('');
-
-    cont.innerHTML = resumoHtml + detalhesHtml;
-
-    if (upEl) upEl.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
-
-  } catch (e) {
-    if (cont) cont.innerHTML = '<div class="state-msg err-red">Erro ao carregar análise de IA: ' + e.message + '</div>';
-  }
-}
-
-// roda IA a cada 30 segundos (não precisa ser mais frequente)
-atualizarIA();
-setInterval(atualizarIA, 30000);
-
-/* ───────────────────────────────────────────────────────────── */
-verificarAPI();
-carregarDashboard();
-carregarSelectsReferencia();
-setInterval(verificarAPI, 30000);
+},{threshold:0.1});
+reveals.forEach(el=>io.observe(el));
 </script>
 </body>
 </html>
