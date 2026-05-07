@@ -3,7 +3,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    mysql-client \
+    mariadb-client-compat \
+    pkg-config \
+    libmariadb-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
