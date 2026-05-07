@@ -48,43 +48,47 @@ Colheitadeiras operam em áreas sem sinal. Dados de temperatura, vibração e RP
 
 ---
 
-## Rodando Localmente
+## Como Rodar
 
-### Pré-requisitos
+### Com Docker (recomendado)
 
-- Docker e Docker Compose
-- Git
-
-### Startup
+**Pré-requisitos**: Docker e Docker Compose
 
 ```bash
-# Clone
 git clone <repo-url> && cd fieldnode
 
-# Levante tudo
-docker-compose up -d
+# Windows
+.\.startup.cmd
 
-# Aplicar migrations (primeira vez)
-docker exec fieldnode-api python manage.py migrate
-
-# Criar admin (primeira vez)
-docker exec fieldnode-api python manage.py createsuperuser
+# Linux/macOS
+bash .startup.sh
 ```
 
-Após isso:
+Ou manualmente:
+```bash
+docker-compose up -d
+docker exec fieldnode-api python manage.py createsuperuser  # primeira vez
+```
 
-- **API**: `http://localhost:8000`
-- **Swagger**: `http://localhost:8000/swagger/`
-- **Admin**: `http://localhost:8000/admin/`
-- **Dashboard**: `http://localhost:5500`
+**Endpoints**:
+- **API**: http://localhost:8000
+- **Swagger**: http://localhost:8000/swagger/
+- **Admin**: http://localhost:8000/admin/
+- **MQTT**: localhost:1883
 
-#### Sem Docker (desenvolvimento local)
+### Desenvolvimento Local (sem Docker)
+
+**Pré-requisitos**: Python 3.12, MySQL 8, Git
 
 ```bash
+git clone <repo-url> && cd fieldnode
+
 python -m venv .venv
-.venv\Scripts\activate  # Windows
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate # Linux/macOS
+
 pip install -r requirements.txt
-cp .env.example .env    # edite com suas credenciais MySQL locais
+cp .env.example .env        # edite DB_HOST para localhost
 python manage.py migrate
 python manage.py runserver
 ```
