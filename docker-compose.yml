@@ -1,0 +1,61 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: fieldnode-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-fieldnode2024}
+      MYSQL_DATABASE: ${DB_NAME:-fieldnode}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fieldnode_net
+
+  api:
+    build: .
+    container_name: fieldnode-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-django-insecure-local-dev-key}
+      DEBUG: ${DEBUG:-True}
+      DB_NAME: ${DB_NAME:-fieldnode}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-fieldnode2024}
+      DB_HOST: db
+      DB_PORT: 3306
+      FIELDNODE_API_KEY: ${FIELDNODE_API_KEY:-fieldnode-demo-2024}
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    networks:
+      - fieldnode_net
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: fieldnode-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - fieldnode_net
+
+volumes:
+  mysql_data:
+  mosquitto_data:
+  mosquitto_logs:
+
+networks:
+  fieldnode_net:
+    driver: bridge
