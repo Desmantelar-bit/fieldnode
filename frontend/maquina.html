@@ -185,6 +185,8 @@
 <script src="config.js"></script>
 <script>
 // API definida em config.js
+let allTempChart = null;
+let allFuelChart = null;
 
 // Pega o ID da URL: maquina.html?id=1
 const params = new URLSearchParams(window.location.search);
@@ -196,9 +198,17 @@ if (!ID) {
 }
 
 async function apiFetch(ep) {
-  const r = await fetch(API + ep);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(API + ep, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Timeout - conexão perdida');
+    throw e;
+  }
 }
 
 function gaugeColor(v, max) {
@@ -307,43 +317,43 @@ async function carregar() {
       todoCorte,
       todoPressaoCorte
     ] = await Promise.all([
-      apiFetch('/Colheitadeira/' + ID + '/'),
-      apiFetch('/Temperaturamaquina/'),
-      apiFetch('/Combustivel/'),
-      apiFetch('/Tempumi_ambiente/'),
-      apiFetch('/Estadodemovimento/'),
-      apiFetch('/Statusdeoperacao/'),
-      apiFetch('/Pressaopneus/'),
-      apiFetch('/Alturadocorte/'),
-      apiFetch('/Pressaodocorte/'),
+apiFetch('/colheitadeira/' + ID + '/'),
+       apiFetch('/temperaturamaquina/'),
+       apiFetch('/combustivel/'),
+       apiFetch('/tempumi_ambiente/'),
+       apiFetch('/estadodemovimento/'),
+       apiFetch('/statusdeoperacao/'),
+       apiFetch('/pressaopneus/'),
+       apiFetch('/alturadocorte/'),
+       apiFetch('/pressaodocorte/'),
     ]);
 
-    // Dados relacionados
-    const temp   = todasTemp.find(t => t.id === colh.TemperaturaMaquina)  || {};
-    const comb   = todosComb.find(c => c.id === colh.Combustivel)         || {};
-    const amb    = todoAmb.find(a => a.id === colh.TempUmi_Ambiente)       || {};
-    const mov    = todoMov.find(m => m.id === colh.EstadodeMovimento)      || {};
-    const status = todoStatus.find(s => s.id === colh.StatusdeOperacao)    || {};
-    const pneus  = todoPneus.find(p => p.id === colh.PressaoPneus)         || {};
-    const corte  = todoCorte.find(c => c.id === colh.AlturadoCorte)        || {};
-    const pressaoCorte = todoPressaoCorte.find(p => p.id === colh.PressaodoCorte) || {};
+// Dados relacionados
+     const temp   = todasTemp.find(t => t.id === colh.temperatura_maquina)  || {};
+     const comb   = todosComb.find(c => c.id === colh.combustivel)         || {};
+     const amb    = todoAmb.find(a => a.id === colh.temp_umi_ambiente)       || {};
+     const mov    = todoMov.find(m => m.id === colh.estado_de_movimento)      || {};
+     const status = todoStatus.find(s => s.id === colh.status_de_operacao)    || {};
+     const pneus  = todoPneus.find(p => p.id === colh.pressao_pneus)         || {};
+     const corte  = todoCorte.find(c => c.id === colh.altura_do_corte)        || {};
+     const pressaoCorte = todoPressaoCorte.find(p => p.id === colh.pressao_do_corte) || {};
 
     // Operário — busca por ID
     let operario = {};
-    try { operario = await apiFetch('/Operario/' + colh.Operario + '/'); } catch {}
+    try { operario = await apiFetch('/operario/' + colh.operario + '/'); } catch {}
 
     // Modelo — busca por ID
     let modelo = {};
-    try { modelo = await apiFetch('/Modelo/' + colh.Modelo + '/'); } catch {}
+    try { modelo = await apiFetch('/modelo/' + colh.modelo + '/'); } catch {}
 
     // Atualiza título
-    const nomeModelo = modelo.Nome || 'Colheitadeira #' + ID;
+    const nomeModelo = modelo.nome || 'Colheitadeira #' + ID;
     document.getElementById('page-title').textContent = nomeModelo;
 
-    const emOp    = status.Em_Operacao;
-    const emMov   = mov.Em_Movimento;
-    const tempVal = temp.Temperatura  || 0;
-    const combPct = comb.Porcentagem  || 0;
+    const emOp    = status.em_operacao;
+    const emMov   = mov.em_movimento;
+    const tempVal = temp.temperatura  || 0;
+    const combPct = comb.porcentagem  || 0;
 
     // Alertas automáticos
     const alertas = [];
@@ -361,97 +371,97 @@ async function carregar() {
           <div>
             <div class="machine-id">COLHEITADEIRA #${String(ID).padStart(2,'0')}</div>
             <div class="machine-name">${nomeModelo}</div>
-            <div class="machine-marca">${modelo.Marca?.Nome || (modelo.Marca ? 'Marca #' + modelo.Marca : '—')}</div>
-          </div>
-        </div>
-        <div class="hero-badges">
-          ${emOp  ? '<span class="badge badge-green">● Em operação</span>'  : '<span class="badge badge-gray">○ Parada</span>'}
-          ${emMov ? '<span class="badge badge-blue">⟶ Em movimento</span>' : '<span class="badge badge-gray">◼ Estacionada</span>'}
-          ${alertas.length ? `<span class="badge badge-amber">⚠ ${alertas.length} alerta${alertas.length>1?'s':''}</span>` : '<span class="badge badge-green">✓ Normal</span>'}
-        </div>
-      </div>
+<div class="machine-marca">${modelo.marca?.nome || (modelo.marca ? 'Marca #' + modelo.marca : '—')}</div>
+           </div>
+         </div>
+         <div class="hero-badges">
+           ${emOp  ? '<span class="badge badge-green">● Em operação</span>'  : '<span class="badge badge-gray">○ Parada</span>'}
+           ${emMov ? '<span class="badge badge-blue">⟶ Em movimento</span>' : '<span class="badge badge-gray">◼ Estacionada</span>'}
+           ${alertas.length ? `<span class="badge badge-amber">⚠ ${alertas.length} alerta${alertas.length>1?'s':''}</span>` : '<span class="badge badge-green">✓ Normal</span>'}
+         </div>
+       </div>
 
-      ${alertas.length ? `
-      <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px">
-        ${alertas.map(a => `
-          <div style="background:var(--bg2);border:1px solid ${a.cor}33;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
-            <span style="color:${a.cor};font-size:16px">⚠</span>
-            <span style="color:var(--text)">${a.msg}</span>
-          </div>`).join('')}
-      </div>` : ''}
+       ${alertas.length ? `
+       <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px">
+         ${alertas.map(a => `
+           <div style="background:var(--bg2);border:1px solid ${a.cor}33;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
+             <span style="color:${a.cor};font-size:16px">⚠</span>
+             <span style="color:var(--text)">${a.msg}</span>
+           </div>`).join('')}
+       </div>` : ''}
 
-      <!-- MÉTRICAS RÁPIDAS -->
-      <div class="section-label">telemetria em tempo real</div>
-      <div class="grid-4">
-        <div class="metric-card">
-          <div class="metric-label">Temperatura</div>
-          <div class="metric-value" style="color:${gaugeColor(tempVal,100)}">${tempVal}<span class="metric-unit">°C</span></div>
-          <div class="gauge-bar-wrap">
-            <div class="gauge-track"><div class="gauge-fill" style="width:${Math.min(tempVal,100)}%;background:${gaugeColor(tempVal,100)}"></div></div>
-          </div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Combustível</div>
-          <div class="metric-value" style="color:${fuelColor(combPct)}">${combPct}<span class="metric-unit">%</span></div>
-          <div class="gauge-bar-wrap">
-            <div class="gauge-track"><div class="gauge-fill" style="width:${combPct}%;background:${fuelColor(combPct)}"></div></div>
-          </div>
-          <div class="metric-sub">${comb.Tipo || '—'}</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Velocidade</div>
-          <div class="metric-value">${mov.Velocidade ?? '—'}<span class="metric-unit">km/h</span></div>
-          <div class="metric-sub">${emMov ? 'em movimento' : 'parada'}</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Horas de operação</div>
-          <div class="metric-value">${status.Tempo_de_Operacao ?? '—'}<span class="metric-unit">h</span></div>
-          <div class="metric-sub">${emOp ? 'operando' : 'parada'}</div>
-        </div>
-      </div>
+       <!-- MÉTRICAS RÁPIDAS -->
+       <div class="section-label">telemetria em tempo real</div>
+       <div class="grid-4">
+         <div class="metric-card">
+           <div class="metric-label">Temperatura</div>
+           <div class="metric-value" style="color:${gaugeColor(tempVal,100)}">${tempVal}<span class="metric-unit">°C</span></div>
+           <div class="gauge-bar-wrap">
+             <div class="gauge-track"><div class="gauge-fill" style="width:${Math.min(tempVal,100)}%;background:${gaugeColor(tempVal,100)}"></div></div>
+           </div>
+         </div>
+         <div class="metric-card">
+           <div class="metric-label">Combustível</div>
+           <div class="metric-value" style="color:${fuelColor(combPct)}">${combPct}<span class="metric-unit">%</span></div>
+           <div class="gauge-bar-wrap">
+             <div class="gauge-track"><div class="gauge-fill" style="width:${combPct}%;background:${fuelColor(combPct)}"></div></div>
+           </div>
+           <div class="metric-sub">${comb.tipo || '—'}</div>
+         </div>
+         <div class="metric-card">
+           <div class="metric-label">Velocidade</div>
+           <div class="metric-value">${mov.velocidade ?? '—'}<span class="metric-unit">km/h</span></div>
+           <div class="metric-sub">${emMov ? 'em movimento' : 'parada'}</div>
+         </div>
+         <div class="metric-card">
+           <div class="metric-label">Horas de operação</div>
+           <div class="metric-value">${status.tempo_de_operacao ?? '—'}<span class="metric-unit">h</span></div>
+           <div class="metric-sub">${emOp ? 'operando' : 'parada'}</div>
+         </div>
+       </div>
 
-      <!-- DADOS TÉCNICOS + OPERÁRIO -->
-      <div class="section-label">dados técnicos</div>
-      <div class="grid-3">
+       <!-- DADOS TÉCNICOS + OPERÁRIO -->
+       <div class="section-label">dados técnicos</div>
+       <div class="grid-3">
 
-        <div class="card">
-          <div class="card-title"><div class="card-title-dot" style="background:var(--blue)"></div>pressões e corte</div>
-          <div class="data-row"><span class="data-key">Pressão dos pneus</span><span class="data-val">${pneus.Pressao ?? '—'} ${pneus.UnidadedeMedida?.Nome || ''}</span></div>
-          <div class="data-row"><span class="data-key">Altura de corte</span><span class="data-val">${corte.Altura ?? '—'} ${corte.UnidadedeMedida?.Nome || ''}</span></div>
-          <div class="data-row"><span class="data-key">Pressão de corte</span><span class="data-val">${pressaoCorte.Pressao ?? '—'} ${pressaoCorte.UnidadedeMedida?.Nome || ''}</span></div>
-        </div>
+         <div class="card">
+           <div class="card-title"><div class="card-title-dot" style="background:var(--blue)"></div>pressões e corte</div>
+           <div class="data-row"><span class="data-key">Pressão dos pneus</span><span class="data-val">${pneus.pressao ?? '—'} ${pneus.unidade_de_medida?.nome || ''}</span></div>
+           <div class="data-row"><span class="data-key">Altura de corte</span><span class="data-val">${corte.altura ?? '—'} ${corte.unidade_de_medida?.nome || ''}</span></div>
+           <div class="data-row"><span class="data-key">Pressão de corte</span><span class="data-val">${pressaoCorte.pressao ?? '—'} ${pressaoCorte.unidade_de_medida?.nome || ''}</span></div>
+         </div>
 
-        <div class="card">
-          <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>ambiente</div>
-          <div class="data-row"><span class="data-key">🌡 Temperatura</span><span class="data-val">${amb.Temperatura ?? '—'} °C</span></div>
-          <div class="data-row"><span class="data-key">💧 Umidade</span><span class="data-val">${amb.Umidade ?? '—'} %</span></div>
-          <div class="data-row"><span class="data-key">Condição</span>
-            <span class="data-val">
-              ${amb.Temperatura > 35 ? '<span style="color:var(--red)">Calor extremo</span>' :
-                amb.Temperatura > 28 ? '<span style="color:var(--amber)">Quente</span>' :
-                '<span style="color:var(--green)">Normal</span>'}
-            </span>
-          </div>
-        </div>
+         <div class="card">
+           <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>ambiente</div>
+           <div class="data-row"><span class="data-key">🌡 Temperatura</span><span class="data-val">${amb.temperatura ?? '—'} °C</span></div>
+           <div class="data-row"><span class="data-key">💧 Umidade</span><span class="data-val">${amb.umidade ?? '—'} %</span></div>
+           <div class="data-row"><span class="data-key">Condição</span>
+             <span class="data-val">
+               ${amb.temperatura > 35 ? '<span style="color:var(--red)">Calor extremo</span>' :
+                 amb.temperatura > 28 ? '<span style="color:var(--amber)">Quente</span>' :
+                 '<span style="color:var(--green)">Normal</span>'}
+             </span>
+           </div>
+         </div>
 
-        <div class="card">
-          <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>operário responsável</div>
-          <div class="op-card" style="margin-bottom:14px">
-            <div class="op-avatar">${operario.Nome ? iniciais(operario.Nome) : '?'}</div>
-            <div>
-              <div class="op-name">${operario.Nome || '—'}</div>
-              <div class="op-meta">${operario.TempodeServico ?? '—'} anos de serviço</div>
-            </div>
-          </div>
-          <div class="data-row"><span class="data-key">No banco</span>
-            <span>${operario.Nobanco ? '<span class="badge badge-green" style="font-size:10px">Sim</span>' : '<span class="badge badge-amber" style="font-size:10px">Não</span>'}</span>
-          </div>
-        </div>
-      </div>
+         <div class="card">
+           <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>operário responsável</div>
+           <div class="op-card" style="margin-bottom:14px">
+             <div class="op-avatar">${operario.nome ? iniciais(operario.nome) : '?'}</div>
+             <div>
+               <div class="op-name">${operario.nome || '—'}</div>
+               <div class="op-meta">${operario.tempo_de_servico ?? '—'} anos de serviço</div>
+             </div>
+           </div>
+           <div class="data-row"><span class="data-key">No banco</span>
+             <span>${operario.no_banco ? '<span class="badge badge-green" style="font-size:10px">Sim</span>' : '<span class="badge badge-amber" style="font-size:10px">Não</span>'}</span>
+           </div>
+         </div>
+       </div>
 
-      <!-- GRÁFICOS -->
-      <div class="section-label">histórico de leituras</div>
-      <div class="grid-2">
+       <!-- GRÁFICOS -->
+       <div class="section-label">histórico de leituras</div>
+       <div class="grid-2">
         <div class="card">
           <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>temperaturas registradas</div>
           <div class="chart-wrap"><canvas id="allTempChart"></canvas></div>
@@ -463,22 +473,24 @@ async function carregar() {
       </div>
     `;
 
-    // Gráfico temperaturas (todas as leituras)
-    new Chart(document.getElementById('allTempChart'), {
+    // Gráfico temperaturas (todas as leituras) - reutiliza instância
+    const tempCtx = document.getElementById('allTempChart');
+    if (allTempChart) allTempChart.destroy();
+    allTempChart = new Chart(tempCtx, {
       type: 'line',
       data: {
         labels: todasTemp.map((_, i) => '#' + (i+1)),
         datasets: [{
           label: 'Temperatura',
-          data: todasTemp.map(t => t.Temperatura),
+          data: todasTemp.map(t => t.temperatura),
           borderColor: '#fbbf24',
           backgroundColor: 'rgba(251,191,36,.08)',
           borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
           pointBackgroundColor: todasTemp.map(t =>
-            t.id === colh.TemperaturaMaquina ? '#4ade80' : '#fbbf24'
+            t.id === colh.temperatura_maquina ? '#4ade80' : '#fbbf24'
           ),
           pointRadius: todasTemp.map(t =>
-            t.id === colh.TemperaturaMaquina ? 6 : 3
+            t.id === colh.temperatura_maquina ? 6 : 3
           ),
         }]
       },
@@ -495,17 +507,19 @@ async function carregar() {
       }
     });
 
-    // Gráfico combustíveis
-    new Chart(document.getElementById('allFuelChart'), {
+    // Gráfico combustíveis - reutiliza instância
+    const fuelCtx = document.getElementById('allFuelChart');
+    if (allFuelChart) allFuelChart.destroy();
+    allFuelChart = new Chart(fuelCtx, {
       type: 'bar',
       data: {
-        labels: todosComb.map(c => c.Tipo || '?'),
+        labels: todosComb.map(c => c.tipo || '?'),
         datasets: [{
-          data: todosComb.map(c => c.Porcentagem),
+          data: todosComb.map(c => c.porcentagem),
           backgroundColor: todosComb.map(c =>
-            c.id === colh.Combustivel ? '#4ade80' :
-            c.Porcentagem < 30 ? '#f87171' :
-            c.Porcentagem < 50 ? '#fbbf24' : '#1a3326'
+            c.id === colh.combustivel ? '#4ade80' :
+            c.porcentagem < 30 ? '#f87171' :
+            c.porcentagem < 50 ? '#fbbf24' : '#1a3326'
           ),
           borderRadius: 4, borderSkipped: false,
         }]

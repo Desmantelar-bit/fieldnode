@@ -7,7 +7,7 @@ class UnidadedeMedidaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Nome': {'required': True}
+            'nome': {'required': True}
         }
 
 class MarcaSerializer(serializers.ModelSerializer):
@@ -16,13 +16,13 @@ class MarcaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Nome': {'label': 'Nome da Marca', 'required': True}
+            'nome': {'label': 'Nome da Marca', 'required': True}
         }
-            
+        
 class ModeloSerializer(serializers.ModelSerializer):
-    Marca = MarcaSerializer(read_only=True)
-    Marca_id = serializers.PrimaryKeyRelatedField(
-        queryset=models.Marca.objects.all(), source='Marca', write_only=True
+    marca = MarcaSerializer(read_only=True)
+    marca_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.Marca.objects.all(), source='marca', write_only=True
     )
 
     class Meta:
@@ -30,7 +30,7 @@ class ModeloSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Nome': {'label': 'Nome do Modelo', 'required': True},
+            'nome': {'label': 'Nome do Modelo', 'required': True},
         }
 
 class CombustivelSerializer(serializers.ModelSerializer):
@@ -39,8 +39,8 @@ class CombustivelSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Tipo': {'label': 'Tipo de Combustível', 'required': True},
-            'Porcentagem': {'label': 'Porcentagem de Combustível', 'required': True}
+            'tipo': {'label': 'Tipo de Combustível', 'required': True},
+            'porcentagem': {'label': 'Porcentagem de Combustível', 'required': True}
         }
 
 class OperarioSerializer(serializers.ModelSerializer):
@@ -49,15 +49,15 @@ class OperarioSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Nome': {'label': 'Nome do Operário', 'required': True},
-            'TempodeServico': {'label': 'Tempo de Serviço', 'required': True},
-            'Nobanco': {'label': 'Operário no Banco', 'required': True}
+            'nome': {'label': 'Nome do Operário', 'required': True},
+            'tempo_de_servico': {'label': 'Tempo de Serviço', 'required': True},
+            'no_banco': {'label': 'Operário no Banco', 'required': True}
         }
 
 class PressaoPneusSerializer(serializers.ModelSerializer):
-    UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
-    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
-        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    unidade_de_medida = UnidadedeMedidaSerializer(read_only=True)
+    unidade_de_medida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='unidade_de_medida', write_only=True
     )
 
     class Meta:
@@ -65,14 +65,14 @@ class PressaoPneusSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Pressao': {'label': 'Pressão dos Pneus', 'required': True},
+            'pressao': {'label': 'Pressão dos Pneus', 'required': True},
         }
 
 
 class AlturadoCorteSerializer(serializers.ModelSerializer):
-    UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
-    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
-        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    unidade_de_medida = UnidadedeMedidaSerializer(read_only=True)
+    unidade_de_medida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='unidade_de_medida', write_only=True
     )
 
     class Meta:
@@ -80,13 +80,13 @@ class AlturadoCorteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Altura': {'label': 'Altura de Corte', 'required': True},
+            'altura': {'label': 'Altura de Corte', 'required': True},
         }
 
 class PressaodoCorteSerializer(serializers.ModelSerializer):
-    UnidadedeMedida = UnidadedeMedidaSerializer(read_only=True)
-    UnidadedeMedida_id = serializers.PrimaryKeyRelatedField(
-        queryset=models.UnidadedeMedida.objects.all(), source='UnidadedeMedida', write_only=True
+    unidade_de_medida = UnidadedeMedidaSerializer(read_only=True)
+    unidade_de_medida_id = serializers.PrimaryKeyRelatedField(
+        queryset=models.UnidadedeMedida.objects.all(), source='unidade_de_medida', write_only=True
     )
 
     class Meta:
@@ -94,7 +94,7 @@ class PressaodoCorteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Pressao': {'label': 'Pressão de Corte', 'required': True},
+            'pressao': {'label': 'Pressão de Corte', 'required': True},
         }
         
 class TempUmi_AmbienteSerializer(serializers.ModelSerializer):
@@ -103,8 +103,8 @@ class TempUmi_AmbienteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Temperatura': {'label': 'Temperatura do Ambiente', 'required': True},
-            'Umidade': {'label': 'Umidade do Ambiente', 'required': True}
+            'temperatura': {'label': 'Temperatura do Ambiente', 'required': True},
+            'umidade': {'label': 'Umidade do Ambiente', 'required': True}
         }
 
 
@@ -114,8 +114,8 @@ class TemperaturaMaquinaSerializer(serializers.ModelSerializer):
         fields = '__all__'   
         extra_kwargs = {
             'id': {'read_only': True},
-            'Temperatura': {'label': 'Temperatura da Máquina', 'required': True},
-            'Maquina': {'label': 'Máquina', 'required': True}
+            'temperatura': {'label': 'Temperatura da Máquina', 'required': True},
+            'maquina': {'label': 'Máquina', 'required': True}
         }
 
 class TransbordoSerializer(serializers.ModelSerializer):
@@ -124,8 +124,8 @@ class TransbordoSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Modelo': {'label': 'Modelo da Colheitadeira', 'required': True},
-            'Capacidade': {'label': 'Capacidade de Transbordo', 'required': True}
+            'modelo': {'label': 'Modelo da Colheitadeira', 'required': True},
+            'capacidade': {'label': 'Capacidade de Transbordo', 'required': True}
         }
 
 class StatusdeOperacaoSerializer(serializers.ModelSerializer):
@@ -134,8 +134,8 @@ class StatusdeOperacaoSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Em_Operacao': {'label': 'A máquina está em operação?', 'required': True},
-            'Tempo_de_Operacao': {'label': 'Tempo de Operação (horas)', 'required': True}
+            'em_operacao': {'label': 'A máquina está em operação?', 'required': True},
+            'tempo_de_operacao': {'label': 'Tempo de Operação (horas)', 'required': True}
         }
 
 class EstadodeMovimentoSerializer(serializers.ModelSerializer):
@@ -144,8 +144,8 @@ class EstadodeMovimentoSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Em_Movimento': {'label': 'Em Movimento', 'required': True},
-            'Velocidade': {'label': 'Velocidade', 'required': True}
+            'em_movimento': {'label': 'Em Movimento', 'required': True},
+            'velocidade': {'label': 'Velocidade', 'required': True}
         }
 
 class ColheitadeiraSerializer(serializers.ModelSerializer):
@@ -154,16 +154,16 @@ class ColheitadeiraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
-            'Modelo': {'label': 'Modelo da Colheitadeira', 'required': True},
-            'Combustivel': {'label': 'Combustível', 'required': True},
-            'PressaoPneus': {'label': 'Pressão dos Pneus', 'required': True},
-            'AlturadoCorte': {'label': 'Altura de Corte', 'required': True},
-            'PressaodoCorte': {'label': 'Pressão de Corte', 'required': True},
-            'TempUmi_Ambiente': {'label': 'Temperatura e Umidade do Ambiente', 'required': True},
-            'TemperaturaMaquina': {'label': 'Temperatura da Máquina', 'required': True},
-            'Operario': {'label': 'Operário', 'required': True},
-            'StatusdeOperacao': {'label': 'Status de Operação', 'required': True},
-            'EstadodeMovimento': {'label': 'Estado de Movimento', 'required': True}
+            'modelo': {'label': 'Modelo da Colheitadeira', 'required': True},
+            'combustivel': {'label': 'Combustível', 'required': True},
+            'pressao_pneus': {'label': 'Pressão dos Pneus', 'required': True},
+            'altura_do_corte': {'label': 'Altura de Corte', 'required': True},
+            'pressao_do_corte': {'label': 'Pressão de Corte', 'required': True},
+            'temp_umi_ambiente': {'label': 'Temperatura e Umidade do Ambiente', 'required': True},
+            'temperatura_maquina': {'label': 'Temperatura da Máquina', 'required': True},
+            'operario': {'label': 'Operário', 'required': True},
+            'status_de_operacao': {'label': 'Status de Operação', 'required': True},
+            'estado_de_movimento': {'label': 'Estado de Movimento', 'required': True}
         }
 
 
@@ -177,4 +177,19 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'id':          {'read_only': True},
             'recebido_em': {'read_only': True},
         }
+
+    def validate_temperatura(self, value):
+        if value > 200:
+            raise serializers.ValidationError('Temperatura acima de 200°C é fisicamente inválida para operação normal.')
+        return value
+
+    def validate_vibracao(self, value):
+        if value < 0:
+            raise serializers.ValidationError('Vibração não pode ser negativa.')
+        return value
+
+    def validate_rpm(self, value):
+        if value < 0 or value > 5000:
+            raise serializers.ValidationError('RPM deve estar entre 0 e 5000.')
+        return value
 

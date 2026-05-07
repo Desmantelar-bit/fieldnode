@@ -3,178 +3,178 @@ import uuid as uuid_lib
 
 
 class UnidadedeMedida(models.Model):
-    Nome = models.CharField(max_length=100, verbose_name='Nome')
+    nome = models.CharField(max_length=100, verbose_name='Nome')
 
     class Meta:
         verbose_name = 'Unidade de Medida'
         verbose_name_plural = 'Unidades de Medida'
 
     def __str__(self):
-        return self.Nome
+        return self.nome
 
 
 class Marca(models.Model):
-    Nome = models.CharField(max_length=100, verbose_name='Nome')
+    nome = models.CharField(max_length=100, verbose_name='Nome')
 
     class Meta:
         verbose_name = 'Marca'
         verbose_name_plural = 'Marcas'
 
     def __str__(self):
-        return self.Nome
+        return self.nome
 
 
 class Modelo(models.Model):
-    Nome  = models.CharField(max_length=100, verbose_name='Nome')
-    Marca = models.ForeignKey(Marca, on_delete=models.PROTECT, verbose_name='Marca')
+    nome  = models.CharField(max_length=100, verbose_name='Nome')
+    marca = models.ForeignKey(Marca, on_delete=models.PROTECT, verbose_name='Marca')
 
     class Meta:
         verbose_name = 'Modelo'
         verbose_name_plural = 'Modelos'
 
     def __str__(self):
-        return f'{self.Nome} - {self.Marca.Nome}'
+        return f'{self.nome} - {self.marca.nome}'
 
 
 class Combustivel(models.Model):
-    Tipo        = models.CharField(max_length=100, verbose_name='Tipo')
-    Porcentagem = models.FloatField(verbose_name='Porcentagem (%)')
+    tipo        = models.CharField(max_length=100, verbose_name='Tipo')
+    porcentagem = models.FloatField(verbose_name='Porcentagem (%)')
 
     class Meta:
         verbose_name = 'Combustível'
         verbose_name_plural = 'Combustíveis'
 
     def __str__(self):
-        return f'{self.Tipo} - {self.Porcentagem}%'
+        return f'{self.tipo} - {self.porcentagem}%'
 
 
 class Operario(models.Model):
-    Nome           = models.CharField(max_length=100, verbose_name='Nome')
-    TempodeServico = models.IntegerField(verbose_name='Tempo de Serviço (anos)')
-    Nobanco        = models.BooleanField(default=True, verbose_name='No Banco')
+    nome           = models.CharField(max_length=100, verbose_name='Nome')
+    tempo_de_servico = models.IntegerField(verbose_name='Tempo de Serviço (anos)')
+    no_banco        = models.BooleanField(default=True, verbose_name='No Banco')
 
     class Meta:
         verbose_name = 'Operário'
         verbose_name_plural = 'Operários'
 
     def __str__(self):
-        return f'{self.Nome} - {self.TempodeServico} anos - {"No banco" if self.Nobanco else "Fora do banco"}'
+        return f'{self.nome} - {self.tempo_de_servico} anos - {"No banco" if self.no_banco else "Fora do banco"}'
 
 
 class PressaoPneus(models.Model):
-    Pressao          = models.FloatField(verbose_name='Pressão')
-    UnidadedeMedida  = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
+    pressao          = models.FloatField(verbose_name='Pressão')
+    unidade_de_medida  = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
 
     class Meta:
         verbose_name = 'Pressão dos Pneus'
         verbose_name_plural = 'Pressões dos Pneus'
 
     def __str__(self):
-        return f'Pressão: {self.Pressao} - Unidade: {self.UnidadedeMedida}'
+        return f'Pressão: {self.pressao} - Unidade: {self.unidade_de_medida}'
 
 
 class AlturadoCorte(models.Model):
-    Altura          = models.FloatField(verbose_name='Altura')
-    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
+    altura          = models.FloatField(verbose_name='Altura')
+    unidade_de_medida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
 
     class Meta:
         verbose_name = 'Altura de Corte'
         verbose_name_plural = 'Alturas de Corte'
 
     def __str__(self):
-        return f'Altura: {self.Altura} - Unidade: {self.UnidadedeMedida}'
+        return f'Altura: {self.altura} - Unidade: {self.unidade_de_medida}'
 
 
 class PressaodoCorte(models.Model):
-    Pressao         = models.FloatField(verbose_name='Pressão')
-    UnidadedeMedida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
+    pressao         = models.FloatField(verbose_name='Pressão')
+    unidade_de_medida = models.ForeignKey(UnidadedeMedida, on_delete=models.PROTECT, verbose_name='Unidade de Medida')
 
     class Meta:
         verbose_name = 'Pressão de Corte'
         verbose_name_plural = 'Pressões de Corte'
 
     def __str__(self):
-        return f'Pressão: {self.Pressao} - Unidade: {self.UnidadedeMedida}'
+        return f'Pressão: {self.pressao} - Unidade: {self.unidade_de_medida}'
 
 
 class TempUmi_Ambiente(models.Model):
-    Temperatura = models.FloatField(verbose_name='Temperatura (°C)')
-    Umidade     = models.FloatField(verbose_name='Umidade (%)')
+    temperatura = models.FloatField(verbose_name='Temperatura (°C)')
+    umidade     = models.FloatField(verbose_name='Umidade (%)')
 
     class Meta:
         verbose_name = 'Temperatura e Umidade do Ambiente'
         verbose_name_plural = 'Temperaturas e Umidades do Ambiente'
 
     def __str__(self):
-        return f'Temperatura: {self.Temperatura} - Umidade: {self.Umidade}'
+        return f'Temperatura: {self.temperatura} - Umidade: {self.umidade}'
 
 
 class Transbordo(models.Model):
-    Modelo     = models.ForeignKey(Modelo, on_delete=models.CASCADE, verbose_name='Modelo')
-    Capacidade = models.FloatField(verbose_name='Capacidade')
+    modelo     = models.ForeignKey(Modelo, on_delete=models.CASCADE, verbose_name='Modelo')
+    capacidade = models.FloatField(verbose_name='Capacidade')
 
     class Meta:
         verbose_name = 'Transbordo'
         verbose_name_plural = 'Transbordos'
 
     def __str__(self):
-        return f'Modelo: {self.Modelo.Nome} - Capacidade: {self.Capacidade}'
+        return f'Modelo: {self.modelo.nome} - Capacidade: {self.capacidade}'
 
 
 class StatusdeOperacao(models.Model):
-    Em_Operacao       = models.BooleanField(default=False, verbose_name='Em Operação')
-    Tempo_de_Operacao = models.FloatField(verbose_name='Tempo de Operação (h)')
+    em_operacao       = models.BooleanField(default=False, verbose_name='Em Operação')
+    tempo_de_operacao = models.FloatField(verbose_name='Tempo de Operação (h)')
 
     class Meta:
         verbose_name = 'Status de Operação'
         verbose_name_plural = 'Status de Operação'
 
     def __str__(self):
-        return f'Em Operação: {"Sim" if self.Em_Operacao else "Não"} - Tempo de Operação: {self.Tempo_de_Operacao} horas'
+        return f'Em Operação: {"Sim" if self.em_operacao else "Não"} - Tempo de Operação: {self.tempo_de_operacao} horas'
 
 
 class EstadodeMovimento(models.Model):
-    Em_Movimento = models.BooleanField(default=False, verbose_name='Em Movimento')
-    Velocidade   = models.FloatField(verbose_name='Velocidade (km/h)')
+    em_movimento = models.BooleanField(default=False, verbose_name='Em Movimento')
+    velocidade   = models.FloatField(verbose_name='Velocidade (km/h)')
 
     class Meta:
         verbose_name = 'Estado de Movimento'
         verbose_name_plural = 'Estados de Movimento'
 
     def __str__(self):
-        return f'Em Movimento: {"Sim" if self.Em_Movimento else "Não"} - Velocidade: {self.Velocidade} km/h'
+        return f'Em Movimento: {"Sim" if self.em_movimento else "Não"} - Velocidade: {self.velocidade} km/h'
 
 
 class TemperaturaMaquina(models.Model):
-    Temperatura = models.FloatField(verbose_name='Temperatura (°C)')
-    Maquina     = models.ForeignKey(Modelo, on_delete=models.PROTECT, verbose_name='Modelo da Máquina')
+    temperatura = models.FloatField(verbose_name='Temperatura (°C)')
+    maquina     = models.ForeignKey(Modelo, on_delete=models.PROTECT, verbose_name='Modelo da Máquina')
 
     class Meta:
         verbose_name = 'Temperatura da Máquina'
         verbose_name_plural = 'Temperaturas das Máquinas'
 
     def __str__(self):
-        return f'Temperatura: {self.Temperatura}'
+        return f'Temperatura: {self.temperatura}'
 
 
 class Colheitadeira(models.Model):
-    Modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
-    Combustivel        = models.ForeignKey(Combustivel,       on_delete=models.PROTECT, verbose_name='Combustível')
-    PressaoPneus       = models.ForeignKey(PressaoPneus,      on_delete=models.PROTECT, verbose_name='Pressão dos Pneus')
-    AlturadoCorte      = models.ForeignKey(AlturadoCorte,     on_delete=models.PROTECT, verbose_name='Altura de Corte')
-    PressaodoCorte     = models.ForeignKey(PressaodoCorte,    on_delete=models.PROTECT, verbose_name='Pressão de Corte')
-    TempUmi_Ambiente   = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.PROTECT, verbose_name='Temp./Umidade Ambiente')
-    TemperaturaMaquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.PROTECT, verbose_name='Temperatura da Máquina')
-    Operario           = models.ForeignKey(Operario,          on_delete=models.PROTECT, verbose_name='Operário')
-    StatusdeOperacao   = models.ForeignKey(StatusdeOperacao,  on_delete=models.PROTECT, verbose_name='Status de Operação')
-    EstadodeMovimento  = models.ForeignKey(EstadodeMovimento, on_delete=models.PROTECT, verbose_name='Estado de Movimento')
+    modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
+    combustivel        = models.ForeignKey(Combustivel,       on_delete=models.PROTECT, verbose_name='Combustível')
+    pressao_pneus      = models.ForeignKey(PressaoPneus,      on_delete=models.PROTECT, verbose_name='Pressão dos Pneus')
+    altura_do_corte    = models.ForeignKey(AlturadoCorte,     on_delete=models.PROTECT, verbose_name='Altura de Corte')
+    pressao_do_corte   = models.ForeignKey(PressaodoCorte,    on_delete=models.PROTECT, verbose_name='Pressão de Corte')
+    temp_umi_ambiente  = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.PROTECT, verbose_name='Temp./Umidade Ambiente')
+    temperatura_maquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.PROTECT, verbose_name='Temperatura da Máquina')
+    operario           = models.ForeignKey(Operario,          on_delete=models.PROTECT, verbose_name='Operário')
+    status_de_operacao  = models.ForeignKey(StatusdeOperacao,  on_delete=models.PROTECT, verbose_name='Status de Operação')
+    estado_de_movimento = models.ForeignKey(EstadodeMovimento, on_delete=models.PROTECT, verbose_name='Estado de Movimento')
 
     class Meta:
         verbose_name = 'Colheitadeira'
         verbose_name_plural = 'Colheitadeiras'
 
     def __str__(self):
-        return f'Máquina: {self.Modelo.Nome} - Operário: {self.Operario.Nome} - Em Operação: {"Sim" if self.StatusdeOperacao.Em_Operacao else "Não"} - Em Movimento: {"Sim" if self.EstadodeMovimento.Em_Movimento else "Não"}'
+        return f'Máquina: {self.modelo.nome} - Operário: {self.operario.nome} - Em Operação: {"Sim" if self.status_de_operacao.em_operacao else "Não"} - Em Movimento: {"Sim" if self.estado_de_movimento.em_movimento else "Não"}'
 
 
 class LeituraTelemetria(models.Model):
@@ -183,8 +183,8 @@ class LeituraTelemetria(models.Model):
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
     rpm         = models.IntegerField(verbose_name='RPM')
-    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor')
-    recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em')
+    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor', db_index=True)
+    recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em', db_index=True)
 
     class Meta:
         ordering = ['-timestamp']
