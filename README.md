@@ -1,111 +1,106 @@
-# FieldNode
+# 🚜 FieldNode
 
-> Telemetria offline-first para colheitadeiras agrícolas
+<p align="center">
+  <img src="https://img.shields.io/badge/Django-092E20?style=for-the-badge&logo=django&logoColor=white"/>
+  <img src="https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white"/>
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white"/>
+</p>
 
-![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
-![Django](https://img.shields.io/badge/Django-5.2-green?logo=django)
-![Docker](https://img.shields.io/badge/Docker-enabled-2496ED?logo=docker)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+> **Telemetria Offline-First para o Agronegócio.**  
+> O dado de campo existe. O FieldNode garante que ele chegue, mesmo sem internet.
 
----
+## 🌾 O Problema
 
-## O Problema
+Cerca de 40% das operações de colheita no Brasil ocorrem em áreas de sombra de conectividade (sem 4G/Wi-Fi). Sistemas comerciais falham porque dependem de nuvem em tempo real. Quando um rolamento superaquece sem internet, a máquina quebra e o prejuízo é imediato.
 
-Colheitadeiras operam em áreas sem sinal. Dados de temperatura, vibração e RPM ficam presos no campo — chegam atrasados ou não chegam. Quebras inesperadas custam caro.
+## 🛠 A Solução
 
-**FieldNode** resolve com telemetria local via Wi-Fi e sincronização automática quando conecta.
+O FieldNode é um ecossistema de hardware e software focado em **resiliência**. 
 
----
+1. **Módulos ESP32** na máquina coletam telemetria e transmitem via **ESP-NOW** (protocolo P2P sem necessidade de roteador).
+2. Um **Gateway Local** recebe os dados e disponibiliza um dashboard em tempo real direto no campo.
+3. Quando a máquina ou o Gateway encontra conectividade (chegada na sede), os dados são sincronizados automaticamente com o **Backend Django** usando deduplicação por UUID, evitando perda ou replicação de dados.
 
-## Arquitetura
+## 🏗 Arquitetura
 
+```text
+[Sensor Vibr./Temp] ---> (ESP32 Node) --[ESP-NOW]--> (ESP32 Gateway)
+                                                              |
+                                                       (Local Wi-Fi)
+                                                              |
+                                                      [Dashboard Web Local]
+                                                              |
+                                                       (Internet / Sync)
+                                                              v
+                                                      [API Django / MySQL]
 ```
-[Sensores] → [ESP32 Nó #1]
-                 │ (ESP-NOW)
-              [ESP32 Gateway]
-              ┌──────┴──────┐
-              │             │
-         [Dashboard]    [API Django]
-        (local offline)    │
-                      [MySQL + DRF]
-                           │
-                    [Dashboard Web]
-```
 
----
+## 🚀 Como Rodar o Projeto (Setup Local)
 
-## Stack
-
-| Camada | Tecnologia |
-|--------|------------|
-| Hardware | ESP32 + Arduino |
-| Wireless | ESP-NOW + MQTT |
-| Backend | Django 5.2 + DRF |
-| Banco | MySQL 8 |
-| Docs | Swagger (drf-yasg) |
-| Frontend | HTML/CSS/JS + Chart.js |
-| Deploy | Docker + Docker Compose |
-
----
-
-## Como Rodar
+### Pré-requisitos
+- Python 3.10+
+- MySQL 8 (ou Docker)
+- Node.js (opcional, para frontend)
 
 ### Com Docker (recomendado)
-
-**Pré-requisitos**: Docker e Docker Compose
-
 ```bash
-git clone <repo-url> && cd fieldnode
+git clone https://github.com/Desmantelar-bit/fieldnode.git
+cd fieldnode
 
 # Windows
-.\.startup.cmd
+.\startup.cmd
 
 # Linux/macOS
-bash .startup.sh
+bash startup.sh
 ```
-
-Ou manualmente:
-```bash
-docker-compose up -d
-docker exec fieldnode-api python manage.py createsuperuser  # primeira vez
-```
-
-**Endpoints**:
-- **API**: http://localhost:8000
-- **Swagger**: http://localhost:8000/swagger/
-- **Admin**: http://localhost:8000/admin/
-- **MQTT**: localhost:1883
 
 ### Desenvolvimento Local (sem Docker)
-
-**Pré-requisitos**: Python 3.12, MySQL 8, Git
-
 ```bash
-git clone <repo-url> && cd fieldnode
+# 1. Clone o repositório
+git clone https://github.com/Desmantelar-bit/fieldnode.git
+cd fieldnode
 
+# 2. Crie seu ambiente virtual
 python -m venv .venv
-.venv\Scripts\activate      # Windows
-# source .venv/bin/activate # Linux/macOS
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate      # Windows
 
+# 3. Instale as dependências
 pip install -r requirements.txt
-cp .env.example .env        # edite DB_HOST para localhost
+
+# 4. Configure o ambiente
+cp .env.example .env
+# Edite .env com suas credenciais de banco
+
+# 5. Rode as migrações
 python manage.py migrate
+
+# 6. Inicie o servidor
 python manage.py runserver
 ```
 
----
+### Com Makefile (mais rápido)
+```bash
+make setup   # Configura ambiente virtual e instala dependências
+make run     # Inicia o servidor Django
+```
 
-## API
+## 🔐 Principais Endpoints (API)
 
-### Endpoint Principal
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/api/v1/telemetria/` | POST | Recebe batch de leitura offline (requer `X-API-Key`) |
+| `/api/v1/telemetria/` | GET | Lista últimas 50 leituras (dev/debug) |
+| `/api/v1/telemetria/ultimas/` | GET | Última leitura de cada máquina ativa |
+| `/api/v1/anomalias/` | GET | Detecta leituras fora do padrão (Isolation Forest) |
+| `/api/v1/manutencao/` | GET | Prevê probabilidade de manutenção |
+| `/api/v1/metricas/` | GET | Métricas operacionais do sistema |
 
-**POST `/api/telemetria/`**
-
-Ingestão de dados do ESP32 com deduplicação automática por UUID.
-
+### Exemplo de Ingestão
 ```bash
 curl -X POST http://localhost:8000/api/telemetria/ \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: fieldnode-demo-2024" \
   -d '{
     "id": "uuid-v4",
     "maquina_id": "CASE-TC5000-01",
@@ -116,48 +111,26 @@ curl -X POST http://localhost:8000/api/telemetria/ \
   }'
 ```
 
-**Resposta (201)**: `{"status": "ok", "id": "uuid"}`  
-**Resposta (200, duplicata)**: `{"status": "duplicata ignorada", "id": "uuid"}`
+## 📊 Stack Técnica
 
-### CRUD
+| Camada | Tecnologia |
+|--------|------------|
+| Hardware | ESP32 + Arduino/C++ |
+| Wireless | ESP-NOW + MQTT |
+| Backend | Django 5.2 + DRF 3.15 |
+| Banco | MySQL 8 (SQLite em dev) |
+| Docs | Swagger (drf-yasg) |
+| Frontend | HTML/CSS/JS + Chart.js |
+| Deploy | Docker + Docker Compose |
 
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| GET/POST | `/Colheitadeira/` | Máquinas |
-| GET/POST | `/Operario/` | Operários |
-| GET/POST | `/Temperaturamaquina/` | Histórico de temperatura |
+## 🧠 Equipe e Contexto
 
-Documentação interativa: `http://localhost:8000/swagger/`
-
----
-
-## Roadmap
-
-- [x] API REST com Django + DRF
-- [x] Deduplicação por UUID
-- [x] Dashboard web com Chart.js
-- [x] Swagger + Admin
-- [x] Pipeline MQTT: ESP32 → broker → Django → MySQL
-- [x] Detecção de anomalias (Isolation Forest)
-- [x] Manutenção preditiva (Random Forest)
-- [x] Polling em tempo real (3s)
-- [ ] Autenticação (JWT)
-- [ ] Alertas (WhatsApp)
-- [ ] Integração ESP32 → Gateway completa
-- [ ] Suite de testes (pytest)
-
----
-
-## Créditos
-
-Trabalho de Conclusão de Curso — SENAI Informática
+Projeto de Conclusão de Curso (TCC) desenvolvido por estudantes técnicos em Desenvolvimento de Sistemas do SENAI-SP (2026). Tratado com engenharia e rigor de mercado.
 
 | | | | |
 |:-:|:-:|:-:|:-:|
 | [Vinícius Morales](https://github.com/ViniciusMorales) | [Paola Machado](https://github.com/Paola5858) | [Ana Caroline Furlaneto](https://github.com/acfurlaneto) | Giovana D'Angelo |
 
----
-
-## Licença
+## 📝 Licença
 
 MIT

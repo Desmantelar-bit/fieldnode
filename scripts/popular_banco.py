@@ -74,12 +74,12 @@ def criar_unidades():
     
     objs = []
     for nome in unidades:
-        obj = UnidadedeMedida.objects.create(Nome=nome)
+        obj = UnidadedeMedida.objects.create(nome=nome)
         objs.append(obj)
         print(f"  ✓ {nome}")
     
     print(f"✅ {len(objs)} unidades criadas\n")
-    return {u.Nome: u for u in objs}
+    return {u.nome: u for u in objs}
 
 
 def criar_marcas_e_modelos(unidades):
