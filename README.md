@@ -39,38 +39,27 @@ O FieldNode é um ecossistema de hardware e software focado em **resiliência**.
 
 ### Pré-requisitos
 - Python 3.10+
-- MySQL 8 (ou Docker)
+- MySQL 8 (ou use SQLite em desenvolvimento)
 - Node.js (opcional, para frontend)
 
-### Com Docker (recomendado)
-```bash
-git clone https://github.com/Desmantelar-bit/fieldnode.git
-cd fieldnode
+### Início Rápido (2 minutos)
 
-# Windows
-.\startup.cmd
-
-# Linux/macOS
-bash startup.sh
-```
-
-### Desenvolvimento Local (sem Docker)
 ```bash
 # 1. Clone o repositório
 git clone https://github.com/Desmantelar-bit/fieldnode.git
 cd fieldnode
 
-# 2. Crie seu ambiente virtual
+# 2. Crie e ative o ambiente virtual
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate      # Windows
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/macOS
 
 # 3. Instale as dependências
 pip install -r requirements.txt
 
 # 4. Configure o ambiente
 cp .env.example .env
-# Edite .env com suas credenciais de banco
+# Edite .env se necessário (valores padrão funcionam para dev)
 
 # 5. Rode as migrações
 python manage.py migrate
@@ -79,11 +68,32 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-### Com Makefile (mais rápido)
-```bash
-make setup   # Configura ambiente virtual e instala dependências
-make run     # Inicia o servidor Django
+### Acessar o Sistema
+
+**Dashboard Operacional (recomendado):**
 ```
+http://127.0.0.1:8000/frontend/dashboard.html
+```
+
+**Landing Page:**
+```
+http://127.0.0.1:8000/frontend/
+```
+
+**Documentação da API:**
+```
+http://127.0.0.1:8000/swagger/
+```
+
+### Popular com Dados de Demonstração
+
+```bash
+# Em outro terminal (com o servidor rodando):
+python scripts/demo_pane.py
+```
+
+Isso iniciará um simulador MQTT que envia telemetria de 3 máquinas em tempo real.
+O dashboard atualizará automaticamente a cada 3 segundos.
 
 ## 🔐 Principais Endpoints (API)
 
@@ -134,3 +144,18 @@ Projeto de Conclusão de Curso (TCC) desenvolvido por estudantes técnicos em De
 ## 📝 Licença
 
 MIT
+
+---
+
+## 📚 Documentação Adicional
+
+- **[INSTRUCOES-APRESENTACAO.md](INSTRUCOES-APRESENTACAO.md)** — Guia completo para apresentação na banca (15 min)
+- **[CHEAT-SHEET-APRESENTACAO.md](CHEAT-SHEET-APRESENTACAO.md)** — Resumo de uma página para consulta rápida
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — Diagnóstico e solução de problemas comuns
+- **[docs/FASE-1-CONCLUIDA.md](docs/FASE-1-CONCLUIDA.md)** — Relatório das correções implementadas
+
+### Documentação Técnica Existente
+
+- **[docs/CORRECOES-FINAIS.md](docs/CORRECOES-FINAIS.md)** — Histórico de correções e decisões técnicas
+- **[docs/DEFESA-BANCA.md](docs/DEFESA-BANCA.md)** — Argumentos técnicos para defesa
+- **[docs/GUIA-RAPIDO-SIMULACAO.md](docs/GUIA-RAPIDO-SIMULACAO.md)** — Como usar os simuladores

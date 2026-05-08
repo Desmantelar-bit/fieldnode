@@ -210,3 +210,36 @@ class IAResilienciaTest(TestCase):
     def test_manutencao_sem_maquina_id_retorna_400(self):
         response = self.client.get("/api/manutencao/")
         self.assertEqual(response.status_code, 400)
+
+
+# ──────────────────────────────────────────────────────────────
+# 5. TESTE: MÉTRICAS OPERACIONAIS
+# ──────────────────────────────────────────────────────────────
+class MetricasTest(TestCase):
+    """
+    Testa o endpoint /api/metricas/ que fornece observabilidade
+    do sistema para dashboard e apresentações.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_metricas_retorna_200_com_campos_esperados(self):
+        # Criar algumas leituras válidas
+        registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-01"))
+        registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-02"))
+        
+        response = self.client.get("/api/metricas/")
+        self.assertEqual(response.status_code, 200)
+        
+        # Verificar campos obrigatórios
+        self.assertIn("leituras_validas", response.data)
+        self.assertIn("leituras_invalidas", response.data)
+        self.assertIn("taxa_rejeicao_pct", response.data)
+        self.assertIn("maquinas_ativas", response.data)
+        
+        # Verificar valores
+        self.assertEqual(response.data["leituras_validas"], 2)
+        self.assertEqual(response.data["leituras_invalidas"], 0)
+        self.assertEqual(response.data["taxa_rejeicao_pct"], 0.0)
+        self.assertEqual(response.data["maquinas_ativas"], 2)

@@ -43,6 +43,15 @@ def on_connect(client, userdata, flags, rc):
         print(f'[MQTT] Falha na conexão. Código: {rc}')
 
 
+def on_disconnect(client, userdata, rc):
+    if rc != 0:
+        print(f'[MQTT] Desconectado inesperadamente. Tentando reconectar...')
+        try:
+            client.reconnect()
+        except Exception as e:
+            print(f'[MQTT] Falha na reconexão: {e}')
+
+
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode('utf-8'))
@@ -73,6 +82,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         client = mqtt.Client()
         client.on_connect = on_connect
+        client.on_disconnect = on_disconnect
         client.on_message = on_message
 
         try:

@@ -22,7 +22,7 @@ from django.conf import settings
 import os
 from rest_framework import routers
 from api_tcc.api import viewsets
-from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView
+from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -81,11 +81,14 @@ urlpatterns += [ # Rota para detecção de anomalias
     path('api/leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
     path('api/manutencao/', ManutencaoView.as_view(), name='manutencao'),
     path('api/metricas/', MetricasView.as_view(), name='metricas'),
+    path('api/status-mqtt/', StatusMQTTView.as_view(), name='status-mqtt'),
 ]
 
 # Rotas para o frontend
+# IMPORTANTE: Não usar path('', ...) aqui pois conflita com DefaultRouter
+# Acesse o dashboard em: http://127.0.0.1:8000/frontend/dashboard.html
+# Acesse a landing page em: http://127.0.0.1:8000/frontend/
 urlpatterns += [
     path('frontend/<path:filename>', serve_frontend, name='frontend-file'),
     path('frontend/', serve_frontend, name='frontend-index'),
-    path('', serve_frontend, name='root'),
 ]
