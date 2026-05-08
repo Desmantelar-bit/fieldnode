@@ -1,8 +1,11 @@
 # api_tcc/ia/manutencao.py
 import pandas as pd
 import numpy as np
+import time
 from sklearn.ensemble import RandomForestClassifier
 from api_tcc.models import LeituraTelemetria
+
+_cache = {}  # {maquina_id: (resultado, timestamp)}
 
 def prever_manutencao(maquina_id):
     """
@@ -12,16 +15,22 @@ def prever_manutencao(maquina_id):
         features_usadas — quais variáveis influenciaram mais
         status       — 'ok' | 'dados_insuficientes'
     """
+    agora = time.time()
+    chave = maquina_id
+    if chave in _cache and agora - _cache[chave][1] < 30:
+        return _cache[chave][0]
     qs = LeituraTelemetria.objects.filter(
         maquina_id=maquina_id
     ).order_by('timestamp')[:300]
 
     if qs.count() < 30:
-        return {
+        resultado = {
             'status':  'dados_insuficientes',
             'minimo':  30,
             'atual':   qs.count(),
         }
+        _cache[chave] = (resultado, agora)
+        return resultado
 
     df = pd.DataFrame(list(qs.values(
         'temperatura', 'vibracao', 'rpm', 'timestamp'
@@ -51,7 +60,9 @@ def prever_manutencao(maquina_id):
 
     df = df.dropna()
     if len(df) < 20:
-        return {'status': 'dados_insuficientes', 'minimo': 20, 'atual': len(df)}
+        resultado = {'status': 'dados_insuficientes', 'minimo': 20, 'atual': len(df)}
+        _cache[chave] = (resultado, agora)
+        return resultado
 
     FEATURES = ['temperatura', 'vibracao', 'rpm', 'temp_media_movel', 'vib_media_movel', 'temp_tendencia']
     X = df[FEATURES]
@@ -64,7 +75,7 @@ def prever_manutencao(maquina_id):
     prob_risco = float(modelo.predict_proba(ultima)[0][1])
     importancia = dict(zip(FEATURES, modelo.feature_importances_.round(3)))
 
-    return {
+    resultado = {
         'status':         'ok',
         'maquina_id':     maquina_id,
         'prob_risco':     round(prob_risco, 3),
@@ -72,3 +83,5 @@ def prever_manutencao(maquina_id):
         'features':       importancia,
         'total_leituras': len(df),
     }
+    _cache[chave] = (resultado, agora)
+    return resultado

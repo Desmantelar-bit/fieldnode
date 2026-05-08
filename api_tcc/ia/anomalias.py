@@ -1,6 +1,9 @@
 import pandas as pd
+import time
 from sklearn.ensemble import IsolationForest
 from api_tcc.models import LeituraTelemetria
+
+_cache = {}  # {chave: (resultado, timestamp)}
 
 def detectar_anomalias(maquina_id=None, contamination=0.05):
     """
@@ -14,6 +17,10 @@ def detectar_anomalias(maquina_id=None, contamination=0.05):
         analisadas — total de leituras analisadas
         status     — 'ok' | 'dados_insuficientes'
     """
+    agora = time.time()
+    chave = maquina_id or '_todas'
+    if chave in _cache and agora - _cache[chave][1] < 30:
+        return _cache[chave][0]
     qs = LeituraTelemetria.objects.all()
     if maquina_id:
         qs = qs.filter(maquina_id=maquina_id)
@@ -21,13 +28,15 @@ def detectar_anomalias(maquina_id=None, contamination=0.05):
     qs = qs.order_by('-timestamp')[:500]
 
     if qs.count() < 20:
-        return {
+        resultado = {
             'status':    'dados_insuficientes',
             'minimo':    20,
             'atual':     qs.count(),
             'anomalias': [],
             'total':     0,
         }
+        _cache[chave] = (resultado, agora)
+        return resultado
 
     df = pd.DataFrame(list(qs.values(
         'id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp'
@@ -42,9 +51,11 @@ def detectar_anomalias(maquina_id=None, contamination=0.05):
     anomalias['timestamp'] = anomalias['timestamp'].astype(str)
     anomalias['id'] = anomalias['id'].astype(str)
 
-    return {
+    resultado = {
         'status':    'ok',
         'anomalias': anomalias[['id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp']].to_dict('records'),
         'total':     int(anomalias.shape[0]),
         'analisadas': int(df.shape[0]),
     }
+    _cache[chave] = (resultado, agora)
+    return resultado
