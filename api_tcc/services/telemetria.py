@@ -46,9 +46,9 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
     if not maquina_id:
         return False, "maquina_id não pode ser vazio"
 
-    # Validar que maquina_id existe no cadastro de Colheitadeira
-    if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
-        return False, f"máquina {maquina_id} não cadastrada no sistema"
+    # Validar que maquina_id existe como Modelo.nome vinculado a uma Colheitadeira
+    if not Colheitadeira.objects.filter(modelo__nome=maquina_id).exists():
+        return False, f"máquina '{maquina_id}' não cadastrada no sistema"
 
     for campo, (minimo, maximo) in LIMITES.items():
         try:
