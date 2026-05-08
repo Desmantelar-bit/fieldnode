@@ -28,7 +28,12 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 FIELDNODE_API_KEY = config('FIELDNODE_API_KEY', default='fieldnode-demo-2024')
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]  # Development
+# Aceita qualquer host em desenvolvimento para facilitar apresentação
+# Em produção, especifique os domínios exatos
+if DEBUG:
+    ALLOWED_HOSTS = ['*']  # Aceita qualquer IP/hostname em dev
+else:
+    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']  # Produção: apenas local
 
 
 # Application definition

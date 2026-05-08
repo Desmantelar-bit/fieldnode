@@ -50,6 +50,14 @@
     .search-box input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; width: 150px; }
     .search-box input::placeholder { color: var(--text3); }
 
+    /* METRICS CARDS */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; transition: all .2s; }
+    .metric-card:hover { border-color: var(--border2); }
+    .metric-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .metric-value { font-size: 28px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .metric-subtitle { font-size: 12px; color: var(--text2); }
+
     /* STATUS TABLE */
     .status-container { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
     .status-table-wrapper { overflow-x: auto; }
@@ -167,6 +175,25 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input type="text" id="machine-search" placeholder="Buscar máquina..."/>
         </div>
+      </div>
+    </div>
+
+    <!-- METRICS CARDS -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total de Leituras</div>
+        <div class="metric-value" id="metric-total-leituras">—</div>
+        <div class="metric-subtitle">Últimas 24h</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Máquinas Ativas</div>
+        <div class="metric-value" id="metric-maquinas-ativas">—</div>
+        <div class="metric-subtitle">Em operação</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Taxa de Rejeição</div>
+        <div class="metric-value" id="metric-taxa-rejeicao">—</div>
+        <div class="metric-subtitle">Leituras inválidas</div>
       </div>
     </div>
 
@@ -289,10 +316,33 @@ async function atualizarStatusMQTT() {
   }
 }
 
+// ATUALIZA MÉTRICAS DO DASHBOARD
+async function atualizarMetricas() {
+  try {
+    const metricas = await apiFetch('/api/metricas/');
+    
+    document.getElementById('metric-total-leituras').textContent = 
+      metricas.total_leituras?.toLocaleString('pt-BR') || '0';
+    
+    document.getElementById('metric-maquinas-ativas').textContent = 
+      metricas.maquinas_ativas || '0';
+    
+    const taxaRejeicao = metricas.taxa_rejeicao || 0;
+    const taxaEl = document.getElementById('metric-taxa-rejeicao');
+    taxaEl.textContent = `${taxaRejeicao.toFixed(1)}%`;
+    taxaEl.style.color = taxaRejeicao > 5 ? '#f87171' : taxaRejeicao > 2 ? '#fbbf24' : '#4ade80';
+  } catch (e) {
+    console.error('Falha ao buscar métricas', e);
+  }
+}
+
 // POLLING RECURSIVO - Não empilha requisições
 async function pollStatus() {
   try {
-    await atualizarStatusMaquinas();
+    await Promise.all([
+      atualizarStatusMaquinas(),
+      atualizarMetricas()
+    ]);
   } catch (error) {
     console.error("Falha no sync, retentando...", error);
   } finally {

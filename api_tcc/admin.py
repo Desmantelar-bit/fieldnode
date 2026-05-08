@@ -24,13 +24,13 @@ class TelemetriaInvalidaAdmin(admin.ModelAdmin):
 
 @admin.register(models.Colheitadeira)
 class ColheitadeiraAdmin(admin.ModelAdmin):
-    list_display = ('id', 'Modelo', 'Operario', 'StatusdeOperacao', 'EstadodeMovimento')
+    list_display = ('id', 'modelo', 'operario', 'status_de_operacao', 'estado_de_movimento')
 
 
 @admin.register(models.Operario)
 class OperarioAdmin(admin.ModelAdmin):
-    list_display  = ('Nome', 'TempodeServico', 'Nobanco')
-    search_fields = ('Nome',)
+    list_display  = ('nome', 'tempo_de_servico', 'no_banco')
+    search_fields = ('nome',)
 
 
 admin.site.register(models.UnidadedeMedida)
