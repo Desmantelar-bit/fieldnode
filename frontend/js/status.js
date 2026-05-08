@@ -165,3 +165,72 @@ function buscarMaquina() {
     alert(`Máquina "${termo}" não encontrada`);
   }
 }
+
+/**
+ * Abre popup com detalhes da máquina.
+ * Fetch dados de telemetria, anomalias e manutenção.
+ */
+async function abrirPopupMaquina(maquinaId) {
+  const popup = document.getElementById('machine-details-popup');
+  if (!popup) return;
+
+  try {
+    // Fetch dados em paralelo
+    const [telemetrias, anomalias, manutencoes] = await Promise.all([
+      apiFetch(`/api/telemetria/?maquina_id=${maquinaId}`).catch(() => []),
+      apiFetch('/api/anomalias/').catch(() => ({})),
+      apiFetch('/api/manutencao/').catch(() => ({}))
+    ]);
+
+    // Última telemetria dessa máquina
+    const ultimaTel = telemetrias.length ? telemetrias[0] : {};
+
+    // Busca máquina nos dados locais para ter informações completas
+    const maquinaInfo = tabelaState.dados.find(m => m.maquina_id === maquinaId) || ultimaTel;
+
+    // Formata anomalia
+    const anomaliaStatus = anomalias[maquinaId]
+      ? `${anomalias[maquinaId].is_anomaly ? '⚠ Anomalia detectada' : '✓ Normal'}`
+      : '—';
+
+    // Formata manutenção
+    const manutencaoStatus = manutencoes[maquinaId]
+      ? `${(manutencoes[maquinaId].probabilidade * 100).toFixed(1)}% de risco`
+      : '—';
+
+    // Atualiza HTML do popup
+    document.getElementById('popup-title').textContent = `Detalhes — ${maquinaId}`;
+    document.getElementById('popup-id').textContent = maquinaId;
+    document.getElementById('popup-modelo').textContent = maquinaInfo.modelo || '—';
+
+    document.getElementById('popup-temp').textContent = maquinaInfo.temperatura
+      ? `${maquinaInfo.temperatura}°C`
+      : '—';
+    document.getElementById('popup-fuel').textContent = maquinaInfo.combustivel
+      ? `${maquinaInfo.combustivel}%`
+      : '—';
+    document.getElementById('popup-status').textContent = maquinaInfo.nivel_risco
+      ? rotuloRisco(maquinaInfo.nivel_risco)
+      : '—';
+
+    document.getElementById('popup-anomalia').textContent = anomaliaStatus;
+    document.getElementById('popup-manutencao').textContent = manutencaoStatus;
+
+    // Link para detalhes completos
+    const detailsLink = document.getElementById('popup-details-link');
+    if (detailsLink) {
+      // Tenta achar o ID numérico da máquina na frota
+      // Assume que a primeira máquina tem id=1, segunda id=2, etc.
+      const indiceNaFrota = tabelaState.dados.findIndex(m => m.maquina_id === maquinaId);
+      const idNumerico = indiceNaFrota !== -1 ? indiceNaFrota + 1 : 1;
+      detailsLink.href = `maquina.html?id=${idNumerico}`;
+    }
+
+    // Mostra popup
+    popup.classList.add('active');
+  } catch (err) {
+    console.error('[popup] Erro ao carregar detalhes:', err);
+    document.getElementById('popup-title').textContent = `Erro ao carregar ${maquinaId}`;
+    popup.classList.add('active');
+  }
+}

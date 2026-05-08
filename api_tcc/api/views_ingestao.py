@@ -16,6 +16,7 @@ import logging
 
 from django.conf import settings
 from django.db import connection
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -206,24 +207,24 @@ class ManutencaoView(APIView):
 class MetricasView(APIView):
     """
     GET /api/metricas/
-    
+
     Métricas operacionais do sistema em tempo real.
     Retorna:
     - leituras_validas: total de leituras aceitas
     - leituras_invalidas: total de leituras rejeitadas (TelemetriaInvalida)
     - taxa_rejeicao_pct: percentual de rejeição
     - maquinas_ativas: número de máquinas com pelo menos uma leitura
-    
+
     Uso: Dashboard / apresentações para demonstrar observabilidade e
     resiliência do sistema em campo.
     """
     def get(self, request):
         from api_tcc.models import TelemetriaInvalida
-        
+
         total_validas = LeituraTelemetria.objects.count()
         total_invalidas = TelemetriaInvalida.objects.count()
         total_geral = total_validas + total_invalidas
-        
+
         return Response({
             'leituras_validas': total_validas,
             'leituras_invalidas': total_invalidas,
@@ -233,4 +234,41 @@ class MetricasView(APIView):
             'maquinas_ativas': LeituraTelemetria.objects.values(
                 'maquina_id'
             ).distinct().count(),
+        })
+
+
+class StatusMQTTView(APIView):
+    """
+    GET /api/status-mqtt/
+
+    Retorna status de conectividade MQTT e última leitura recebida.
+
+    Usado pelo dashboard para mostrar indicador de conexão:
+    - mqtt_conectado: bool (true se última leitura foi há < 10s)
+    - ultima_leitura_segundos_atras: int (tempo em segundos)
+    - status: str ("online" ou "offline")
+
+    Lógica: considera sistema online se recebeu alguma leitura nos últimos 10 segundos.
+    10s é escolhido conservadoramente — deixa espaço para atrasos de rede
+    mantendo responsividade de detecção de desconexão.
+    """
+    def get(self, request):
+        ultima_leitura = LeituraTelemetria.objects.order_by('-created_at').first()
+
+        if not ultima_leitura:
+            return Response({
+                'mqtt_conectado': False,
+                'ultima_leitura_segundos_atras': None,
+                'status': 'offline',
+                'detalhes': 'Nenhuma leitura recebida ainda'
+            })
+
+        delta = timezone.now() - ultima_leitura.created_at
+        segundos_atras = int(delta.total_seconds())
+        conectado = segundos_atras < 10
+
+        return Response({
+            'mqtt_conectado': conectado,
+            'ultima_leitura_segundos_atras': segundos_atras,
+            'status': 'online' if conectado else 'offline',
         })

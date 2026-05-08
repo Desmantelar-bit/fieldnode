@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from django.utils.timezone import make_aware, is_aware
 from django.db import IntegrityError
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import LeituraTelemetria, Colheitadeira
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,10 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
     maquina_id = str(dados.get("maquina_id", "")).strip()
     if not maquina_id:
         return False, "maquina_id não pode ser vazio"
+
+    # Validar que maquina_id existe no cadastro de Colheitadeira
+    if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
+        return False, f"máquina {maquina_id} não cadastrada no sistema"
 
     for campo, (minimo, maximo) in LIMITES.items():
         try:

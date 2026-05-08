@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Dashboard de telemetria em tempo real de colheitadeiras agrícolas — FieldNode."/>
+  <meta name="keywords" content="telemetria, colheitadeira, agricultura, FieldNode, IoT, ESP32"/>
+  <title>FieldNode — Dashboard de Frota</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* SIDEBAR */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .api-address { font-size:10px; color:var(--text3); margin-top:4px; font-family:var(--mono); }
+
+    /* MAIN */
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 10; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-title { font-size: 16px; font-weight: 600; }
+    .topbar-divider { width:1px; height:20px; background:var(--border); }
+    .mqtt-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 12px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); transition: all .3s; }
+    .mqtt-badge.offline { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .mqtt-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 4px currentColor; }
+
+    .content { padding: 24px 28px; flex: 1; overflow-y: auto; }
+
+    /* DASHBOARD HEADER */
+    .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .dashboard-title { font-size: 20px; font-weight: 600; }
+    .dashboard-controls { display: flex; align-items: center; gap: 12px; }
+    .search-box { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); }
+    .search-box input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; width: 150px; }
+    .search-box input::placeholder { color: var(--text3); }
+
+    /* STATUS TABLE */
+    .status-container { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .status-table-wrapper { overflow-x: auto; }
+    .status-table { width: 100%; border-collapse: collapse; }
+    .status-table thead { background: var(--bg3); }
+    .status-table th { padding: 14px 16px; text-align: left; font-size: 11px; font-family: var(--mono); color: var(--text3); letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 600; }
+    .status-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.02); font-size: 13px; }
+    .status-table tr:last-child td { border-bottom: none; }
+    .status-table tbody tr:hover { background: rgba(255,255,255,.02); }
+    .machine-cell { display: flex; align-items: center; gap: 10px; }
+    .machine-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .machine-info { display: flex; flex-direction: column; }
+    .machine-id-col { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+    .machine-name-col { font-weight: 500; }
+    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); }
+    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
+    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
+    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+
+    /* CAROUSEL */
+    .carousel-controls { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-top: 1px solid var(--border); background: var(--bg3); }
+    .carousel-info { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+    .carousel-buttons { display: flex; gap: 8px; }
+    .carousel-btn { padding: 6px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); cursor: pointer; font-size: 12px; transition: all .15s; }
+    .carousel-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text2); }
+    .carousel-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* POPUP */
+    .popup-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
+    .popup-overlay.active { display: flex; }
+    .popup-content { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: 24px; }
+    .popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .popup-title { font-size: 16px; font-weight: 600; }
+    .popup-close { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 20px; }
+    .popup-section { margin-bottom: 16px; }
+    .popup-label { font-size: 10px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .popup-data-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
+    .popup-data-row:last-child { border-bottom: none; }
+    .popup-data-key { color: var(--text2); }
+    .popup-data-val { font-family: var(--mono); color: var(--text); }
+    .popup-buttons { display: flex; gap: 8px; margin-top: 16px; }
+    .popup-btn { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg3); color: var(--text); cursor: pointer; font-size: 12px; transition: all .15s; text-decoration: none; text-align: center; }
+    .popup-btn:hover { background: var(--border2); }
+
+    /* LOADING STATE */
+    .state-msg { padding: 40px; text-align: center; font-size: 13px; color: var(--text3); font-family: var(--mono); }
+    .pulse-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--text3); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    @media (max-width: 900px) {
+      .sidebar { width: 180px; }
+      .main { margin-left: 180px; }
+      .dashboard-controls { flex-direction: column; align-items: stretch; }
+      .search-box { width: 100%; }
+      .search-box input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item active" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Sobre
+    </a>
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+    <div class="api-address">127.0.0.1:8000</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">Dashboard de Frota</div>
+      <div class="topbar-divider"></div>
+      <div class="mqtt-badge" id="mqtt-badge">
+        <div class="mqtt-dot"></div>
+        <span>Conectando...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- HEADER -->
+    <div class="dashboard-header">
+      <div class="dashboard-title">Máquinas em operação</div>
+      <div class="dashboard-controls">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="machine-search" placeholder="Buscar máquina..."/>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS TABLE -->
+    <div class="status-container">
+      <div class="status-table-wrapper">
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Máquina</th>
+              <th>Modelo</th>
+              <th>Temperatura</th>
+              <th>Combustível</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="status-table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 40px;">
+                <div class="pulse-spinner" style="display: inline-block; margin-right: 8px;"></div>
+                Carregando máquinas...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="carousel-controls">
+        <div class="carousel-info" id="carousel-info">Página 1</div>
+        <div class="carousel-buttons">
+          <button class="carousel-btn" id="carousel-prev" onclick="scrollMaquinasTabela(-1)">← Anterior</button>
+          <button class="carousel-btn" id="carousel-next" onclick="scrollMaquinasTabela(1)">Próximo →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- POPUP -->
+<div class="popup-overlay" id="machine-details-popup">
+  <div class="popup-content">
+    <div class="popup-header">
+      <div class="popup-title" id="popup-title">Detalhes da Máquina</div>
+      <button class="popup-close" onclick="fecharPopupMaquina()">×</button>
+    </div>
+
+    <div class="popup-section">
+      <div class="popup-label">Identificação</div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">ID:</span>
+        <span class="popup-data-val" id="popup-id">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Modelo:</span>
+        <span class="popup-data-val" id="popup-modelo">—</span>
+      </div>
+    </div>
+
+    <div class="popup-section">
+      <div class="popup-label">Telemetria em Tempo Real</div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Temperatura:</span>
+        <span class="popup-data-val" id="popup-temp">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Combustível:</span>
+        <span class="popup-data-val" id="popup-fuel">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Status:</span>
+        <span class="popup-data-val" id="popup-status">—</span>
+      </div>
+    </div>
+
+    <div class="popup-section">
+      <div class="popup-label">Análise Preditiva</div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Anomalia:</span>
+        <span class="popup-data-val" id="popup-anomalia">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Manutenção:</span>
+        <span class="popup-data-val" id="popup-manutencao">—</span>
+      </div>
+    </div>
+
+    <div class="popup-buttons">
+      <a class="popup-btn" id="popup-details-link" href="#">📊 Ver Detalhes</a>
+      <button class="popup-btn" onclick="fecharPopupMaquina()">✕ Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="config.js"></script>
+<script src="js/colors.js"></script>
+<script src="js/api.js"></script>
+<script src="js/status.js"></script>
+
+<script>
+// MQTT STATUS POLLING
+async function atualizarStatusMQTT() {
+  try {
+    const resp = await apiFetch('/api/status-mqtt/');
+    const badge = document.getElementById('mqtt-badge');
+
+    if (resp.mqtt_conectado) {
+      badge.innerHTML = '<div class="mqtt-dot"></div><span>● Conectado</span>';
+      badge.classList.remove('offline');
+    } else {
+      const segundos = resp.ultima_leitura_segundos_atras || 0;
+      badge.innerHTML = `<div class="mqtt-dot"></div><span>◯ Offline (${segundos}s)</span>`;
+      badge.classList.add('offline');
+    }
+  } catch (e) {
+    console.error('Falha ao buscar status MQTT', e);
+    const badge = document.getElementById('mqtt-badge');
+    badge.innerHTML = '<div class="mqtt-dot"></div><span>⚠ Erro</span>';
+    badge.classList.add('offline');
+  }
+}
+
+// POLLING RECURSIVO - Não empilha requisições
+async function pollStatus() {
+  try {
+    await atualizarStatusMaquinas();
+  } catch (error) {
+    console.error("Falha no sync, retentando...", error);
+  } finally {
+    // Só agenda o próximo DEPOIS que o atual terminar (ou falhar)
+    setTimeout(pollStatus, 3000);
+  }
+}
+
+// MQTT POLLING - A cada 5s
+function pollMQTT() {
+  atualizarStatusMQTT();
+  setTimeout(pollMQTT, 5000);
+}
+
+// INICIALIZA NO LOAD
+window.addEventListener('DOMContentLoaded', () => {
+  atualizarStatusMQTT(); // Uma vez imediatamente
+  pollMQTT();             // Depois a cada 5s
+  pollStatus();           // Polling do status das máquinas
+});
+
+// FUNÇÕES DO POPUP
+function fecharPopupMaquina() {
+  document.getElementById('machine-details-popup').classList.remove('active');
+}
+
+window.addEventListener('click', (e) => {
+  const popup = document.getElementById('machine-details-popup');
+  if (e.target === popup) {
+    fecharPopupMaquina();
+  }
+});
+</script>
+
+</body>
+</html>
