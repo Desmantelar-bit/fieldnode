@@ -6,8 +6,13 @@
  * Sem autodescoberta, sem lógica esperta, sem surpresa.
  */
 
-async function apiFetch(endpoint) {
-  const r = await fetch(API + endpoint);
+async function apiFetch(endpoint, requiresAuth = false) {
+  const headers = {};
+  if (requiresAuth) {
+    headers['X-API-Key'] = API_KEY;
+  }
+  
+  const r = await fetch(API + endpoint, { headers });
   if (!r.ok) throw new Error(`HTTP ${r.status} em ${endpoint}`);
   return r.json();
 }
@@ -15,7 +20,10 @@ async function apiFetch(endpoint) {
 async function apiPost(endpoint, body) {
   const r = await fetch(API + endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY,
+    },
     body: JSON.stringify(body),
   });
   if (!r.ok) {
