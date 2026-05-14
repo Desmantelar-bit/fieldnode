@@ -87,25 +87,25 @@ def criar_marcas_e_modelos(unidades):
     print("🏭 Criando marcas e modelos...")
     
     # Marcas
-    case = Marca.objects.create(Nome='Case IH')
-    deere = Marca.objects.create(Nome='John Deere')
-    nh = Marca.objects.create(Nome='New Holland')
-    print(f"  ✓ {case.Nome}")
-    print(f"  ✓ {deere.Nome}")
-    print(f"  ✓ {nh.Nome}")
-    
+    case = Marca.objects.create(nome='Case IH')
+    deere = Marca.objects.create(nome='John Deere')
+    nh = Marca.objects.create(nome='New Holland')
+    print(f"  ✓ {case.nome}")
+    print(f"  ✓ {deere.nome}")
+    print(f"  ✓ {nh.nome}")
+
     # Modelos
     modelos = [
-        Modelo.objects.create(Nome='TC5000', Marca=case),
-        Modelo.objects.create(Nome='Axial-Flow 9250', Marca=case),
-        Modelo.objects.create(Nome='S780', Marca=deere),
-        Modelo.objects.create(Nome='X9 1100', Marca=deere),
-        Modelo.objects.create(Nome='CR9090', Marca=nh),
-        Modelo.objects.create(Nome='CR10.90', Marca=nh),
+        Modelo.objects.create(nome='TC5000', marca=case),
+        Modelo.objects.create(nome='Axial-Flow 9250', marca=case),
+        Modelo.objects.create(nome='S780', marca=deere),
+        Modelo.objects.create(nome='X9 1100', marca=deere),
+        Modelo.objects.create(nome='CR9090', marca=nh),
+        Modelo.objects.create(nome='CR10.90', marca=nh),
     ]
-    
+
     for m in modelos:
-        print(f"  ✓ {m.Nome} ({m.Marca.Nome})")
+        print(f"  ✓ {m.nome} ({m.marca.nome})")
     
     print(f"✅ {len(modelos)} modelos criados\n")
     return modelos
@@ -114,17 +114,17 @@ def criar_marcas_e_modelos(unidades):
 def criar_operarios():
     """Cria operários com experiências variadas."""
     print("👷 Criando operários...")
-    
+
     operarios = [
-        Operario.objects.create(Nome='João Silva', TempodeServico=8, Nobanco=True),
-        Operario.objects.create(Nome='Maria Santos', TempodeServico=12, Nobanco=True),
-        Operario.objects.create(Nome='Pedro Costa', TempodeServico=5, Nobanco=True),
-        Operario.objects.create(Nome='Ana Oliveira', TempodeServico=15, Nobanco=True),
+        Operario.objects.create(nome='João Silva', tempo_de_servico=8, no_banco=True),
+        Operario.objects.create(nome='Maria Santos', tempo_de_servico=12, no_banco=True),
+        Operario.objects.create(nome='Pedro Costa', tempo_de_servico=5, no_banco=True),
+        Operario.objects.create(nome='Ana Oliveira', tempo_de_servico=15, no_banco=True),
     ]
-    
+
     for op in operarios:
-        print(f"  ✓ {op.Nome} ({op.TempodeServico} anos)")
-    
+        print(f"  ✓ {op.nome} ({op.tempo_de_servico} anos)")
+
     print(f"✅ {len(operarios)} operários criados\n")
     return operarios
 
@@ -132,17 +132,17 @@ def criar_operarios():
 def criar_combustiveis():
     """Cria tipos de combustível."""
     print("⛽ Criando combustíveis...")
-    
+
     combustiveis = [
-        Combustivel.objects.create(Tipo='Diesel S10', Porcentagem=85.0),
-        Combustivel.objects.create(Tipo='Diesel S10', Porcentagem=92.0),
-        Combustivel.objects.create(Tipo='Diesel S10', Porcentagem=78.0),
-        Combustivel.objects.create(Tipo='Diesel S500', Porcentagem=88.0),
+        Combustivel.objects.create(tipo='Diesel S10', porcentagem=85.0),
+        Combustivel.objects.create(tipo='Diesel S10', porcentagem=92.0),
+        Combustivel.objects.create(tipo='Diesel S10', porcentagem=78.0),
+        Combustivel.objects.create(tipo='Diesel S500', porcentagem=88.0),
     ]
-    
+
     for c in combustiveis:
-        print(f"  ✓ {c.Tipo} ({c.Porcentagem}%)")
-    
+        print(f"  ✓ {c.tipo} ({c.porcentagem}%)")
+
     print(f"✅ {len(combustiveis)} combustíveis criados\n")
     return combustiveis
 
@@ -150,59 +150,59 @@ def criar_combustiveis():
 def criar_dados_operacionais(unidades):
     """Cria dados operacionais (pressão, altura, temperatura, etc)."""
     print("⚙️  Criando dados operacionais...")
-    
+
     # Pressão dos pneus (PSI)
     pneus = [
-        PressaoPneus.objects.create(Pressao=32.0, UnidadedeMedida=unidades['PSI']),
-        PressaoPneus.objects.create(Pressao=34.0, UnidadedeMedida=unidades['PSI']),
-        PressaoPneus.objects.create(Pressao=30.0, UnidadedeMedida=unidades['PSI']),
+        PressaoPneus.objects.create(pressao=32.0, unidade_de_medida=unidades['PSI']),
+        PressaoPneus.objects.create(pressao=34.0, unidade_de_medida=unidades['PSI']),
+        PressaoPneus.objects.create(pressao=30.0, unidade_de_medida=unidades['PSI']),
     ]
     print(f"  ✓ {len(pneus)} pressões de pneus")
-    
+
     # Altura de corte (cm)
     alturas = [
-        AlturadoCorte.objects.create(Altura=15.0, UnidadedeMedida=unidades['cm']),
-        AlturadoCorte.objects.create(Altura=18.0, UnidadedeMedida=unidades['cm']),
-        AlturadoCorte.objects.create(Altura=20.0, UnidadedeMedida=unidades['cm']),
+        AlturadoCorte.objects.create(altura=15.0, unidade_de_medida=unidades['cm']),
+        AlturadoCorte.objects.create(altura=18.0, unidade_de_medida=unidades['cm']),
+        AlturadoCorte.objects.create(altura=20.0, unidade_de_medida=unidades['cm']),
     ]
     print(f"  ✓ {len(alturas)} alturas de corte")
-    
+
     # Pressão de corte (bar)
     pressoes_corte = [
-        PressaodoCorte.objects.create(Pressao=120.0, UnidadedeMedida=unidades['bar']),
-        PressaodoCorte.objects.create(Pressao=125.0, UnidadedeMedida=unidades['bar']),
-        PressaodoCorte.objects.create(Pressao=115.0, UnidadedeMedida=unidades['bar']),
+        PressaodoCorte.objects.create(pressao=120.0, unidade_de_medida=unidades['bar']),
+        PressaodoCorte.objects.create(pressao=125.0, unidade_de_medida=unidades['bar']),
+        PressaodoCorte.objects.create(pressao=115.0, unidade_de_medida=unidades['bar']),
     ]
     print(f"  ✓ {len(pressoes_corte)} pressões de corte")
-    
+
     # Temperatura e umidade ambiente
     ambientes = [
-        TempUmi_Ambiente.objects.create(Temperatura=28.5, Umidade=65.0),
-        TempUmi_Ambiente.objects.create(Temperatura=31.2, Umidade=58.0),
-        TempUmi_Ambiente.objects.create(Temperatura=26.8, Umidade=72.0),
+        TempUmi_Ambiente.objects.create(temperatura=28.5, umidade=65.0),
+        TempUmi_Ambiente.objects.create(temperatura=31.2, umidade=58.0),
+        TempUmi_Ambiente.objects.create(temperatura=26.8, umidade=72.0),
     ]
     print(f"  ✓ {len(ambientes)} leituras de ambiente")
-    
+
     # Status de operação
     status_ops = [
-        StatusdeOperacao.objects.create(Em_Operacao=True, Tempo_de_Operacao=4.5),
-        StatusdeOperacao.objects.create(Em_Operacao=True, Tempo_de_Operacao=6.2),
-        StatusdeOperacao.objects.create(Em_Operacao=True, Tempo_de_Operacao=3.8),
-        StatusdeOperacao.objects.create(Em_Operacao=False, Tempo_de_Operacao=0.0),
+        StatusdeOperacao.objects.create(em_operacao=True, tempo_de_operacao=4.5),
+        StatusdeOperacao.objects.create(em_operacao=True, tempo_de_operacao=6.2),
+        StatusdeOperacao.objects.create(em_operacao=True, tempo_de_operacao=3.8),
+        StatusdeOperacao.objects.create(em_operacao=False, tempo_de_operacao=0.0),
     ]
     print(f"  ✓ {len(status_ops)} status de operação")
-    
+
     # Estado de movimento
     movimentos = [
-        EstadodeMovimento.objects.create(Em_Movimento=True, Velocidade=8.5),
-        EstadodeMovimento.objects.create(Em_Movimento=True, Velocidade=12.3),
-        EstadodeMovimento.objects.create(Em_Movimento=True, Velocidade=6.7),
-        EstadodeMovimento.objects.create(Em_Movimento=False, Velocidade=0.0),
+        EstadodeMovimento.objects.create(em_movimento=True, velocidade=8.5),
+        EstadodeMovimento.objects.create(em_movimento=True, velocidade=12.3),
+        EstadodeMovimento.objects.create(em_movimento=True, velocidade=6.7),
+        EstadodeMovimento.objects.create(em_movimento=False, velocidade=0.0),
     ]
     print(f"  ✓ {len(movimentos)} estados de movimento")
-    
+
     print(f"✅ Dados operacionais criados\n")
-    
+
     return {
         'pneus': pneus,
         'alturas': alturas,
@@ -216,19 +216,19 @@ def criar_dados_operacionais(unidades):
 def criar_temperaturas_maquina(modelos):
     """Cria leituras de temperatura para cada modelo."""
     print("🌡️  Criando temperaturas das máquinas...")
-    
+
     temps = [
-        TemperaturaMaquina.objects.create(Temperatura=72.5, Maquina=modelos[0]),  # TC5000
-        TemperaturaMaquina.objects.create(Temperatura=68.3, Maquina=modelos[0]),  # TC5000
-        TemperaturaMaquina.objects.create(Temperatura=75.8, Maquina=modelos[2]),  # S780
-        TemperaturaMaquina.objects.create(Temperatura=71.2, Maquina=modelos[2]),  # S780
-        TemperaturaMaquina.objects.create(Temperatura=69.5, Maquina=modelos[4]),  # CR9090
-        TemperaturaMaquina.objects.create(Temperatura=73.1, Maquina=modelos[4]),  # CR9090
+        TemperaturaMaquina.objects.create(temperatura=72.5, maquina=modelos[0]),  # TC5000
+        TemperaturaMaquina.objects.create(temperatura=68.3, maquina=modelos[0]),  # TC5000
+        TemperaturaMaquina.objects.create(temperatura=75.8, maquina=modelos[2]),  # S780
+        TemperaturaMaquina.objects.create(temperatura=71.2, maquina=modelos[2]),  # S780
+        TemperaturaMaquina.objects.create(temperatura=69.5, maquina=modelos[4]),  # CR9090
+        TemperaturaMaquina.objects.create(temperatura=73.1, maquina=modelos[4]),  # CR9090
     ]
-    
+
     for t in temps:
-        print(f"  ✓ {t.Temperatura}°C ({t.Maquina.Nome})")
-    
+        print(f"  ✓ {t.temperatura}°C ({t.maquina.nome})")
+
     print(f"✅ {len(temps)} temperaturas criadas\n")
     return temps
 
@@ -236,96 +236,96 @@ def criar_temperaturas_maquina(modelos):
 def criar_colheitadeiras(modelos, operarios, combustiveis, dados_ops, temps):
     """Cria as colheitadeiras completas."""
     print("🚜 Criando colheitadeiras...")
-    
+
     colheitadeiras = [
         # CASE TC5000 #1 - João Silva
         Colheitadeira.objects.create(
-            Modelo=modelos[0],              # TC5000
-            Combustivel=combustiveis[0],    # 85%
-            Operario=operarios[0],          # João Silva
-            PressaoPneus=dados_ops['pneus'][0],
-            AlturadoCorte=dados_ops['alturas'][0],
-            PressaodoCorte=dados_ops['pressoes_corte'][0],
-            TempUmi_Ambiente=dados_ops['ambientes'][0],
-            TemperaturaMaquina=temps[0],
-            StatusdeOperacao=dados_ops['status_ops'][0],
-            EstadodeMovimento=dados_ops['movimentos'][0],
+            modelo=modelos[0],              # TC5000
+            combustivel=combustiveis[0],    # 85%
+            operario=operarios[0],          # João Silva
+            pressao_pneus=dados_ops['pneus'][0],
+            altura_do_corte=dados_ops['alturas'][0],
+            pressao_do_corte=dados_ops['pressoes_corte'][0],
+            temp_umi_ambiente=dados_ops['ambientes'][0],
+            temperatura_maquina=temps[0],
+            status_de_operacao=dados_ops['status_ops'][0],
+            estado_de_movimento=dados_ops['movimentos'][0],
         ),
-        
+
         # CASE TC5000 #2 - Maria Santos
         Colheitadeira.objects.create(
-            Modelo=modelos[0],              # TC5000
-            Combustivel=combustiveis[1],    # 92%
-            Operario=operarios[1],          # Maria Santos
-            PressaoPneus=dados_ops['pneus'][1],
-            AlturadoCorte=dados_ops['alturas'][1],
-            PressaodoCorte=dados_ops['pressoes_corte'][1],
-            TempUmi_Ambiente=dados_ops['ambientes'][1],
-            TemperaturaMaquina=temps[1],
-            StatusdeOperacao=dados_ops['status_ops'][1],
-            EstadodeMovimento=dados_ops['movimentos'][1],
+            modelo=modelos[0],              # TC5000
+            combustivel=combustiveis[1],    # 92%
+            operario=operarios[1],          # Maria Santos
+            pressao_pneus=dados_ops['pneus'][1],
+            altura_do_corte=dados_ops['alturas'][1],
+            pressao_do_corte=dados_ops['pressoes_corte'][1],
+            temp_umi_ambiente=dados_ops['ambientes'][1],
+            temperatura_maquina=temps[1],
+            status_de_operacao=dados_ops['status_ops'][1],
+            estado_de_movimento=dados_ops['movimentos'][1],
         ),
-        
+
         # John Deere S780 #1 - Pedro Costa
         Colheitadeira.objects.create(
-            Modelo=modelos[2],              # S780
-            Combustivel=combustiveis[2],    # 78%
-            Operario=operarios[2],          # Pedro Costa
-            PressaoPneus=dados_ops['pneus'][2],
-            AlturadoCorte=dados_ops['alturas'][2],
-            PressaodoCorte=dados_ops['pressoes_corte'][2],
-            TempUmi_Ambiente=dados_ops['ambientes'][2],
-            TemperaturaMaquina=temps[2],
-            StatusdeOperacao=dados_ops['status_ops'][2],
-            EstadodeMovimento=dados_ops['movimentos'][2],
+            modelo=modelos[2],              # S780
+            combustivel=combustiveis[2],    # 78%
+            operario=operarios[2],          # Pedro Costa
+            pressao_pneus=dados_ops['pneus'][2],
+            altura_do_corte=dados_ops['alturas'][2],
+            pressao_do_corte=dados_ops['pressoes_corte'][2],
+            temp_umi_ambiente=dados_ops['ambientes'][2],
+            temperatura_maquina=temps[2],
+            status_de_operacao=dados_ops['status_ops'][2],
+            estado_de_movimento=dados_ops['movimentos'][2],
         ),
-        
+
         # John Deere S780 #2 - Ana Oliveira
         Colheitadeira.objects.create(
-            Modelo=modelos[2],              # S780
-            Combustivel=combustiveis[3],    # 88%
-            Operario=operarios[3],          # Ana Oliveira
-            PressaoPneus=dados_ops['pneus'][0],
-            AlturadoCorte=dados_ops['alturas'][0],
-            PressaodoCorte=dados_ops['pressoes_corte'][0],
-            TempUmi_Ambiente=dados_ops['ambientes'][0],
-            TemperaturaMaquina=temps[3],
-            StatusdeOperacao=dados_ops['status_ops'][0],
-            EstadodeMovimento=dados_ops['movimentos'][0],
+            modelo=modelos[2],              # S780
+            combustivel=combustiveis[3],    # 88%
+            operario=operarios[3],          # Ana Oliveira
+            pressao_pneus=dados_ops['pneus'][0],
+            altura_do_corte=dados_ops['alturas'][0],
+            pressao_do_corte=dados_ops['pressoes_corte'][0],
+            temp_umi_ambiente=dados_ops['ambientes'][0],
+            temperatura_maquina=temps[3],
+            status_de_operacao=dados_ops['status_ops'][0],
+            estado_de_movimento=dados_ops['movimentos'][0],
         ),
-        
+
         # New Holland CR9090 #1 - João Silva
         Colheitadeira.objects.create(
-            Modelo=modelos[4],              # CR9090
-            Combustivel=combustiveis[0],    # 85%
-            Operario=operarios[0],          # João Silva
-            PressaoPneus=dados_ops['pneus'][1],
-            AlturadoCorte=dados_ops['alturas'][1],
-            PressaodoCorte=dados_ops['pressoes_corte'][1],
-            TempUmi_Ambiente=dados_ops['ambientes'][1],
-            TemperaturaMaquina=temps[4],
-            StatusdeOperacao=dados_ops['status_ops'][1],
-            EstadodeMovimento=dados_ops['movimentos'][1],
+            modelo=modelos[4],              # CR9090
+            combustivel=combustiveis[0],    # 85%
+            operario=operarios[0],          # João Silva
+            pressao_pneus=dados_ops['pneus'][1],
+            altura_do_corte=dados_ops['alturas'][1],
+            pressao_do_corte=dados_ops['pressoes_corte'][1],
+            temp_umi_ambiente=dados_ops['ambientes'][1],
+            temperatura_maquina=temps[4],
+            status_de_operacao=dados_ops['status_ops'][1],
+            estado_de_movimento=dados_ops['movimentos'][1],
         ),
-        
+
         # New Holland CR9090 #2 - Maria Santos
         Colheitadeira.objects.create(
-            Modelo=modelos[4],              # CR9090
-            Combustivel=combustiveis[1],    # 92%
-            Operario=operarios[1],          # Maria Santos
-            PressaoPneus=dados_ops['pneus'][2],
-            AlturadoCorte=dados_ops['alturas'][2],
-            PressaodoCorte=dados_ops['pressoes_corte'][2],
-            TempUmi_Ambiente=dados_ops['ambientes'][2],
-            TemperaturaMaquina=temps[5],
-            StatusdeOperacao=dados_ops['status_ops'][2],
-            EstadodeMovimento=dados_ops['movimentos'][2],
+            modelo=modelos[4],              # CR9090
+            combustivel=combustiveis[1],    # 92%
+            operario=operarios[1],          # Maria Santos
+            pressao_pneus=dados_ops['pneus'][2],
+            altura_do_corte=dados_ops['alturas'][2],
+            pressao_do_corte=dados_ops['pressoes_corte'][2],
+            temp_umi_ambiente=dados_ops['ambientes'][2],
+            temperatura_maquina=temps[5],
+            status_de_operacao=dados_ops['status_ops'][2],
+            estado_de_movimento=dados_ops['movimentos'][2],
         ),
     ]
-    
+
     for i, c in enumerate(colheitadeiras, 1):
-        print(f"  ✓ #{i} {c.Modelo.Nome} ({c.Modelo.Marca.Nome}) - {c.Operario.Nome}")
-    
+        print(f"  ✓ #{i} {c.modelo.nome} ({c.modelo.marca.nome}) - {c.operario.nome}")
+
     print(f"✅ {len(colheitadeiras)} colheitadeiras criadas\n")
     return colheitadeiras
 
