@@ -3,545 +3,214 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Detalhes de telemetria em tempo real de colheitadeiras agrícolas — FieldNode."/>
-  <meta name="keywords" content="telemetria, colheitadeira, agricultura, FieldNode, IoT, ESP32"/>
   <title>FieldNode — Detalhes da Máquina</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <style>
-    /* SIDEBAR */
-    .sidebar {
-      width: 220px; flex-shrink: 0;
-      background: var(--bg2); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; padding: 24px 0;
-      position: fixed; top: 0; left: 0; bottom: 0;
-    }
-    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
-    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
-    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
-    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
-    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
-    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
-    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
-    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
-    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
-
-    /* MAIN */
-    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
-    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 10; }
-    .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .back-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); cursor: pointer; text-decoration: none; transition: color .15s; }
-    .back-btn:hover { color: var(--text); }
-    .topbar-title { font-size: 16px; font-weight: 600; }
-    .topbar-sub   { font-size: 12px; color: var(--text2); margin-top: 1px; }
-    .content { padding: 24px 28px; }
-
-    /* HERO */
-    .hero {
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 24px 28px;
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .hero-left { display: flex; align-items: center; gap: 18px; }
-    .machine-icon {
-      width: 56px; height: 56px; border-radius: 14px;
-      background: var(--green-dim); border: 1px solid rgba(74,222,128,.25);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
-    }
-    .machine-id   { font-size: 11px; font-family: var(--mono); color: var(--text3); margin-bottom: 4px; }
-    .machine-name { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
-    .machine-marca{ font-size: 13px; color: var(--text2); margin-top: 2px; }
-    .hero-badges  { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .badge { font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; }
-    .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
-    .badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
-    .badge-red   { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,.2); }
-    .badge-blue  { background: var(--blue-dim);  color: var(--blue);  border: 1px solid rgba(96,165,250,.2); }
-    .badge-gray  { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
-
-    /* GRID */
-    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-bottom: 16px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-
-    .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; transition: border-color .2s; }
-    .metric-card:hover { border-color: var(--border2); }
-    .metric-label { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
-    .metric-value { font-size: 26px; font-weight: 300; line-height: 1; }
-    .metric-unit  { font-size: 12px; color: var(--text2); margin-left: 3px; }
-    .metric-sub   { font-size: 11px; color: var(--text3); margin-top: 6px; font-family: var(--mono); }
-
-    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
-    .card-title { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .card-title-dot { width: 6px; height: 6px; border-radius: 50%; }
-
-    .data-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .data-row:last-child { border-bottom: none; }
-    .data-key { color: var(--text2); display: flex; align-items: center; gap: 6px; }
-    .data-val { font-family: var(--mono); font-size: 12px; color: var(--text); }
-
-    /* GAUGE BAR */
-    .gauge-bar-wrap { margin-top: 6px; }
-    .gauge-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 5px; }
-    .gauge-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-    .gauge-fill  { height: 100%; border-radius: 3px; transition: width .6s ease; }
-
-    /* OPERÁRIO */
-    .op-card { display: flex; align-items: center; gap: 14px; }
-    .op-avatar { width: 48px; height: 48px; border-radius: 12px; background: var(--blue-dim); border: 1px solid rgba(96,165,250,.25); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: var(--blue); font-family: var(--mono); flex-shrink: 0; }
-    .op-name  { font-size: 15px; font-weight: 500; }
-    .op-meta  { font-size: 12px; color: var(--text2); margin-top: 3px; font-family: var(--mono); }
-
-    /* CHART */
-    .chart-wrap { position: relative; width: 100%; height: 180px; margin-top: 8px; }
-
-    /* LOADING */
-    .state-msg { padding: 32px; text-align: center; font-size: 13px; color: var(--text3); font-family: var(--mono); }
-
-    /* SECTION DIVIDER */
-    .section-label { font-size: 10px; font-family: var(--mono); color: var(--text3); letter-spacing: .1em; text-transform: uppercase; margin: 20px 0 10px; display: flex; align-items: center; gap: 10px; }
-    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-    .pulse { animation: pulse 2s ease-in-out infinite; }
-
-    @media (max-width: 900px) {
-      .grid-4, .grid-3 { grid-template-columns: 1fr 1fr; }
-      .grid-2 { grid-template-columns: 1fr; }
-      .hero { flex-direction: column; align-items: flex-start; gap: 14px; }
-    }
-
-    /* Inline styles extraídos */
-    .api-address { font-size:10px; color:var(--text3); margin-top:4px; font-family:var(--mono); }
-    .topbar-divider { width:1px; height:20px; background:var(--border); }
-    .refresh-btn { font-size:12px; padding:7px 14px; background:transparent; border:1px solid var(--border); border-radius:var(--radius); color:var(--text2); cursor:pointer; }
+    body { background-color: #f8f9fa; }
+    .topbar { background-color: #343a40; color: white; padding: 20px 0; margin-bottom: 30px; }
+    .topbar .container-lg { display: flex; align-items: center; }
+    .topbar h1 { margin: 0; font-size: 28px; flex: 1; }
+    .back-btn { color: white; text-decoration: none; margin-right: 20px; font-size: 14px; }
+    .back-btn:hover { color: #ddd; }
+    .metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
+    .metric-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; text-align: center; }
+    .metric-label { font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; }
+    .metric-value { font-size: 28px; font-weight: bold; color: #28a745; }
+    .chart-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .chart-container { position: relative; height: 300px; margin-top: 15px; }
   </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
-<aside class="sidebar">
-  <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </div>
-    <div>
-      <div class="logo-text">FieldNode</div>
-      <div class="logo-sub">TELEMETRIA</div>
-    </div>
+<div class="topbar">
+  <div class="container-lg">
+    <a href="dashboard.html" class="back-btn">← Voltar para o Dashboard</a>
+    <h1 id="page-title">Carregando...</h1>
   </div>
-  <nav>
-    <a class="nav-item" href="dashboard.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      Dashboard
-    </a>
-    <a class="nav-item" href="dashboard.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      Colheitadeiras
-    </a>
-    <a class="nav-item" href="#" style="pointer-events: none; opacity: 0.5;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      Operários (em breve)
-    </a>
-  </nav>
-  <div class="sidebar-footer">
-    <div class="api-status">
-      <div class="api-dot"></div>
-      <span>API online</span>
-    </div>
-    <div class="api-address">127.0.0.1:8000</div>
-  </div>
-</aside>
+</div>
 
-<!-- MAIN -->
-<main class="main">
-  <div class="topbar">
-    <div class="topbar-left">
-      <a class="back-btn" href="dashboard.html">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Voltar
-      </a>
-      <div class="topbar-divider"></div>
-      <div>
-        <div class="topbar-title" id="page-title">Carregando...</div>
-        <div class="topbar-sub">Detalhes da máquina</div>
-      </div>
+<div class="container-lg">
+  <div id="content">
+    <div class="text-center py-5">
+      <div class="spinner-border text-success" role="status"></div>
+      <p class="mt-3 text-muted">Carregando dados da máquina...</p>
     </div>
-    <button onclick="location.reload()" class="refresh-btn">↻ Atualizar</button>
   </div>
+</div>
 
-  <div class="content" id="content">
-    <div class="state-msg">Carregando dados da máquina...</div>
-  </div>
-</main>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 <script src="config.js"></script>
-<script src="js/colors.js"></script>
+<script src="js/api.js"></script>
 <script>
-// API definida em config.js
-let allTempChart = null;
-let allFuelChart = null;
-
-// Pega o ID da URL: maquina.html?id=1
 const params = new URLSearchParams(window.location.search);
-const ID = params.get('id');
+const maquinaId = params.get('id');
 
-if (!ID) {
-  document.getElementById('content').innerHTML =
-    '<div class="state-msg" style="color:var(--red)">Nenhuma máquina selecionada. <a href="index.html" style="color:var(--green)">Voltar</a></div>';
+if (!maquinaId) {
+  document.getElementById('content').innerHTML = 
+    '<div class="alert alert-danger">Nenhuma máquina selecionada. <a href="dashboard.html" class="alert-link">Voltar ao Dashboard</a></div>';
 }
 
-async function apiFetch(ep) {
+let tempChart = null;
+let vibChart = null;
+let rpmChart = null;
+
+async function carregarMaquina() {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(API + ep, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
-  } catch (e) {
-    if (e.name === 'AbortError') throw new Error('Timeout - conexão perdida');
-    throw e;
-  }
-}
-
-function gaugeColor(v, max) {
-  const pct = v / max;
-  if (pct > .75) return 'var(--red)';
-  if (pct > .55) return 'var(--amber)';
-  return 'var(--green)';
-}
-
-function fuelColor(v) {
-  if (v < 20) return 'var(--red)';
-  if (v < 40) return 'var(--amber)';
-  return 'var(--green)';
-}
-
-function iniciais(nome) {
-  return nome.split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase();
-}
-
-function getMachineColor(maquinaId, allMachines = []) {
-  // Cores base por marca
-  const marcaCores = {
-    'NH': '#fbbf24',      // New Holland - Amarelo
-    'NEW-HOLLAND': '#fbbf24',
-    'CASE': '#f87171',    // Case IH - Vermelho  
-    'JD': '#4ade80',      // John Deere - Verde
-    'JOHN-DEERE': '#4ade80',
-    'MF': '#60a5fa',      // Massey Ferguson - Azul
-    'MASSEY': '#60a5fa'
-  };
-  
-  // Cores secundárias para diferenciação (tons complementares)
-  const coresSecundarias = {
-    '#fbbf24': '#f59e0b', // Amarelo -> Laranja
-    '#f87171': '#ef4444', // Vermelho -> Vermelho escuro
-    '#4ade80': '#22c55e', // Verde -> Verde escuro
-    '#60a5fa': '#3b82f6'  // Azul -> Azul escuro
-  };
-  
-  // Identifica a marca da máquina
-  let corBase = 'var(--text3)'; // Cor padrão
-  for (const [marca, cor] of Object.entries(marcaCores)) {
-    if (maquinaId.includes(marca)) {
-      corBase = cor;
-      break;
-    }
-  }
-  
-  // Se não temos informações de todas as máquinas, retorna cor base
-  if (!allMachines.length) {
-    return { primary: corBase, secondary: null, isBicolor: false };
-  }
-  
-  // Agrupa máquinas por modelo base (ex: CASE-TC5000)
-  const maquinasPorModelo = {};
-  allMachines.forEach(m => {
-    // Extrai o modelo base do ID (ex: CASE-TC5000-01 -> CASE-TC5000)
-    const modeloMatch = m.maquina_id.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
-    const modelo = modeloMatch ? modeloMatch[1] : m.maquina_id;
+    const leituras = await apiFetch(`/api/telemetria/?maquina_id=${maquinaId}`);
     
-    if (!maquinasPorModelo[modelo]) {
-      maquinasPorModelo[modelo] = [];
+    if (!leituras || leituras.length === 0) {
+      document.getElementById('content').innerHTML = 
+        '<div class="alert alert-warning">Nenhum dado encontrado para esta máquina. <a href="dashboard.html" class="alert-link">Voltar</a></div>';
+      return;
     }
-    maquinasPorModelo[modelo].push(m);
-  });
-  
-  // Encontra o modelo da máquina atual
-  const modeloAtualMatch = maquinaId.match(/^([A-Z-]+[A-Z0-9]+)(?:-\d+)?$/);
-  const modeloAtual = modeloAtualMatch ? modeloAtualMatch[1] : maquinaId;
-  
-  const maquinasDoMesmoModelo = maquinasPorModelo[modeloAtual] || [];
-  
-  // Se há apenas uma máquina deste modelo, usa monocor
-  if (maquinasDoMesmoModelo.length <= 1) {
-    return { primary: corBase, secondary: null, isBicolor: false };
-  }
-  
-  // Se há múltiplas máquinas do mesmo modelo, usa sistema bicolor
-  // A primeira máquina usa cor primária, as demais usam bicolor
-  const indiceMaquina = maquinasDoMesmoModelo.findIndex(m => m.maquina_id === maquinaId);
-  
-  if (indiceMaquina === 0) {
-    // Primeira máquina do modelo: cor primária pura
-    return { primary: corBase, secondary: null, isBicolor: false };
-  } else {
-    // Demais máquinas: sistema bicolor
-    const corSecundaria = coresSecundarias[corBase] || corBase;
-    return {
-      primary: corBase,
-      secondary: corSecundaria,
-      isBicolor: true
-    };
-  }
-}
 
-async function carregar() {
-  try {
-    const [
-      colh,
-      todasTemp,
-      todosComb,
-      todoAmb,
-      todoMov,
-      todoStatus,
-      todoPneus,
-      todoCorte,
-      todoPressaoCorte
-    ] = await Promise.all([
-apiFetch('/colheitadeira/' + ID + '/'),
-       apiFetch('/temperaturamaquina/'),
-       apiFetch('/combustivel/'),
-       apiFetch('/tempumi_ambiente/'),
-       apiFetch('/estadodemovimento/'),
-       apiFetch('/statusdeoperacao/'),
-       apiFetch('/pressaopneus/'),
-       apiFetch('/alturadocorte/'),
-       apiFetch('/pressaodocorte/'),
-    ]);
+    const ultima = leituras[leituras.length - 1];
+    document.getElementById('page-title').textContent = `Máquina ${maquinaId}`;
 
-// Dados relacionados
-     const temp   = todasTemp.find(t => t.id === colh.temperatura_maquina)  || {};
-     const comb   = todosComb.find(c => c.id === colh.combustivel)         || {};
-     const amb    = todoAmb.find(a => a.id === colh.temp_umi_ambiente)       || {};
-     const mov    = todoMov.find(m => m.id === colh.estado_de_movimento)      || {};
-     const status = todoStatus.find(s => s.id === colh.status_de_operacao)    || {};
-     const pneus  = todoPneus.find(p => p.id === colh.pressao_pneus)         || {};
-     const corte  = todoCorte.find(c => c.id === colh.altura_do_corte)        || {};
-     const pressaoCorte = todoPressaoCorte.find(p => p.id === colh.pressao_do_corte) || {};
-
-    // Operário — busca por ID
-    let operario = {};
-    try { operario = await apiFetch('/operario/' + colh.operario + '/'); } catch {}
-
-    // Modelo — busca por ID
-    let modelo = {};
-    try { modelo = await apiFetch('/modelo/' + colh.modelo + '/'); } catch {}
-
-    // Atualiza título
-    const nomeModelo = modelo.nome || 'Colheitadeira #' + ID;
-    document.getElementById('page-title').textContent = nomeModelo;
-
-    const emOp    = status.em_operacao;
-    const emMov   = mov.em_movimento;
-    const tempVal = temp.temperatura  || 0;
-    const combPct = comb.porcentagem  || 0;
-
-    // Alertas automáticos
-    const alertas = [];
-    if (tempVal > 85) alertas.push({ cor: 'var(--red)',   msg: `Temperatura crítica: ${tempVal}°C` });
-    else if (tempVal > 75) alertas.push({ cor: 'var(--amber)', msg: `Temperatura elevada: ${tempVal}°C` });
-    if (combPct < 20) alertas.push({ cor: 'var(--red)',   msg: `Combustível crítico: ${combPct}%` });
-    else if (combPct < 40) alertas.push({ cor: 'var(--amber)', msg: `Combustível baixo: ${combPct}%` });
+    const tempColor = ultima.temperatura > 85 ? '#dc3545' : ultima.temperatura > 75 ? '#ffc107' : '#28a745';
+    const vibColor = ultima.vibracao > 0.8 ? '#dc3545' : ultima.vibracao > 0.5 ? '#ffc107' : '#28a745';
+    const rpmColor = ultima.rpm < 1300 ? '#ffc107' : '#28a745';
 
     document.getElementById('content').innerHTML = `
-
-      <!-- HERO -->
-      <div class="hero">
-        <div class="hero-left">
-          <div class="machine-icon">🚜</div>
-          <div>
-            <div class="machine-id">COLHEITADEIRA #${String(ID).padStart(2,'0')}</div>
-            <div class="machine-name">${nomeModelo}</div>
-<div class="machine-marca">${modelo.marca?.nome || (modelo.marca ? 'Marca #' + modelo.marca : '—')}</div>
-           </div>
-         </div>
-         <div class="hero-badges">
-           ${emOp  ? '<span class="badge badge-green">● Em operação</span>'  : '<span class="badge badge-gray">○ Parada</span>'}
-           ${emMov ? '<span class="badge badge-blue">⟶ Em movimento</span>' : '<span class="badge badge-gray">◼ Estacionada</span>'}
-           ${alertas.length ? `<span class="badge badge-amber">⚠ ${alertas.length} alerta${alertas.length>1?'s':''}</span>` : '<span class="badge badge-green">✓ Normal</span>'}
-         </div>
-       </div>
-
-       ${alertas.length ? `
-       <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px">
-         ${alertas.map(a => `
-           <div style="background:var(--bg2);border:1px solid ${a.cor}33;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
-             <span style="color:${a.cor};font-size:16px">⚠</span>
-             <span style="color:var(--text)">${a.msg}</span>
-           </div>`).join('')}
-       </div>` : ''}
-
-       <!-- MÉTRICAS RÁPIDAS -->
-       <div class="section-label">telemetria em tempo real</div>
-       <div class="grid-4">
-         <div class="metric-card">
-           <div class="metric-label">Temperatura</div>
-           <div class="metric-value" style="color:${gaugeColor(tempVal,100)}">${tempVal}<span class="metric-unit">°C</span></div>
-           <div class="gauge-bar-wrap">
-             <div class="gauge-track"><div class="gauge-fill" style="width:${Math.min(tempVal,100)}%;background:${gaugeColor(tempVal,100)}"></div></div>
-           </div>
-         </div>
-         <div class="metric-card">
-           <div class="metric-label">Combustível</div>
-           <div class="metric-value" style="color:${fuelColor(combPct)}">${combPct}<span class="metric-unit">%</span></div>
-           <div class="gauge-bar-wrap">
-             <div class="gauge-track"><div class="gauge-fill" style="width:${combPct}%;background:${fuelColor(combPct)}"></div></div>
-           </div>
-           <div class="metric-sub">${comb.tipo || '—'}</div>
-         </div>
-         <div class="metric-card">
-           <div class="metric-label">Velocidade</div>
-           <div class="metric-value">${mov.velocidade ?? '—'}<span class="metric-unit">km/h</span></div>
-           <div class="metric-sub">${emMov ? 'em movimento' : 'parada'}</div>
-         </div>
-         <div class="metric-card">
-           <div class="metric-label">Horas de operação</div>
-           <div class="metric-value">${status.tempo_de_operacao ?? '—'}<span class="metric-unit">h</span></div>
-           <div class="metric-sub">${emOp ? 'operando' : 'parada'}</div>
-         </div>
-       </div>
-
-       <!-- DADOS TÉCNICOS + OPERÁRIO -->
-       <div class="section-label">dados técnicos</div>
-       <div class="grid-3">
-
-         <div class="card">
-           <div class="card-title"><div class="card-title-dot" style="background:var(--blue)"></div>pressões e corte</div>
-           <div class="data-row"><span class="data-key">Pressão dos pneus</span><span class="data-val">${pneus.pressao ?? '—'} ${pneus.unidade_de_medida?.nome || ''}</span></div>
-           <div class="data-row"><span class="data-key">Altura de corte</span><span class="data-val">${corte.altura ?? '—'} ${corte.unidade_de_medida?.nome || ''}</span></div>
-           <div class="data-row"><span class="data-key">Pressão de corte</span><span class="data-val">${pressaoCorte.pressao ?? '—'} ${pressaoCorte.unidade_de_medida?.nome || ''}</span></div>
-         </div>
-
-         <div class="card">
-           <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>ambiente</div>
-           <div class="data-row"><span class="data-key">🌡 Temperatura</span><span class="data-val">${amb.temperatura ?? '—'} °C</span></div>
-           <div class="data-row"><span class="data-key">💧 Umidade</span><span class="data-val">${amb.umidade ?? '—'} %</span></div>
-           <div class="data-row"><span class="data-key">Condição</span>
-             <span class="data-val">
-               ${amb.temperatura > 35 ? '<span style="color:var(--red)">Calor extremo</span>' :
-                 amb.temperatura > 28 ? '<span style="color:var(--amber)">Quente</span>' :
-                 '<span style="color:var(--green)">Normal</span>'}
-             </span>
-           </div>
-         </div>
-
-         <div class="card">
-           <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>operário responsável</div>
-           <div class="op-card" style="margin-bottom:14px">
-             <div class="op-avatar">${operario.nome ? iniciais(operario.nome) : '?'}</div>
-             <div>
-               <div class="op-name">${operario.nome || '—'}</div>
-               <div class="op-meta">${operario.tempo_de_servico ?? '—'} anos de serviço</div>
-             </div>
-           </div>
-           <div class="data-row"><span class="data-key">No banco</span>
-             <span>${operario.no_banco ? '<span class="badge badge-green" style="font-size:10px">Sim</span>' : '<span class="badge badge-amber" style="font-size:10px">Não</span>'}</span>
-           </div>
-         </div>
-       </div>
-
-       <!-- GRÁFICOS -->
-       <div class="section-label">histórico de leituras</div>
-       <div class="grid-2">
-        <div class="card">
-          <div class="card-title"><div class="card-title-dot" style="background:var(--amber)"></div>temperaturas registradas</div>
-          <div class="chart-wrap"><canvas id="allTempChart"></canvas></div>
+      <div class="metric-row">
+        <div class="metric-box">
+          <div class="metric-label">Temperatura</div>
+          <div class="metric-value" style="color: ${tempColor}">${ultima.temperatura}°C</div>
         </div>
-        <div class="card">
-          <div class="card-title"><div class="card-title-dot" style="background:var(--green)"></div>combustíveis cadastrados</div>
-          <div class="chart-wrap"><canvas id="allFuelChart"></canvas></div>
+        <div class="metric-box">
+          <div class="metric-label">Vibração</div>
+          <div class="metric-value" style="color: ${vibColor}">${ultima.vibracao}g</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">RPM</div>
+          <div class="metric-value" style="color: ${rpmColor}">${ultima.rpm}</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Status</div>
+          <div class="metric-value" style="font-size: 18px; color: ${tempColor}">${ultima.nivel_risco || 'NORMAL'}</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de Temperatura</h5>
+        <div class="chart-container">
+          <canvas id="temp-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de Vibração</h5>
+        <div class="chart-container">
+          <canvas id="vib-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de RPM</h5>
+        <div class="chart-container">
+          <canvas id="rpm-chart"></canvas>
         </div>
       </div>
     `;
 
-    // Gráfico temperaturas (todas as leituras) - reutiliza instância
-    const tempCtx = document.getElementById('allTempChart');
-    if (allTempChart) allTempChart.destroy();
-    allTempChart = new Chart(tempCtx, {
+    const labels = leituras.map((_, i) => `#${i + 1}`);
+    const tempData = leituras.map(l => l.temperatura);
+    const vibData = leituras.map(l => l.vibracao);
+    const rpmData = leituras.map(l => l.rpm);
+
+    const tempCtx = document.getElementById('temp-chart');
+    if (tempChart) tempChart.destroy();
+    tempChart = new Chart(tempCtx, {
       type: 'line',
       data: {
-        labels: todasTemp.map((_, i) => '#' + (i+1)),
+        labels: labels,
         datasets: [{
-          label: 'Temperatura',
-          data: todasTemp.map(t => t.temperatura),
-          borderColor: '#fbbf24',
-          backgroundColor: 'rgba(251,191,36,.08)',
-          borderWidth: 1.5, pointRadius: 3, tension: 0.4, fill: true,
-          pointBackgroundColor: todasTemp.map(t =>
-            t.id === colh.temperatura_maquina ? '#4ade80' : '#fbbf24'
-          ),
-          pointRadius: todasTemp.map(t =>
-            t.id === colh.temperatura_maquina ? 6 : 3
-          ),
+          label: 'Temperatura (°C)',
+          data: tempData,
+          borderColor: '#dc3545',
+          backgroundColor: 'rgba(220, 53, 69, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ctx.parsed.y + '°C' } }
+          legend: { display: true, position: 'top' }
         },
         scales: {
-          y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#4a6055', font: { size: 11 } } },
-          x: { grid: { display: false }, ticks: { color: '#4a6055', font: { size: 11 } } },
+          y: { beginAtZero: false }
         }
       }
     });
 
-    // Gráfico combustíveis - reutiliza instância
-    const fuelCtx = document.getElementById('allFuelChart');
-    if (allFuelChart) allFuelChart.destroy();
-    allFuelChart = new Chart(fuelCtx, {
-      type: 'bar',
+    const vibCtx = document.getElementById('vib-chart');
+    if (vibChart) vibChart.destroy();
+    vibChart = new Chart(vibCtx, {
+      type: 'line',
       data: {
-        labels: todosComb.map(c => c.tipo || '?'),
+        labels: labels,
         datasets: [{
-          data: todosComb.map(c => c.porcentagem),
-          backgroundColor: todosComb.map(c =>
-            c.id === colh.combustivel ? '#4ade80' :
-            c.porcentagem < 30 ? '#f87171' :
-            c.porcentagem < 50 ? '#fbbf24' : '#1a3326'
-          ),
-          borderRadius: 4, borderSkipped: false,
+          label: 'Vibração (g)',
+          data: vibData,
+          borderColor: '#ffc107',
+          backgroundColor: 'rgba(255, 193, 7, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top' }
+        },
         scales: {
-          y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#4a6055', font: { size: 11 }, callback: v => v + '%' } },
-          x: { grid: { display: false }, ticks: { color: '#4a6055', font: { size: 11 } } },
+          y: { beginAtZero: true }
         }
       }
     });
 
-  } catch(e) {
-    document.getElementById('content').innerHTML =
-      `<div class="state-msg" style="color:var(--red)">Erro ao carregar máquina #${ID}.<br><small>${e.message}</small><br><br><a href="index.html" style="color:var(--green)">← Voltar</a></div>`;
+    const rpmCtx = document.getElementById('rpm-chart');
+    if (rpmChart) rpmChart.destroy();
+    rpmChart = new Chart(rpmCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'RPM',
+          data: rpmData,
+          borderColor: '#28a745',
+          backgroundColor: 'rgba(40, 167, 69, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top' }
+        },
+        scales: {
+          y: { beginAtZero: false }
+        }
+      }
+    });
+
+  } catch (e) {
+    console.error('[carregarMaquina]', e);
+    document.getElementById('content').innerHTML = 
+      `<div class="alert alert-danger">Erro ao carregar dados: ${e.message}<br><a href="dashboard.html" class="alert-link">Voltar ao Dashboard</a></div>`;
   }
 }
 
-if (ID) carregar();
+if (maquinaId) carregarMaquina();
 </script>
+
 </body>
 </html>
