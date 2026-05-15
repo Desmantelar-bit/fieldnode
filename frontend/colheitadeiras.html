@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FieldNode — Colheitadeiras</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0a; --bg2: #111; --bg3: #1a1a1a;
+      --text: #e5e5e5; --text2: #a3a3a3; --text3: #737373;
+      --border: #262626; --border2: #404040;
+      --green: #4ade80; --green-dim: rgba(74,222,128,.1);
+      --amber: #fbbf24; --amber-dim: rgba(251,191,36,.1);
+      --red: #f87171; --red-dim: rgba(248,113,113,.1);
+      --radius: 8px; --radius-lg: 12px;
+      --mono: 'Courier New', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); }
+    .topbar-title { font-size: 16px; font-weight: 600; }
+
+    .content { padding: 24px 28px; flex: 1; overflow-y: auto; }
+
+    .machine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .machine-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; cursor: pointer; transition: all .2s; text-decoration: none; color: inherit; display: block; }
+    .machine-card:hover { border-color: var(--green); transform: translateY(-2px); }
+    .machine-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .machine-id { font-size: 18px; font-weight: 600; font-family: var(--mono); }
+    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; font-family: var(--mono); }
+    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
+    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
+    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .machine-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .metric { text-align: center; }
+    .metric-label { font-size: 10px; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
+    .metric-value { font-size: 16px; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item active" href="colheitadeiras.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Máquinas
+    </a>
+    <a class="nav-item" href="operarios.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title">Máquinas Agrícolas</div>
+  </div>
+
+  <div class="content">
+    <div id="machine-list" class="machine-grid">
+      <div style="text-align: center; padding: 40px; grid-column: 1/-1;">
+        <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid var(--text3); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 12px; color: var(--text3); font-family: var(--mono); font-size: 12px;">Carregando máquinas...</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script>
+async function carregarMaquinas() {
+  try {
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
+    const container = document.getElementById('machine-list');
+    
+    if (!maquinas || maquinas.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 40px; grid-column: 1/-1; color: var(--text3);">Nenhuma máquina encontrada</div>';
+      return;
+    }
+
+    container.innerHTML = maquinas.map(m => {
+      const statusClass = m.nivel_risco === 'CRITICO' ? 'critical' : m.nivel_risco === 'ATENCAO' ? 'warning' : 'normal';
+      const tempColor = m.temperatura > 85 ? '#f87171' : m.temperatura > 75 ? '#fbbf24' : '#4ade80';
+      const vibColor = m.vibracao > 0.8 ? '#f87171' : m.vibracao > 0.5 ? '#fbbf24' : '#4ade80';
+      const rpmColor = m.rpm < 1300 ? '#fbbf24' : '#4ade80';
+
+      // Detecta tipo de máquina pelo prefixo do ID
+      let tipoMaquina = '🚜';
+      let tipoNome = 'Colheitadeira';
+      
+      if (m.maquina_id.startsWith('TRAT')) {
+        tipoMaquina = '🚜';
+        tipoNome = 'Trator';
+      } else if (m.maquina_id.startsWith('PULV')) {
+        tipoMaquina = '💧';
+        tipoNome = 'Pulverizador';
+      } else if (m.maquina_id.startsWith('PLAN')) {
+        tipoMaquina = '🌱';
+        tipoNome = 'Plantadeira';
+      } else if (m.maquina_id.startsWith('COLH')) {
+        tipoMaquina = '🌾';
+        tipoNome = 'Colheitadeira';
+      }
+
+      return `
+        <a href="detalhes.html?id=${encodeURIComponent(m.maquina_id)}" class="machine-card">
+          <div class="machine-header">
+            <div>
+              <div style="font-size: 24px; margin-bottom: 4px;">${tipoMaquina}</div>
+              <div class="machine-id">${m.maquina_id}</div>
+              <div style="font-size: 10px; color: var(--text3); margin-top: 2px;">${tipoNome}</div>
+            </div>
+            <div class="status-badge ${statusClass}">${m.nivel_risco || 'NORMAL'}</div>
+          </div>
+          <div class="machine-metrics">
+            <div class="metric">
+              <div class="metric-label">Temp</div>
+              <div class="metric-value" style="color: ${tempColor}">${m.temperatura}°C</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Vib</div>
+              <div class="metric-value" style="color: ${vibColor}">${m.vibracao}g</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">RPM</div>
+              <div class="metric-value" style="color: ${rpmColor}">${m.rpm}</div>
+            </div>
+          </div>
+        </a>
+      `;
+    }).join('');
+
+  } catch (e) {
+    console.error('[colheitadeiras] Erro:', e);
+    document.getElementById('machine-list').innerHTML = 
+      '<div style="text-align: center; padding: 40px; grid-column: 1/-1; color: var(--red);">Erro ao carregar máquinas</div>';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', carregarMaquinas);
+</script>
+
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+
+</body>
+</html>

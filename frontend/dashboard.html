@@ -44,9 +44,17 @@
     .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
     .dashboard-title { font-size: 20px; font-weight: 600; }
     .dashboard-controls { display: flex; align-items: center; gap: 12px; }
-    .search-box { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); }
+    .search-box { position: relative; display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); }
     .search-box input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; width: 150px; }
     .search-box input::placeholder { color: var(--text3); }
+    .autocomplete-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+    .autocomplete-dropdown.active { display: block; }
+    .autocomplete-item { padding: 10px 14px; cursor: pointer; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,.04); transition: all .15s; }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover { background: rgba(255,255,255,.05); }
+    .autocomplete-item-id { font-family: var(--mono); color: var(--text); font-weight: 500; }
+    .autocomplete-item-status { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .autocomplete-empty { padding: 14px; text-align: center; font-size: 11px; color: var(--text3); font-family: var(--mono); }
 
     /* METRICS CARDS */
     .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
@@ -154,13 +162,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Dashboard
     </a>
-    <a class="nav-item" href="dashboard.html">
+    <a class="nav-item" href="colheitadeiras.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      Colheitadeiras
+      Máquinas
     </a>
-    <a class="nav-item" href="#" style="pointer-events: none; opacity: 0.5;">
+    <a class="nav-item" href="operarios.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      Operários (em breve)
+      Operários
     </a>
   </nav>
   <div class="sidebar-footer">
@@ -192,7 +200,8 @@
       <div class="dashboard-controls">
         <div class="search-box">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="machine-search" placeholder="Buscar máquina..."/>
+          <input type="text" id="machine-search" placeholder="Buscar máquina..." autocomplete="off"/>
+          <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
         </div>
       </div>
     </div>
@@ -373,6 +382,70 @@ function pollMQTT() {
   atualizarStatusMQTT();
   setTimeout(pollMQTT, 5000);
 }
+
+// AUTOCOMPLETE
+const searchInput = document.getElementById('machine-search');
+const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    const termo = e.target.value.trim().toUpperCase();
+    
+    if (!termo) {
+      autocompleteDropdown.classList.remove('active');
+      return;
+    }
+    
+    const resultados = tabelaState.dados.filter(m => 
+      m.maquina_id.toUpperCase().includes(termo)
+    );
+    
+    if (resultados.length === 0) {
+      autocompleteDropdown.innerHTML = '<div class="autocomplete-empty">Nenhuma máquina encontrada</div>';
+      autocompleteDropdown.classList.add('active');
+      return;
+    }
+    
+    autocompleteDropdown.innerHTML = resultados.map(m => {
+      const statusText = m.temperatura ? `${m.temperatura}°C | ${m.vibracao}g | ${m.rpm} RPM` : 'Sem dados';
+      return `
+        <div class="autocomplete-item" onclick="selecionarMaquinaAutocomplete('${m.maquina_id}')">
+          <div class="autocomplete-item-id">${m.maquina_id}</div>
+          <div class="autocomplete-item-status">${statusText}</div>
+        </div>
+      `;
+    }).join('');
+    
+    autocompleteDropdown.classList.add('active');
+  });
+  
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const termo = e.target.value.trim().toUpperCase();
+      if (termo) {
+        const encontrada = tabelaState.dados.find(m => 
+          m.maquina_id.toUpperCase().includes(termo)
+        );
+        if (encontrada) {
+          selecionarMaquinaAutocomplete(encontrada.maquina_id);
+        }
+      }
+    }
+  });
+}
+
+function selecionarMaquinaAutocomplete(maquinaId) {
+  autocompleteDropdown.classList.remove('active');
+  searchInput.value = '';
+  abrirPopupMaquina(maquinaId);
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-box')) {
+    autocompleteDropdown.classList.remove('active');
+  }
+});
 
 // INICIALIZA NO LOAD
 window.addEventListener('DOMContentLoaded', () => {

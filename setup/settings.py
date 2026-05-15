@@ -81,7 +81,10 @@ WSGI_APPLICATION = 'setup.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-if DEBUG:
+# Permite forçar o banco via variável de ambiente USE_SQLITE=True
+USE_SQLITE = config('USE_SQLITE', default=DEBUG, cast=bool)
+
+if USE_SQLITE:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
