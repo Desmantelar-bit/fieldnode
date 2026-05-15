@@ -65,8 +65,9 @@ router.register(r'transbordo', viewsets.TransbordoViewSet, basename='transbordo'
 router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colheitadeira')
 
 urlpatterns = [ # Rota para o admin e para as APIs geradas pelos viewsets
+    path('', include(router.urls)),  # API Root na raiz
     path('admin/', admin.site.urls),
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
     path('api/telemetria/', IngestaoTelemetriaView.as_view(), name='ingestao-telemetria'),
 ]
 

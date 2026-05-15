@@ -173,6 +173,7 @@ if DEBUG:
         'user-agent',
         'x-csrftoken',
         'x-requested-with',
+        'x-api-key',  # Adicionar header customizado
     ]
     # Configuração específica para arquivos locais
     CORS_ALLOWED_ORIGIN_REGEXES = [
