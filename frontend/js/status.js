@@ -32,6 +32,7 @@ const MAQUINAS_POR_GRUPO = 3;
 async function atualizarStatusMaquinas() {
   try {
     const maquinas = await apiFetch('/api/leituras/ultimas/');
+    console.log('[DEBUG] Dados da API /api/leituras/ultimas/:', maquinas);
 
     if (!maquinas.length) {
       _mostrarMensagemTabela('Nenhuma leitura recebida do ESP32 ainda.');
@@ -192,20 +193,19 @@ async function abrirPopupMaquina(maquinaId) {
       apiFetch(`/api/manutencao/?maquina_id=${maquinaId}`).catch(() => ({}))
     ]);
 
-    const ultimaTel = telemetrias.length ? telemetrias[0] : {};
+    const ultimaTel = telemetrias.length ? telemetrias[telemetrias.length - 1] : {};
     const maquinaInfo = tabelaState.dados.find(m => m.maquina_id === maquinaId) || ultimaTel;
 
-    document.getElementById('popup-modelo').textContent = maquinaInfo.modelo || '—';
+    document.getElementById('popup-modelo').textContent = '—';
     document.getElementById('popup-temp').textContent = maquinaInfo.temperatura ? `${maquinaInfo.temperatura}°C` : '—';
-    document.getElementById('popup-fuel').textContent = maquinaInfo.combustivel ? `${maquinaInfo.combustivel}%` : '—';
+    document.getElementById('popup-fuel').textContent = '—';
     document.getElementById('popup-status').textContent = maquinaInfo.nivel_risco ? rotuloRisco(maquinaInfo.nivel_risco) : '—';
 
     _renderIaCard(anomalias, manutencao);
 
     const detailsLink = document.getElementById('popup-details-link');
     if (detailsLink) {
-      const indiceNaFrota = tabelaState.dados.findIndex(m => m.maquina_id === maquinaId);
-      detailsLink.href = `maquina.html?id=${indiceNaFrota !== -1 ? indiceNaFrota + 1 : 1}`;
+      detailsLink.href = `detalhes.html?id=${encodeURIComponent(maquinaId)}`;
     }
 
   } catch (err) {

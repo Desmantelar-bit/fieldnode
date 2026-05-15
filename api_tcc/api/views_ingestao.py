@@ -253,7 +253,7 @@ class StatusMQTTView(APIView):
     mantendo responsividade de detecção de desconexão.
     """
     def get(self, request):
-        ultima_leitura = LeituraTelemetria.objects.order_by('-created_at').first()
+        ultima_leitura = LeituraTelemetria.objects.order_by('-recebido_em').first()
 
         if not ultima_leitura:
             return Response({
@@ -263,7 +263,7 @@ class StatusMQTTView(APIView):
                 'detalhes': 'Nenhuma leitura recebida ainda'
             })
 
-        delta = timezone.now() - ultima_leitura.created_at
+        delta = timezone.now() - ultima_leitura.recebido_em
         segundos_atras = int(delta.total_seconds())
         conectado = segundos_atras < 10
 

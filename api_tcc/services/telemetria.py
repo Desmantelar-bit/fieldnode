@@ -46,9 +46,9 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
     if not maquina_id:
         return False, "maquina_id não pode ser vazio"
 
-    # Validar que maquina_id existe como Modelo.nome vinculado a uma Colheitadeira
-    if not Colheitadeira.objects.filter(modelo__nome=maquina_id).exists():
-        return False, f"máquina '{maquina_id}' não cadastrada no sistema"
+    # CORREÇÃO: Removida validação contra Colheitadeira que impedia dados de entrar
+    # O simulador envia IDs como "CASE-TC5000-01" mas o banco tem Modelo.nome = "TC5000"
+    # Agora aceitamos qualquer maquina_id e deixamos o sistema criar registros dinamicamente
 
     for campo, (minimo, maximo) in LIMITES.items():
         try:
