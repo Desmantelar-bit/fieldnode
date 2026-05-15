@@ -7,12 +7,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <style>
     :root {
-      --bg: #0a0a0a; --bg2: #111; --bg3: #1a1a1a;
-      --text: #e5e5e5; --text2: #a3a3a3; --text3: #737373;
-      --border: #262626; --border2: #404040;
-      --green: #4ade80; --green-dim: rgba(74,222,128,.1);
-      --amber: #fbbf24; --amber-dim: rgba(251,191,36,.1);
-      --red: #f87171; --red-dim: rgba(248,113,113,.1);
+      --bg: #f5f5f5; --bg2: #ffffff; --bg3: #fafafa;
+      --text: #1a1a1a; --text2: #555555; --text3: #888888;
+      --border: #e0e0e0; --border2: #d0d0d0;
+      --green: #16a34a; --green-dim: #dcfce7;
+      --amber: #d97706; --amber-dim: #fef3c7;
+      --red: #dc2626; --red-dim: #fee2e2;
       --radius: 8px; --radius-lg: 12px;
       --mono: 'Courier New', monospace;
     }
@@ -21,42 +21,43 @@
 
     .sidebar {
       width: 220px; flex-shrink: 0;
-      background: var(--bg2); border-right: 1px solid var(--border);
+      background: var(--bg2); border-right: 2px solid var(--border);
       display: flex; flex-direction: column; padding: 24px 0;
       position: fixed; top: 0; left: 0; bottom: 0;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
     }
-    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 2px solid var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
     .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
-    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
     .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
-    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
-    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
-    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
-    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
-    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 3px solid transparent; transition: all .15s; text-decoration: none; font-weight: 500; }
+    .nav-item:hover { color: var(--text); background: var(--bg3); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); font-weight: 600; }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 2px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); font-weight: 600; }
     .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
 
     .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
-    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); }
-    .topbar-title { font-size: 16px; font-weight: 600; }
+    .topbar { padding: 18px 28px; border-bottom: 2px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
 
     .content { padding: 24px 28px; flex: 1; overflow-y: auto; }
 
     .machine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-    .machine-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; cursor: pointer; transition: all .2s; text-decoration: none; color: inherit; display: block; }
-    .machine-card:hover { border-color: var(--green); transform: translateY(-2px); }
+    .machine-card { background: var(--bg2); border: 2px solid var(--border); border-radius: var(--radius-lg); padding: 20px; cursor: pointer; transition: all .2s; text-decoration: none; color: inherit; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .machine-card:hover { border-color: var(--green); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
     .machine-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .machine-id { font-size: 18px; font-weight: 600; font-family: var(--mono); }
-    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; font-family: var(--mono); }
-    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
-    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
-    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .machine-id { font-size: 18px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; font-family: var(--mono); font-weight: 700; }
+    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 2px solid var(--green); }
+    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 2px solid var(--amber); }
+    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 2px solid var(--red); }
     .machine-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .metric { text-align: center; }
-    .metric-label { font-size: 10px; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
-    .metric-value { font-size: 16px; font-weight: 600; }
+    .metric-label { font-size: 10px; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; font-weight: 700; }
+    .metric-value { font-size: 16px; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -83,6 +84,10 @@
     <a class="nav-item" href="operarios.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       Operários
+    </a>
+    <a class="nav-item" href="cadastro.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Cadastro
     </a>
   </nav>
   <div class="sidebar-footer">

@@ -6,29 +6,37 @@
  * Sem autodescoberta, sem lógica esperta, sem surpresa.
  */
 
-async function apiFetch(endpoint, requiresAuth = false) {
-  const headers = {};
-  if (requiresAuth) {
+async function apiFetch(endpoint, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  
+  if (options.requiresAuth || options.method === 'POST' || options.method === 'PUT' || options.method === 'DELETE') {
     headers['X-API-Key'] = API_KEY;
   }
   
-  const r = await fetch(API + endpoint, { headers });
-  if (!r.ok) throw new Error(`HTTP ${r.status} em ${endpoint}`);
+  const fetchOptions = {
+    method: options.method || 'GET',
+    headers,
+    ...options
+  };
+  
+  if (options.body) {
+    fetchOptions.body = options.body;
+  }
+  
+  const r = await fetch(API + endpoint, fetchOptions);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: `HTTP ${r.status}` }));
+    throw new Error(err.detail || JSON.stringify(err));
+  }
   return r.json();
 }
 
 async function apiPost(endpoint, body) {
-  const r = await fetch(API + endpoint, {
+  return apiFetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': API_KEY,
-    },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(JSON.stringify(err));
-  }
-  return r.json();
 }
