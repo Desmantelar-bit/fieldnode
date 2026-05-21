@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#0a0b09"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icons/icon-192x192.png"/>
 <title>FieldNode — Telemetria Off-Grid para Colheitadeiras</title>
 <meta name="description" content="O dado existe. O FieldNode garante que ele chegue. Telemetria offline-first para máquinas agrícolas em áreas sem sinal."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -1224,6 +1229,19 @@ footer .badge{
 </footer>
 
 <script>
+// PWA SERVICE WORKER REGISTRATION
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/frontend/sw.js')
+      .then((registration) => {
+        console.log('[PWA] Service Worker registered successfully:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('[PWA] Service Worker registration failed:', error);
+      });
+  });
+}
+
 const canvas = document.getElementById('orbit-canvas');
 if(canvas){
   const ctx = canvas.getContext('2d');

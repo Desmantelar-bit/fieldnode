@@ -2,10 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#0e1210"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png"/>
   <title>FieldNode — Dashboard de Frota</title>
   <!-- Bootstrap 5 CDN -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <style>
     /* SIDEBAR */
     .sidebar {
@@ -184,20 +191,214 @@
     .acao-recomendada.critico .acao-title { color: var(--red); }
     .acao-text { font-size: 13px; color: var(--text2); }
     
-    /* LOADING STATE */
-    .prescricao-loading { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
+     /* LOADING STATE */
+     .prescricao-loading { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
 
-    @media (max-width: 900px) {
-      .sidebar { width: 180px; }
-      .main { margin-left: 180px; }
-      .dashboard-controls { flex-direction: column; align-items: stretch; }
-      .search-box { width: 100%; }
-      .search-box input { width: 100%; }
-      .offcanvas { width: 100%; }
+     /* CHARTS */
+     .charts-container {
+       background: var(--bg2);
+       border: 1px solid var(--border);
+       border-radius: var(--radius-lg);
+       padding: 20px;
+     }
+
+     /* MOBILE RESPONSIVENESS */
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: -100%;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        background: var(--bg);
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .sidebar.mobile-open {
+        left: 0;
+      }
+      .main {
+        margin-left: 0;
+        width: 100%;
+      }
+      .topbar {
+        padding: 12px 16px;
+        position: relative;
+      }
+      .topbar-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .topbar-title {
+        font-size: 14px;
+      }
+      .mqtt-badge {
+        font-size: 10px;
+        padding: 4px 8px;
+      }
+      .content {
+        padding: 16px;
+      }
+      .dashboard-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .dashboard-title {
+        font-size: 18px;
+      }
+      .search-box {
+        width: 100%;
+      }
+      .search-box input {
+        width: 100%;
+        font-size: 14px;
+        padding: 10px 14px;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .metric-card {
+        padding: 16px;
+      }
+      .metric-value {
+        font-size: 24px;
+      }
+      .status-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .status-table {
+        min-width: 600px;
+      }
+      .status-table th,
+      .status-table td {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      .carousel-controls {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .carousel-info {
+        text-align: center;
+      }
+      .offcanvas {
+        width: 100%;
+        right: 0;
+      }
+      .offcanvas-header {
+        padding: 20px 16px;
+      }
+      .offcanvas-body {
+        padding: 16px;
+      }
+      .prescricao-section {
+        margin-bottom: 20px;
+      }
+    }
+
+    @media (max-width: 375px) {
+      .topbar {
+        padding: 10px 12px;
+      }
+      .content {
+        padding: 12px;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .metric-card {
+        padding: 14px;
+      }
+      .metric-value {
+        font-size: 20px;
+      }
+      .metric-label {
+        font-size: 10px;
+      }
+      .dashboard-title {
+        font-size: 16px;
+      }
+      .search-box input {
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+      .status-table th,
+      .status-table td {
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+      .machine-cell {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .machine-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+      .prescricao-section {
+        margin-bottom: 16px;
+      }
+      .nivel-risco {
+        padding: 12px;
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+      }
+      .nivel-risco-icon {
+        font-size: 20px;
+      }
+    }
+
+    /* MOBILE MENU BUTTON */
+    .mobile-menu-btn {
+      display: none;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: block;
+      }
+    }
+
+    /* MOBILE OVERLAY */
+    .mobile-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-overlay.active {
+        display: block;
+      }
     }
   </style>
 </head>
 <body>
+
+<!-- MOBILE OVERLAY -->
+<div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -241,6 +442,7 @@
 <main class="main">
   <div class="topbar">
     <div class="topbar-left">
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
       <div class="topbar-title">Dashboard de Frota</div>
       <div class="topbar-divider"></div>
       <div class="mqtt-badge" id="mqtt-badge">
@@ -263,26 +465,38 @@
       </div>
     </div>
 
-    <!-- METRICS CARDS -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-label">Total de Leituras</div>
-        <div class="metric-value" id="metric-total-leituras">—</div>
-        <div class="metric-subtitle">Últimas 24h</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Máquinas Ativas</div>
-        <div class="metric-value" id="metric-maquinas-ativas">—</div>
-        <div class="metric-subtitle">Em operação</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Taxa de Rejeição</div>
-        <div class="metric-value" id="metric-taxa-rejeicao">—</div>
-        <div class="metric-subtitle">Leituras inválidas</div>
-      </div>
-    </div>
+     <!-- METRICS CARDS -->
+     <div class="metrics-grid">
+       <div class="metric-card">
+         <div class="metric-label">Total de Leituras</div>
+         <div class="metric-value" id="metric-total-leituras">—</div>
+         <div class="metric-subtitle">Últimas 24h</div>
+       </div>
+       <div class="metric-card">
+         <div class="metric-label">Máquinas Ativas</div>
+         <div class="metric-value" id="metric-maquinas-ativas">—</div>
+         <div class="metric-subtitle">Em operação</div>
+       </div>
+       <div class="metric-card">
+         <div class="metric-label">Taxa de Rejeição</div>
+         <div class="metric-value" id="metric-taxa-rejeicao">—</div>
+         <div class="metric-subtitle">Leituras inválidas</div>
+       </div>
+     </div>
 
-    <!-- STATUS TABLE -->
+     <!-- CHARTS -->
+     <div class="charts-container" style="margin-bottom: 24px;">
+       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+         <div>
+           <canvas id="temperatureChart" height="120"></canvas>
+         </div>
+         <div>
+           <canvas id="statusChart" height="120"></canvas>
+         </div>
+       </div>
+     </div>
+
+     <!-- STATUS TABLE -->
     <div class="status-container">
       <div class="status-table-wrapper">
         <table class="status-table">
@@ -341,6 +555,158 @@
 <script src="js/status.js"></script>
 
 <script>
+// PWA SERVICE WORKER REGISTRATION
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/frontend/sw.js')
+      .then((registration) => {
+        console.log('[PWA] Service Worker registered successfully:', registration.scope);
+        
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content available, show update notification
+              showUpdateNotification();
+            }
+          });
+        });
+      })
+      .catch((error) => {
+        console.error('[PWA] Service Worker registration failed:', error);
+      });
+  });
+}
+
+// PWA INSTALL PROMPT
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('[PWA] Install prompt available');
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallButton();
+});
+
+function showInstallButton() {
+  // Create install button if it doesn't exist
+  if (!document.getElementById('pwa-install-btn')) {
+    const installBtn = document.createElement('button');
+    installBtn.id = 'pwa-install-btn';
+    installBtn.innerHTML = '📱 Instalar App';
+    installBtn.className = 'btn btn-primary';
+    installBtn.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      padding: 12px 16px;
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: var(--radius);
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('[PWA] Install prompt outcome:', outcome);
+        deferredPrompt = null;
+        installBtn.remove();
+      }
+    });
+    
+    document.body.appendChild(installBtn);
+    
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+      if (installBtn.parentNode) {
+        installBtn.style.opacity = '0.7';
+      }
+    }, 10000);
+  }
+}
+
+function showUpdateNotification() {
+  // Create update notification
+  const updateNotification = document.createElement('div');
+  updateNotification.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--green);
+      border-radius: var(--radius);
+      padding: 16px;
+      z-index: 1001;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    ">
+      <div style="color: var(--text); font-size: 14px; margin-bottom: 8px;">
+        🔄 Nova versão disponível
+      </div>
+      <div style="color: var(--text2); font-size: 12px; margin-bottom: 12px;">
+        Recarregue a página para atualizar
+      </div>
+      <button onclick="window.location.reload()" style="
+        background: var(--green-dim);
+        color: var(--green);
+        border: 1px solid var(--green);
+        border-radius: var(--radius);
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-right: 8px;
+      ">Atualizar</button>
+      <button onclick="this.parentElement.parentElement.remove()" style="
+        background: var(--bg3);
+        color: var(--text2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+      ">Depois</button>
+    </div>
+  `;
+  
+  document.body.appendChild(updateNotification);
+  
+  // Auto-remove after 30 seconds
+  setTimeout(() => {
+    if (updateNotification.parentNode) {
+      updateNotification.remove();
+    }
+  }, 30000);
+}
+
+// MOBILE MENU FUNCTIONS
+function toggleMobileMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('mobile-overlay');
+  
+  sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('active');
+}
+
+function closeMobileMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('mobile-overlay');
+  
+  sidebar.classList.remove('mobile-open');
+  overlay.classList.remove('active');
+}
+
+// Close mobile menu when clicking nav items
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', closeMobileMenu);
+});
+
 // MQTT STATUS POLLING
 async function atualizarStatusMQTT() {
   try {
@@ -458,7 +824,100 @@ if (searchInput) {
 function selecionarMaquinaAutocomplete(maquinaId) {
   autocompleteDropdown.classList.remove('active');
   searchInput.value = '';
-  abrirPopupMaquina(maquinaId);
+  abrirPrescricao(maquinaId);
+}
+
+// CHARTS
+let temperatureChart, statusChart;
+
+function initializeCharts() {
+  const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+  const statusCtx = document.getElementById('statusChart').getContext('2d');
+  
+  window.temperatureChart = new Chart(tempCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Temperatura (°C)',
+        data: [],
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248, 113, 113, 0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.7)'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.7)'
+          }
+        }
+      }
+    }
+  });
+  
+  window.statusChart = new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Normal', 'Atenção', 'Crítico'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['#4ade80', '#fbbf24', '#f87171'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: 'rgba(255, 255, 255, 0.7)',
+            font: {
+              size: 10
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = Math.round((value / total) * 100);
+              return `${label}: ${value} (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 // Fecha dropdown ao clicar fora
@@ -731,6 +1190,7 @@ function abrirPopupMaquina(maquinaId) {
 
 // INICIALIZA NO LOAD
 window.addEventListener('DOMContentLoaded', () => {
+  initializeCharts();
   atualizarStatusMQTT(); // Uma vez imediatamente
   pollMQTT();             // Depois a cada 5s
   pollStatus();           // Polling do status das máquinas
