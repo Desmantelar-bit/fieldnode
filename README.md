@@ -104,7 +104,14 @@ O dashboard atualizará automaticamente a cada 3 segundos.
 | `/api/v1/telemetria/ultimas/` | GET | Última leitura de cada máquina ativa |
 | `/api/v1/anomalias/` | GET | Detecta leituras fora do padrão (Isolation Forest) |
 | `/api/v1/manutencao/` | GET | Prevê probabilidade de manutenção |
+| `/api/v1/prescricoes/` | GET | Gera prescrições de manutenção com IA |
+| `/api/v1/relatorio/` | GET | Relatório operacional (JSON/CSV) |
 | `/api/v1/metricas/` | GET | Métricas operacionais do sistema |
+
+### Exemplo de Prescrição
+```bash
+curl -X GET "http://localhost:8000/api/prescricoes/?maquina_id=CASE-TC5000-01"
+```
 
 ### Exemplo de Ingestão
 ```bash

@@ -130,10 +130,62 @@
     .popup-ia-bar-fill  { height: 100%; border-radius: 4px; transition: width .6s ease; }
     .popup-ia-loading   { padding: 20px; text-align: center; font-size: 13px; font-family: var(--mono); color: #666; font-weight: 600; }
 
+    /* OFFCANVAS PRESCRITIVO */
+    .offcanvas-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(8px); z-index: 1000; opacity: 0; visibility: hidden; transition: all .3s ease; }
+    .offcanvas-overlay.active { opacity: 1; visibility: visible; }
+    .offcanvas { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: var(--bg); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform .3s ease; overflow-y: auto; z-index: 1001; }
+    .offcanvas.active { transform: translateX(0); }
+    .offcanvas-header { padding: 24px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+    .offcanvas-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .offcanvas-subtitle { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+    .offcanvas-close { position: absolute; top: 20px; right: 20px; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; font-size: 20px; line-height: 1; padding: 8px 12px; border-radius: 6px; transition: all .15s; }
+    .offcanvas-close:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+    .offcanvas-body { padding: 24px; }
+    
+    /* SEÇÕES DO OFFCANVAS */
+    .prescricao-section { margin-bottom: 24px; }
+    .prescricao-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; font-weight: 600; }
+    
+    /* NÍVEL DE RISCO */
+    .nivel-risco { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: var(--radius); margin-bottom: 16px; }
+    .nivel-risco.normal { background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); }
+    .nivel-risco.atencao { background: var(--amber-dim); border: 1px solid rgba(251,191,36,.3); }
+    .nivel-risco.critico { background: var(--red-dim); border: 1px solid rgba(248,113,113,.3); }
+    .nivel-risco-icon { font-size: 24px; }
+    .nivel-risco.normal .nivel-risco-icon { color: var(--green); }
+    .nivel-risco.atencao .nivel-risco-icon { color: var(--amber); }
+    .nivel-risco.critico .nivel-risco-icon { color: var(--red); }
+    .nivel-risco-text { flex: 1; }
+    .nivel-risco-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .nivel-risco.normal .nivel-risco-title { color: var(--green); }
+    .nivel-risco.atencao .nivel-risco-title { color: var(--amber); }
+    .nivel-risco.critico .nivel-risco-title { color: var(--red); }
+    .nivel-risco-desc { font-size: 12px; color: var(--text2); }
+    
+    /* ANOMALIAS */
+    .anomalias-list { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .anomalia-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .anomalia-item:last-child { border-bottom: none; }
+    .anomalia-icon { font-size: 16px; color: var(--amber); }
+    .anomalia-text { font-size: 13px; color: var(--text2); }
+    .anomalias-empty { text-align: center; color: var(--text3); font-size: 12px; font-family: var(--mono); }
+    
+    /* PRESCRIÇÃO */
+    .prescricao-text { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-size: 14px; line-height: 1.5; color: var(--text); }
+    
+    /* AÇÃO RECOMENDADA */
+    .acao-recomendada { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .acao-recomendada.normal { border-color: var(--green); background: var(--green-dim); }
+    .acao-recomendada.atencao { border-color: var(--amber); background: var(--amber-dim); }
+    .acao-recomendada.critico { border-color: var(--red); background: var(--red-dim); }
+    .acao-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .acao-recomendada.normal .acao-title { color: var(--green); }
+    .acao-recomendada.atencao .acao-title { color: var(--amber); }
+    .acao-recomendada.critico .acao-title { color: var(--red); }
+    .acao-text { font-size: 13px; color: var(--text2); }
+    
     /* LOADING STATE */
-    .state-msg { padding: 40px; text-align: center; font-size: 13px; color: var(--text3); font-family: var(--mono); }
-    .pulse-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--text3); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .prescricao-loading { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
 
     @media (max-width: 900px) {
       .sidebar { width: 180px; }
@@ -141,6 +193,7 @@
       .dashboard-controls { flex-direction: column; align-items: stretch; }
       .search-box { width: 100%; }
       .search-box input { width: 100%; }
+      .offcanvas { width: 100%; }
     }
   </style>
 </head>
@@ -264,55 +317,19 @@
   </div>
 </main>
 
-<!-- POPUP -->
-<div class="popup-overlay" id="machine-details-popup">
-  <div class="popup-content">
-    <div class="popup-header">
-      <div class="popup-title" id="popup-title">Detalhes da Máquina</div>
-      <button class="popup-close" onclick="fecharPopupMaquina()">×</button>
-    </div>
-
-    <div class="popup-section">
-      <div class="popup-label">Identificação</div>
-      <div class="popup-data-row">
-        <span class="popup-data-key">ID:</span>
-        <span class="popup-data-val" id="popup-id">—</span>
-      </div>
-      <div class="popup-data-row">
-        <span class="popup-data-key">Modelo:</span>
-        <span class="popup-data-val" id="popup-modelo">—</span>
-      </div>
-    </div>
-
-    <div class="popup-section">
-      <div class="popup-label">Telemetria em Tempo Real</div>
-      <div class="popup-data-row">
-        <span class="popup-data-key">Temperatura:</span>
-        <span class="popup-data-val" id="popup-temp">—</span>
-      </div>
-      <div class="popup-data-row">
-        <span class="popup-data-key">Combustível:</span>
-        <span class="popup-data-val" id="popup-fuel">—</span>
-      </div>
-      <div class="popup-data-row">
-        <span class="popup-data-key">Status:</span>
-        <span class="popup-data-val" id="popup-status">—</span>
-      </div>
-    </div>
-
-    <div class="popup-ia-section" id="popup-ia-section">
-      <div class="popup-ia-header">
-        <span class="popup-ia-icon">🧠</span>
-        <span class="popup-ia-title">Análise Preditiva — IA</span>
-      </div>
-      <div class="popup-ia-body" id="popup-ia-body">
-        <div class="popup-ia-loading">⌛ Carregando análise...</div>
-      </div>
-    </div>
-
-    <div class="popup-buttons">
-      <a class="popup-btn" id="popup-details-link" href="#">📊 Ver Detalhes</a>
-      <button class="popup-btn" onclick="fecharPopupMaquina()">✕ Fechar</button>
+<!-- OFFCANVAS PRESCRITIVO -->
+<div class="offcanvas-overlay" id="prescricao-overlay" onclick="fecharPrescricao()"></div>
+<div class="offcanvas" id="prescricao-offcanvas">
+  <div class="offcanvas-header">
+    <div class="offcanvas-title" id="prescricao-title">Prescrição de Manutenção</div>
+    <div class="offcanvas-subtitle" id="prescricao-subtitle">—</div>
+    <button class="offcanvas-close" onclick="fecharPrescricao()">×</button>
+  </div>
+  
+  <div class="offcanvas-body" id="prescricao-body">
+    <div class="prescricao-loading">
+      <div class="pulse-spinner"></div>
+      Analisando máquina...
     </div>
   </div>
 </div>
@@ -451,23 +468,272 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// FUNÇÕES DO OFFCANVAS PRESCRITIVO
+function fecharPrescricao() {
+  document.getElementById('prescricao-overlay').classList.remove('active');
+  document.getElementById('prescricao-offcanvas').classList.remove('active');
+}
+
+// Fecha offcanvas com ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    fecharPrescricao();
+  }
+});
+
+// Abre offcanvas prescritivo ao clicar em máquina
+async function abrirPrescricao(maquinaId) {
+  const overlay = document.getElementById('prescricao-overlay');
+  const offcanvas = document.getElementById('prescricao-offcanvas');
+  const body = document.getElementById('prescricao-body');
+  
+  // Atualiza título
+  document.getElementById('prescricao-title').textContent = 'Prescrição de Manutenção';
+  document.getElementById('prescricao-subtitle').textContent = maquinaId;
+  
+  // Mostra loading
+  body.innerHTML = `
+    <div class="prescricao-loading">
+      <div class="pulse-spinner"></div>
+      Analisando máquina...
+    </div>
+  `;
+  
+  // Abre offcanvas
+  overlay.classList.add('active');
+  offcanvas.classList.add('active');
+  
+  try {
+    // Busca prescrição da API
+    const prescricao = await apiFetch(`/api/prescricoes/?maquina_id=${maquinaId}`);
+    
+    if (prescricao.status === 'ok') {
+      renderPrescricao(prescricao);
+    } else {
+      renderErroPrescricao(prescricao.detalhe || 'Erro ao gerar prescrição');
+    }
+  } catch (error) {
+    console.error('Erro ao buscar prescrição:', error);
+    renderErroPrescricao('Falha na comunicação com a API');
+  }
+}
+
+function renderPrescricao(data) {
+  const body = document.getElementById('prescricao-body');
+  const severidade = (data.severidade || 'NORMAL').toLowerCase();
+  const maquinaId = data.maquina_id || document.getElementById('prescricao-subtitle').textContent;
+  
+  // Mapeia severidade para classes CSS
+  const severidadeClass = {
+    'normal': 'normal',
+    'atenção': 'atencao', 
+    'atencao': 'atencao',
+    'crítico': 'critico',
+    'critico': 'critico'
+  }[severidade] || 'normal';
+  
+  // Ícones por severidade
+  const icones = {
+    'normal': '✅',
+    'atencao': '⚠️', 
+    'critico': '🚨'
+  };
+  
+  // Títulos por severidade
+  const titulos = {
+    'normal': 'Operação Normal',
+    'atencao': 'Atenção Necessária',
+    'critico': 'Situação Crítica'
+  };
+  
+  body.innerHTML = `
+    <!-- Nível de Risco -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Nível de Risco</div>
+      <div class="nivel-risco ${severidadeClass}">
+        <div class="nivel-risco-icon">${icones[severidadeClass]}</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">${titulos[severidadeClass]}</div>
+          <div class="nivel-risco-desc">Confiança: ${Math.round((data.confianca || 0) * 100)}%</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Anomalias Detectadas -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Anomalias Detectadas</div>
+      <div class="anomalias-list">
+        ${renderAnomalias(data)}
+      </div>
+    </div>
+    
+    <!-- Prescrição -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Análise Prescritiva</div>
+      <div class="prescricao-text">
+        ${data.prescricao || 'Nenhuma prescrição disponível.'}
+      </div>
+    </div>
+    
+    <!-- Ação Recomendada -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Ação Recomendada</div>
+      <div class="acao-recomendada ${severidadeClass}">
+        <div class="acao-title">Próximos Passos</div>
+        <div class="acao-text">
+          ${data.acao_recomendada || 'Continuar operação normal.'}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Botões de Ação -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Relatórios</div>
+      <div style="display: flex; gap: 12px;">
+        <button class="popup-btn" onclick="baixarRelatorio('${maquinaId}', 'json')" style="flex: 1; background: var(--bg2); color: var(--text); border: 1px solid var(--border);">
+          📊 Ver Relatório
+        </button>
+        <button class="popup-btn" onclick="baixarRelatorio('${maquinaId}', 'csv')" style="flex: 1; background: var(--green-dim); color: var(--green); border: 1px solid var(--green);">
+          📄 Baixar CSV
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAnomalias(data) {
+  // Por enquanto, vamos simular anomalias baseadas na severidade
+  // Em uma implementação futura, isso viria da API de anomalias
+  const severidade = (data.severidade || 'NORMAL').toLowerCase();
+  
+  if (severidade === 'normal') {
+    return '<div class="anomalias-empty">✓ Nenhuma anomalia detectada</div>';
+  }
+  
+  const anomalias = [];
+  if (severidade === 'critico' || severidade === 'crítico') {
+    anomalias.push('Temperatura acima do limite crítico');
+    anomalias.push('Vibração excessiva detectada');
+  } else if (severidade === 'atencao' || severidade === 'atenção') {
+    anomalias.push('Temperatura elevada');
+  }
+  
+  if (anomalias.length === 0) {
+    return '<div class="anomalias-empty">⚠️ Anomalias em análise</div>';
+  }
+  
+  return anomalias.map(anomalia => `
+    <div class="anomalia-item">
+      <div class="anomalia-icon">⚠️</div>
+      <div class="anomalia-text">${anomalia}</div>
+    </div>
+  `).join('');
+}
+
+function renderErroPrescricao(mensagem) {
+  const body = document.getElementById('prescricao-body');
+  body.innerHTML = `
+    <div class="prescricao-section">
+      <div class="nivel-risco critico">
+        <div class="nivel-risco-icon">❌</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">Erro na Análise</div>
+          <div class="nivel-risco-desc">${mensagem}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Função para baixar relatórios
+async function baixarRelatorio(maquinaId, formato = 'json') {
+  try {
+    const periodo = 7; // 7 dias por padrão
+    const url = `/api/relatorio/?maquina_id=${maquinaId}&periodo=${periodo}&formato=${formato}`;
+    
+    if (formato === 'csv') {
+      // Para CSV, abre em nova aba para download
+      window.open(url, '_blank');
+    } else {
+      // Para JSON, busca dados e exibe
+      const relatorio = await apiFetch(url);
+      
+      if (relatorio.status === 'ok') {
+        exibirRelatorio(relatorio);
+      } else {
+        alert('Erro ao gerar relatório: ' + (relatorio.detalhe || 'Erro desconhecido'));
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao baixar relatório:', error);
+    alert('Falha na comunicação com a API');
+  }
+}
+
+function exibirRelatorio(relatorio) {
+  const body = document.getElementById('prescricao-body');
+  const dados = relatorio.dados;
+  
+  body.innerHTML = `
+    <div class="prescricao-section">
+      <div class="prescricao-label">Relatório Operacional</div>
+      <div class="nivel-risco normal">
+        <div class="nivel-risco-icon">📊</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">${relatorio.maquina_id}</div>
+          <div class="nivel-risco-desc">Últimos ${relatorio.periodo_dias} dias • ${relatorio.total_leituras} leituras</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div class="prescricao-label">Métricas Operacionais</div>
+      <div class="anomalias-list">
+        <div class="anomalia-item">
+          <div class="anomalia-icon">⏱️</div>
+          <div class="anomalia-text">Horas Operadas: <strong>${dados.horas_operadas}h</strong></div>
+        </div>
+        <div class="anomalia-item">
+          <div class="anomalia-icon">🌡️</div>
+          <div class="anomalia-text">Pico de Temperatura: <strong>${dados.pico_temperatura}°C</strong></div>
+        </div>
+        <div class="anomalia-item">
+          <div class="anomalia-icon">⚠️</div>
+          <div class="anomalia-text">Alertas Registrados: <strong>${dados.num_alertas}</strong></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div class="prescricao-label">Recomendação de Manutenção</div>
+      <div class="prescricao-text">
+        ${dados.recomendacao_manutencao}
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div style="display: flex; gap: 12px;">
+        <button class="popup-btn" onclick="baixarRelatorio('${relatorio.maquina_id}', 'csv')" style="flex: 1; background: var(--green-dim); color: var(--green); border: 1px solid var(--green);">
+          📄 Baixar CSV
+        </button>
+        <button class="popup-btn" onclick="abrirPrescricao('${relatorio.maquina_id}')" style="flex: 1; background: var(--bg2); color: var(--text); border: 1px solid var(--border);">
+          ← Voltar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Redireciona função antiga para nova interface
+function abrirPopupMaquina(maquinaId) {
+  abrirPrescricao(maquinaId);
+}
+
 // INICIALIZA NO LOAD
 window.addEventListener('DOMContentLoaded', () => {
   atualizarStatusMQTT(); // Uma vez imediatamente
   pollMQTT();             // Depois a cada 5s
   pollStatus();           // Polling do status das máquinas
-});
-
-// FUNÇÕES DO POPUP
-function fecharPopupMaquina() {
-  document.getElementById('machine-details-popup').classList.remove('active');
-}
-
-window.addEventListener('click', (e) => {
-  const popup = document.getElementById('machine-details-popup');
-  if (e.target === popup) {
-    fecharPopupMaquina();
-  }
 });
 </script>
 
