@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FieldNode Icon Generator</title>
+</head>
+<body>
+  <canvas id="canvas" style="border: 1px solid #ccc;"></canvas>
+  <div id="downloads"></div>
+
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const downloads = document.getElementById('downloads');
+
+    function generateIcon(size) {
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Background
+      ctx.fillStyle = '#0e1210';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Border
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = size * 0.02;
+      ctx.strokeRect(size * 0.1, size * 0.1, size * 0.8, size * 0.8);
+      
+      // Icon (simplified tractor/field symbol)
+      ctx.fillStyle = '#4ade80';
+      
+      // Main body
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const iconSize = size * 0.3;
+      
+      ctx.fillRect(centerX - iconSize/2, centerY - iconSize/4, iconSize, iconSize/2);
+      
+      // Wheels
+      ctx.beginPath();
+      ctx.arc(centerX - iconSize/3, centerY + iconSize/6, iconSize/8, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(centerX + iconSize/3, centerY + iconSize/6, iconSize/8, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Signal lines (telemetry)
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = size * 0.01;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(centerX + iconSize/2 + i * size * 0.02, centerY - iconSize/4 + i * size * 0.02);
+        ctx.lineTo(centerX + iconSize/2 + size * 0.08 + i * size * 0.02, centerY - iconSize/4 - size * 0.04 + i * size * 0.02);
+        ctx.stroke();
+      }
+      
+      // Download link
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `icon-${size}x${size}.png`;
+        link.textContent = `Download ${size}x${size}`;
+        link.style.display = 'block';
+        link.style.margin = '5px 0';
+        downloads.appendChild(link);
+      });
+    }
+
+    // Generate all sizes
+    sizes.forEach(size => generateIcon(size));
+  </script>
+</body>
+</html>
