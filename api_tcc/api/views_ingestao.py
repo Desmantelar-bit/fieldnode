@@ -272,3 +272,22 @@ class StatusMQTTView(APIView):
             'ultima_leitura_segundos_atras': segundos_atras,
             'status': 'online' if conectado else 'offline',
         })
+
+
+class PrescricaoView(APIView):
+    """
+    GET /api/prescricao/?maquina_id=COLH-01
+
+    Gera prescrições de manutenção baseadas em análise de IA.
+    Requer mínimo de leituras históricas para gerar recomendações.
+
+    Parâmetro obrigatório: maquina_id
+    Retorna lista de prescrições com ações recomendadas e prioridade.
+    """
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id')
+        if not maquina_id:
+            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
+        from api_tcc.ia.prescricoes import gerar_prescricao
+        resultado = gerar_prescricao(maquina_id=maquina_id, limite=10)
+        return Response(resultado)
