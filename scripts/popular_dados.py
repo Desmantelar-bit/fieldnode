@@ -10,7 +10,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import requests
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 
 API_URL = 'http://127.0.0.1:8000/api/telemetria/'
@@ -41,7 +41,7 @@ def popular_dados():
     print(f'Máquinas: {", ".join(MAQUINAS)}')
     print()
     
-    agora = datetime.now()
+    agora = datetime.now(timezone.utc)
     total_enviadas = 0
     
     for maquina in MAQUINAS:

@@ -24,7 +24,7 @@ import json
 import uuid
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 BROKER = 'localhost'
 PORT = 1883
@@ -64,7 +64,7 @@ def gerar_leitura(maquina_id, cenario):
         "temperatura": round(random.uniform(*cenario["temp"]), 1),
         "vibracao": round(random.uniform(*cenario["vib"]), 2),
         "rpm": int(random.uniform(*cenario["rpm"])),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 def main():

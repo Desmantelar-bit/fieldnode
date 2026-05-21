@@ -3,6 +3,7 @@ import os
 import sys
 import django
 from datetime import datetime, timedelta
+from django.utils import timezone
 import uuid
 
 # Configurar Django
@@ -20,7 +21,7 @@ def popular_dados():
     # Gerar 50 leituras para cada máquina
     for maquina_id in maquinas:
         for i in range(50):
-            timestamp = datetime.now() - timedelta(minutes=i*5)
+            timestamp = timezone.now() - timedelta(minutes=i*5)
             
             # Simular dados variados
             if i < 10:  # Últimas 10 leituras normais
