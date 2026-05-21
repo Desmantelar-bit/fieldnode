@@ -1,14 +1,14 @@
 import pandas as pd
-import time
 from sklearn.ensemble import IsolationForest
-from api_tcc.models import LeituraTelemetria
+from api_tcc.ia.pipeline import carregar_dados
 
-_cache = {}  # {chave: (resultado, timestamp)}
 
 def detectar_anomalias(maquina_id=None, contamination=0.05):
     """
+    Detecta leituras anômalas usando Isolation Forest.
+
     Parâmetros:
-        maquina_id    — filtra por máquina; None = usa todas
+        maquina_id    — filtra por máquina; None = retorna erro (não suportado)
         contamination — fração esperada de anomalias (5% padrão)
 
     Retorna dict com:
@@ -17,45 +17,35 @@ def detectar_anomalias(maquina_id=None, contamination=0.05):
         analisadas — total de leituras analisadas
         status     — 'ok' | 'dados_insuficientes'
     """
-    agora = time.time()
-    chave = maquina_id or '_todas'
-    if chave in _cache and agora - _cache[chave][1] < 30:
-        return _cache[chave][0]
-    qs = LeituraTelemetria.objects.all()
-    if maquina_id:
-        qs = qs.filter(maquina_id=maquina_id)
-
-    qs = qs.order_by('-timestamp')[:500]
-
-    if qs.count() < 20:
-        resultado = {
-            'status':    'dados_insuficientes',
-            'minimo':    20,
-            'atual':     qs.count(),
-            'anomalias': [],
-            'total':     0,
+    if not maquina_id:
+        return {
+            "status": "erro",
+            "detalhe": "maquina_id é obrigatório",
         }
-        _cache[chave] = (resultado, agora)
+
+    resultado = carregar_dados(maquina_id, limite=500)
+
+    if isinstance(resultado, dict) and resultado.get("status") == "dados_insuficientes":
+        resultado["anomalias"] = []
+        resultado["total"] = 0
+        resultado["analisadas"] = 0
         return resultado
 
-    df = pd.DataFrame(list(qs.values(
-        'id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp'
-    )))
-
+    df = resultado
     X = df[['temperatura', 'vibracao', 'rpm']]
     modelo = IsolationForest(contamination=contamination, random_state=42, n_estimators=100)
-    df['score'] = modelo.fit_predict(X)   # -1 = anomalia, 1 = normal
+    df["score"] = modelo.fit_predict(X)
     df['anomalia'] = df['score'] == -1
 
     anomalias = df[df['anomalia']].copy()
     anomalias['timestamp'] = anomalias['timestamp'].astype(str)
     anomalias['id'] = anomalias['id'].astype(str)
 
-    resultado = {
-        'status':    'ok',
-        'anomalias': anomalias[['id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp']].to_dict('records'),
-        'total':     int(anomalias.shape[0]),
-        'analisadas': int(df.shape[0]),
+    return {
+        "status": "ok",
+        "anomalias": anomalias[
+            ["id", "maquina_id", "temperatura", "vibracao", "rpm", "timestamp"]
+        ].to_dict("records"),
+        "total": int(anomalias.shape[0]),
+        "analisadas": int(df.shape[0]),
     }
-    _cache[chave] = (resultado, agora)
-    return resultado
