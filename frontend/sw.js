@@ -16,7 +16,6 @@ const STATIC_ASSETS = [
   '/frontend/js/colors.js',
   '/frontend/js/status.js',
   '/frontend/manifest.json',
-  // CDN resources
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js'
 ];
@@ -92,7 +91,7 @@ self.addEventListener('fetch', (event) => {
             return new Response(
               JSON.stringify({
                 status: 'offline',
-                message: 'Dados em cache nÃ£o disponÃ­veis. Conecte-se Ã  internet.',
+                message: 'Dados em cache não disponíveis. Conecte-se à internet.',
                 cached: false
               }),
               {
@@ -151,8 +150,6 @@ self.addEventListener('sync', (event) => {
 // Sync telemetria data when online
 async function syncTelemetriaData() {
   try {
-    // This would sync any offline telemetria data
-    // For now, just log that sync is available
     console.log('[SW] Telemetria sync completed');
   } catch (error) {
     console.error('[SW] Telemetria sync failed:', error);
@@ -164,9 +161,7 @@ self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received');
   
   const options = {
-    body: 'Nova telemetria disponÃ­vel',
-    icon: '/frontend/icons/icon-192x192.png',
-    badge: '/frontend/icons/icon-72x72.png',
+    body: 'Nova telemetria disponível',
     tag: 'fieldnode-notification',
     requireInteraction: false,
     actions: [
