@@ -22,12 +22,9 @@ const STATIC_ASSETS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
-  
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('[SW] Caching static assets');
         return cache.addAll(STATIC_ASSETS);
       })
       .catch((error) => {
@@ -41,14 +38,11 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
-  
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -67,42 +61,41 @@ self.addEventListener('fetch', (event) => {
   
   // Handle API requests
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses
-          if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Return cached API response if available
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              console.log('[SW] Serving cached API response for:', request.url);
-              return cachedResponse;
-            }
-            
-            // Return offline fallback for API requests
-            return new Response(
-              JSON.stringify({
-                status: 'offline',
-                message: 'Dados em cache não disponíveis. Conecte-se à internet.',
-                cached: false
-              }),
-              {
-                status: 503,
-                statusText: 'Service Unavailable',
-                headers: { 'Content-Type': 'application/json' }
-              }
-            );
-          });
-        })
-    );
+     event.respondWith(
+       fetch(request)
+         .then((response) => {
+           // Cache successful API responses
+           if (response.ok) {
+             const responseClone = response.clone();
+             caches.open(CACHE_NAME).then((cache) => {
+               cache.put(request, responseClone);
+             });
+           }
+           return response;
+         })
+         .catch(() => {
+           // Return cached API response if available
+           return caches.match(request).then((cachedResponse) => {
+             if (cachedResponse) {
+               return cachedResponse;
+             }
+             
+             // Return offline fallback for API requests
+             return new Response(
+               JSON.stringify({
+                 status: 'offline',
+                 message: 'Dados em cache não disponíveis. Conecte-se à internet.',
+                 cached: false
+               }),
+               {
+                 status: 503,
+                 statusText: 'Service Unavailable',
+                 headers: { 'Content-Type': 'application/json' }
+               }
+             );
+           });
+         })
+     );
     return;
   }
   
@@ -140,7 +133,6 @@ self.addEventListener('fetch', (event) => {
 
 // Background sync for when connection is restored
 self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync triggered:', event.tag);
   
   if (event.tag === 'telemetria-sync') {
     event.waitUntil(syncTelemetriaData());
@@ -150,7 +142,6 @@ self.addEventListener('sync', (event) => {
 // Sync telemetria data when online
 async function syncTelemetriaData() {
   try {
-    console.log('[SW] Telemetria sync completed');
   } catch (error) {
     console.error('[SW] Telemetria sync failed:', error);
   }
@@ -158,7 +149,6 @@ async function syncTelemetriaData() {
 
 // Push notification handling (for future use)
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received');
   
   const options = {
     body: 'Nova telemetria disponível',
