@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
 from decouple import config as env_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -22,13 +21,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = env_config(
+    "SECRET_KEY", default="django-insecure-fieldnode-default-key-for-dev"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
-FIELDNODE_API_KEY = config('FIELDNODE_API_KEY', default='fieldnode-demo-2024')
+DEBUG = env_config("DEBUG", default=True, cast=bool)
+FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY", default="fieldnode-demo-2024")
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="*").split(",")
+
+# Configurações de CORS para permitir que o Dashboard acesse a API
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Application definition
@@ -44,7 +49,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'corsheaders',
     'api_tcc',
-    
+
 ]
 
 MIDDLEWARE = [
@@ -82,7 +87,7 @@ WSGI_APPLICATION = 'setup.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Permite forçar o banco via variável de ambiente USE_SQLITE=True
-USE_SQLITE = config('USE_SQLITE', default=DEBUG, cast=bool)
+USE_SQLITE = env_config("USE_SQLITE", default=DEBUG, cast=bool)
 
 if USE_SQLITE:
     DATABASES = {
@@ -93,15 +98,15 @@ if USE_SQLITE:
     }
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': config('DB_NAME'),
-            'USER': config('DB_USER'),
-            'PASSWORD': config('DB_PASSWORD'),
-            'HOST': config('DB_HOST', default='localhost'),
-            'PORT': config('DB_PORT', default='3306'),
-            'OPTIONS': {
-                'charset': 'utf8mb4',
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env_config("DB_NAME"),
+            "USER": env_config("DB_USER"),
+            "PASSWORD": env_config("DB_PASSWORD"),
+            "HOST": env_config("DB_HOST", default="localhost"),
+            "PORT": env_config("DB_PORT", default="3306"),
+            "OPTIONS": {
+                "charset": "utf8mb4",
             },
         }
     }
@@ -144,95 +149,4 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# CORS: em desenvolvimento aceita qualquer origem para facilitar o frontend local.
-# Em produção (DEBUG=False), apenas as origens listadas abaixo são permitidas.
-CORS_ALLOWED_ORIGINS = [
-    'http://127.0.0.1:5500',
-    'http://localhost:5500',
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-]
-
-if DEBUG:
-    CORS_ALLOWED_ORIGINS += ['http://127.0.0.1:3000', 'http://localhost:3000']
-    CORS_ALLOW_CREDENTIALS = True
-    # Permite qualquer origem em desenvolvimento
-    CORS_ALLOW_ALL_ORIGINS = True
-    # Permite origem null (arquivos file://)
-    CORS_ALLOW_HEADERS = [
-        'accept',
-        'accept-encoding',
-        'authorization',
-        'content-type',
-        'dnt',
-        'origin',
-        'user-agent',
-        'x-csrftoken',
-        'x-requested-with',
-        'x-api-key',  # Adicionar header customizado
-    ]
-    # Configuração específica para arquivos locais
-    CORS_ALLOWED_ORIGIN_REGEXES = [
-        r"^null$",  # Permite origem null (file://)
-    ]
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
- 
-    'formatters': {
-        'verbose': {
-            'format': '[{asctime}] {levelname} {name} — {message}',
-            'style': '{',
-            'datefmt': '%Y-%m-%d %H:%M:%S',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
- 
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'arquivo_erros': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'fieldnode_errors.log',
-            'maxBytes': 5 * 1024 * 1024,  # 5 MB por arquivo
-            'backupCount': 3,
-            'formatter': 'verbose',
-            'level': 'WARNING',
-        },
-    },
- 
-    'loggers': {
-        # Logger da aplicação FieldNode
-        'api_tcc': {
-            'handlers': ['console', 'arquivo_erros'],
-            'level': env_config('LOG_LEVEL', default='INFO'),
-            'propagate': False,
-        },
-        # Django interno — só warnings e acima em produção
-        'django': {
-            'handlers': ['console'],
-            'level': 'WARNING' if not DEBUG else 'INFO',
-            'propagate': False,
-        },
-    },
- 
-    # Root logger — captura qualquer coisa não tratada acima
-    'root': {
-        'handlers': ['console'],
-        'level': 'WARNING',
-    },
-}
- 
-# Cria pasta de logs se não existir
-import os
-os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+# https://docs.djangoproject.com/en/5.2/ref/settings/#default-au

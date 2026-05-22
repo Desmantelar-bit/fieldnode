@@ -32,7 +32,6 @@ const MAQUINAS_POR_GRUPO = 3;
 async function atualizarStatusMaquinas() {
   try {
     const maquinas = await apiFetch('/api/leituras/ultimas/');
-    console.log('[DEBUG] Dados da API /api/leituras/ultimas/:', maquinas);
 
     if (!maquinas.length) {
       _mostrarMensagemTabela('Nenhuma leitura recebida do ESP32 ainda.');
