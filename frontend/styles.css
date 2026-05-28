@@ -21,6 +21,22 @@
   --radius-lg: 16px;
 }
 
+/* TEMA CLARO PARA PAINÉIS */
+[data-theme="light"] {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #e8e8e8;
+  --text:      #1a1a1a;
+  --text2:     #555555;
+  --text3:     #888888;
+  --border:    rgba(0,0,0,0.1);
+  --border2:   rgba(0,0,0,0.2);
+  --green-dim: #e8f5e9;
+  --amber-dim: #fff8e1;
+  --red-dim:   #ffebee;
+  --blue-dim:  #e3f2fd;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {

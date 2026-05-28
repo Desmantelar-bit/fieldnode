@@ -4,6 +4,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
   <meta name="theme-color" content="#0e1210"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <link rel="manifest" href="manifest.json"/>
@@ -41,8 +44,10 @@
     .topbar-left { display: flex; align-items: center; gap: 12px; }
     .topbar-title { font-size: 16px; font-weight: 600; }
     .topbar-divider { width:1px; height:20px; background:var(--border); }
-    .mqtt-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 12px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); transition: all .3s; }
-    .mqtt-badge.offline { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .theme-toggle { background: var(--bg3); border: 2px solid var(--border); color: var(--text); cursor: pointer; padding: 8px 14px; border-radius: var(--radius); font-size: 18px; transition: all .2s; font-weight: 600; }
+    .theme-toggle:hover { background: var(--green-dim); color: var(--green); border-color: var(--green); box-shadow: 0 0 12px rgba(74,222,128,0.3); }
+    .mqtt-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 12px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(5,150,105,0.3); transition: all .3s; }
+    .mqtt-badge.offline { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.3); }
     .mqtt-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 4px currentColor; }
 
     .content { padding: 24px 28px; flex: 1; overflow-y: auto; }
@@ -63,10 +68,9 @@
     .autocomplete-item-status { font-size: 10px; color: var(--text3); margin-top: 2px; }
     .autocomplete-empty { padding: 14px; text-align: center; font-size: 11px; color: var(--text3); font-family: var(--mono); }
 
-    /* METRICS CARDS */
-    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    /* METRIC CARDS */
     .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; transition: all .2s; }
-    .metric-card:hover { border-color: var(--border2); }
+    .metric-card:hover { border-color: var(--border2); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .metric-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
     .metric-value { font-size: 28px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
     .metric-subtitle { font-size: 12px; color: var(--text2); }
@@ -77,18 +81,18 @@
     .status-table { width: 100%; border-collapse: collapse; }
     .status-table thead { background: var(--bg3); }
     .status-table th { padding: 14px 16px; text-align: left; font-size: 11px; font-family: var(--mono); color: var(--text3); letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 600; }
-    .status-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.02); font-size: 13px; }
+    .status-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
     .status-table tr:last-child td { border-bottom: none; }
-    .status-table tbody tr:hover { background: rgba(255,255,255,.02); }
+    .status-table tbody tr:hover { background: rgba(74,222,128,0.05); }
     .machine-cell { display: flex; align-items: center; gap: 10px; }
     .machine-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
     .machine-info { display: flex; flex-direction: column; }
     .machine-id-col { font-family: var(--mono); font-size: 11px; color: var(--text3); }
     .machine-name-col { font-weight: 500; }
-    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); }
-    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
-    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
-    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-weight: 600; }
+    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(5,150,105,0.3); }
+    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(217,119,6,0.3); }
+    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.3); }
     .status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 
     /* CAROUSEL */
@@ -100,42 +104,42 @@
     .carousel-btn:disabled { opacity: .4; cursor: not-allowed; }
 
     /* POPUP */
-    .popup-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.90); backdrop-filter: blur(10px); z-index: 100; align-items: center; justify-content: center; }
-    .popup-overlay.active { display: flex; }
-    .popup-content { background: #ffffff; border: 2px solid #e0e0e0; border-radius: var(--radius-lg); width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto; padding: 28px; box-shadow: 0 24px 48px rgba(0,0,0,.8); }
-    .popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 2px solid #e0e0e0; }
-    .popup-title { font-size: 18px; font-weight: 700; color: #1a1a1a; }
-    .popup-close { background: #f5f5f5; border: 1px solid #d0d0d0; color: #666; cursor: pointer; font-size: 24px; line-height: 1; padding: 6px 12px; border-radius: 6px; transition: all .15s; font-weight: bold; }
-    .popup-close:hover { background: #fee; color: #c00; border-color: #c00; }
-    .popup-section { margin-bottom: 20px; background: #f8f8f8; padding: 18px; border-radius: var(--radius); border: 1px solid #e0e0e0; }
-    .popup-label { font-size: 12px; font-family: var(--mono); color: #666; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; font-weight: 700; }
-    .popup-data-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e0e0e0; font-size: 14px; }
+    .popup-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); backdrop-filter: blur(10px); z-index: 100; align-items: center; justify-content: center; }
+    .popup-overlay.active { display: flex !important; }
+    .popup-content { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius-lg); width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto; padding: 28px; box-shadow: 0 24px 48px rgba(0,0,0,.3); }
+    .popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .popup-title { font-size: 18px; font-weight: 700; color: var(--text); }
+    .popup-close { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; font-size: 24px; line-height: 1; padding: 6px 12px; border-radius: 6px; transition: all .15s; font-weight: bold; }
+    .popup-close:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+    .popup-section { margin-bottom: 20px; background: var(--bg3); padding: 18px; border-radius: var(--radius); border: 1px solid var(--border); }
+    .popup-label { font-size: 12px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; font-weight: 700; }
+    .popup-data-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
     .popup-data-row:last-child { border-bottom: none; }
-    .popup-data-key { color: #555; font-weight: 600; }
-    .popup-data-val { font-family: var(--mono); color: #000; font-weight: 700; font-size: 15px; }
+    .popup-data-key { color: var(--text2); font-weight: 600; }
+    .popup-data-val { font-family: var(--mono); color: var(--text); font-weight: 700; font-size: 15px; }
     .popup-buttons { display: flex; gap: 10px; margin-top: 24px; }
-    .popup-btn { flex: 1; padding: 14px; border: 2px solid #4ade80; border-radius: var(--radius); background: #f0fdf4; color: #16a34a; cursor: pointer; font-size: 14px; font-weight: 700; transition: all .15s; text-decoration: none; text-align: center; }
-    .popup-btn:hover { border-color: #22c55e; background: #dcfce7; color: #15803d; }
+    .popup-btn { flex: 1; padding: 14px; border: 1px solid var(--green); border-radius: var(--radius); background: var(--green-dim); color: var(--green); cursor: pointer; font-size: 14px; font-weight: 700; transition: all .15s; text-decoration: none; text-align: center; }
+    .popup-btn:hover { background: rgba(5, 150, 105, 0.15); color: var(--green); }
 
     /* POPUP — SEÇÃO IA */
-    .popup-ia-section { margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: var(--radius); overflow: hidden; background: #f8f8f8; }
-    .popup-ia-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: #e8f5e9; border-bottom: 2px solid #c8e6c9; }
+    .popup-ia-section { margin-bottom: 20px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg3); }
+    .popup-ia-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: var(--green-dim); border-bottom: 1px solid var(--border); }
     .popup-ia-icon { font-size: 18px; }
-    .popup-ia-title { font-size: 12px; font-family: var(--mono); color: #2e7d32; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
-    .popup-ia-body { padding: 18px; background: #fff; }
-    .popup-ia-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e0e0e0; font-size: 14px; }
+    .popup-ia-title { font-size: 12px; font-family: var(--mono); color: var(--green); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .popup-ia-body { padding: 18px; background: var(--bg2); }
+    .popup-ia-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
     .popup-ia-row:last-child { border-bottom: none; }
-    .popup-ia-key { color: #555; font-weight: 600; }
+    .popup-ia-key { color: var(--text2); font-weight: 600; }
     .popup-ia-val { font-family: var(--mono); font-weight: 700; font-size: 15px; }
-    .popup-ia-val.ok    { color: #16a34a; }
-    .popup-ia-val.warn  { color: #d97706; }
-    .popup-ia-val.crit  { color: #dc2626; }
-    .popup-ia-val.muted { color: #999; }
+    .popup-ia-val.ok    { color: var(--green); }
+    .popup-ia-val.warn  { color: var(--amber); }
+    .popup-ia-val.crit  { color: var(--red); }
+    .popup-ia-val.muted { color: var(--text3); }
     .popup-ia-bar-wrap  { margin-top: 14px; }
-    .popup-ia-bar-label { display: flex; justify-content: space-between; font-size: 12px; font-family: var(--mono); color: #555; margin-bottom: 8px; font-weight: 600; }
-    .popup-ia-bar-track { height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; border: 1px solid #ccc; }
+    .popup-ia-bar-label { display: flex; justify-content: space-between; font-size: 12px; font-family: var(--mono); color: var(--text2); margin-bottom: 8px; font-weight: 600; }
+    .popup-ia-bar-track { height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
     .popup-ia-bar-fill  { height: 100%; border-radius: 4px; transition: width .6s ease; }
-    .popup-ia-loading   { padding: 20px; text-align: center; font-size: 13px; font-family: var(--mono); color: #666; font-weight: 600; }
+    .popup-ia-loading   { padding: 20px; text-align: center; font-size: 13px; font-family: var(--mono); color: var(--text3); font-weight: 600; }
 
     /* OFFCANVAS PRESCRITIVO */
     .offcanvas-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(8px); z-index: 1000; opacity: 0; visibility: hidden; transition: all .3s ease; }
@@ -193,6 +197,10 @@
     
      /* LOADING STATE */
      .prescricao-loading { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
+     
+     /* PULSE SPINNER */
+     .pulse-spinner { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--green); animation: pulse-anim 1.5s ease-in-out infinite; }
+     @keyframes pulse-anim { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.8); } }
 
      /* CHARTS */
      .charts-container {
@@ -200,6 +208,23 @@
        border: 1px solid var(--border);
        border-radius: var(--radius-lg);
        padding: 20px;
+     }
+
+     /* TEMA CLARO - APRIMORAMENTOS */
+     [data-theme="light"] .nav-item:hover {
+       background: rgba(5,150,105,0.08);
+     }
+     
+     [data-theme="light"] .status-table tbody tr:hover {
+       background: rgba(5,150,105,0.08);
+     }
+     
+     [data-theme="light"] .metric-card:hover {
+       box-shadow: 0 4px 16px rgba(5,150,105,0.12);
+     }
+     
+     [data-theme="light"] .sidebar {
+       box-shadow: 2px 0 8px rgba(0,0,0,0.06);
      }
 
      /* MOBILE RESPONSIVENESS */
@@ -450,6 +475,7 @@
         <span>Conectando...</span>
       </div>
     </div>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">🌓</button>
   </div>
 
   <div class="content">
@@ -487,11 +513,11 @@
      <!-- CHARTS -->
      <div class="charts-container" style="margin-bottom: 24px;">
        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
-         <div>
-           <canvas id="temperatureChart" height="120"></canvas>
+         <div style="position: relative; height: 300px; width: 100%;">
+           <canvas id="temperatureChart"></canvas>
          </div>
-         <div>
-           <canvas id="statusChart" height="120"></canvas>
+         <div style="position: relative; height: 300px; width: 100%;">
+           <canvas id="statusChart"></canvas>
          </div>
        </div>
      </div>
@@ -548,6 +574,54 @@
   </div>
 </div>
 
+<!-- POPUP DE DETALHES DA MÁQUINA -->
+<div class="popup-overlay" id="machine-details-popup">
+  <div class="popup-content">
+    <div class="popup-header">
+      <div class="popup-title" id="popup-title">Detalhes da Máquina</div>
+      <button class="popup-close" onclick="fecharPopupMaquina()">×</button>
+    </div>
+    
+    <div class="popup-section">
+      <div class="popup-label">Informações Básicas</div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">ID da Máquina</span>
+        <span class="popup-data-val" id="popup-id">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Modelo</span>
+        <span class="popup-data-val" id="popup-modelo">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Temperatura</span>
+        <span class="popup-data-val" id="popup-temp">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Combustível</span>
+        <span class="popup-data-val" id="popup-fuel">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Status</span>
+        <span class="popup-data-val" id="popup-status">—</span>
+      </div>
+    </div>
+    
+    <div class="popup-ia-section">
+      <div class="popup-ia-header">
+        <span class="popup-ia-icon">🤖</span>
+        <span class="popup-ia-title">Análise de IA</span>
+      </div>
+      <div class="popup-ia-body" id="popup-ia-body">
+        <div class="popup-ia-loading">⌛ Carregando análise...</div>
+      </div>
+    </div>
+    
+    <div class="popup-buttons">
+      <a class="popup-btn" id="popup-details-link" href="#">📊 Ver Detalhes Completos</a>
+    </div>
+  </div>
+</div>
+
 <!-- SCRIPTS -->
 <script src="config.js"></script>
 <script src="js/colors.js"></script>
@@ -555,6 +629,18 @@
 <script src="js/status.js"></script>
 
 <script>
+// CACHE BUSTING - Força atualização ao abrir
+(function() {
+  const versao = new Date().getTime();
+  document.querySelectorAll('link[rel="stylesheet"]').forEach(el => {
+    if (!el.src.includes('?v=')) {
+      const url = new URL(el.href);
+      url.searchParams.set('v', versao);
+      el.href = url.toString();
+    }
+  });
+  console.log('[Dashboard] Cache busting aplicado - Versão:', versao);
+})();
 // PWA SERVICE WORKER REGISTRATION
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -754,13 +840,47 @@ async function pollStatus() {
   try {
     await Promise.all([
       atualizarStatusMaquinas(),
-      atualizarMetricas()
+      atualizarMetricas(),
+      atualizarGraficos()
     ]);
   } catch (error) {
     console.error("Falha no sync, retentando...", error);
   } finally {
     // Só agenda o próximo DEPOIS que o atual terminar (ou falhar)
     setTimeout(pollStatus, 3000);
+  }
+}
+
+// ATUALIZA GRÁFICOS
+async function atualizarGraficos() {
+  if (!temperatureChart || !statusChart) return;
+  
+  try {
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
+    
+    if (maquinas.length > 0) {
+      // Gráfico de temperatura
+      const labels = maquinas.map(m => m.maquina_id);
+      const temps = maquinas.map(m => m.temperatura || 0);
+      
+      temperatureChart.data.labels = labels;
+      temperatureChart.data.datasets[0].data = temps;
+      temperatureChart.update('none');
+      
+      // Gráfico de status
+      const statusCount = { normal: 0, atencao: 0, critico: 0 };
+      maquinas.forEach(m => {
+        const nivel = (m.nivel_risco || 'NORMAL').toLowerCase();
+        if (nivel === 'normal') statusCount.normal++;
+        else if (nivel === 'atencao' || nivel === 'atenção') statusCount.atencao++;
+        else if (nivel === 'critico' || nivel === 'crítico') statusCount.critico++;
+      });
+      
+      statusChart.data.datasets[0].data = [statusCount.normal, statusCount.atencao, statusCount.critico];
+      statusChart.update('none');
+    }
+  } catch (e) {
+    console.error('Erro ao atualizar gráficos:', e);
   }
 }
 
@@ -831,10 +951,29 @@ function selecionarMaquinaAutocomplete(maquinaId) {
 let temperatureChart, statusChart;
 
 function initializeCharts() {
-  const tempCtx = document.getElementById('temperatureChart').getContext('2d');
-  const statusCtx = document.getElementById('statusChart').getContext('2d');
+  const tempCanvas = document.getElementById('temperatureChart');
+  const statusCanvas = document.getElementById('statusChart');
   
-  window.temperatureChart = new Chart(tempCtx, {
+  if (!tempCanvas || !statusCanvas) return;
+  
+  // Garante que os canvas têm dimensões
+  tempCanvas.style.maxWidth = '100%';
+  tempCanvas.style.height = 'auto';
+  statusCanvas.style.maxWidth = '100%';
+  statusCanvas.style.height = 'auto';
+  
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const textColor = theme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+  const gridColor = theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  
+  const tempCtx = tempCanvas.getContext('2d');
+  const statusCtx = statusCanvas.getContext('2d');
+  
+  // Destrói gráficos anteriores se existirem
+  if (temperatureChart) temperatureChart.destroy();
+  if (statusChart) statusChart.destroy();
+  
+  temperatureChart = new Chart(tempCtx, {
     type: 'line',
     data: {
       labels: [],
@@ -844,12 +983,14 @@ function initializeCharts() {
         borderColor: '#f87171',
         backgroundColor: 'rgba(248, 113, 113, 0.1)',
         tension: 0.3,
-        fill: true
+        fill: true,
+        borderWidth: 2
       }]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
       plugins: {
         legend: {
           display: false
@@ -863,10 +1004,11 @@ function initializeCharts() {
         y: {
           beginAtZero: false,
           grid: {
-            color: 'rgba(255, 255, 255, 0.1)'
+            color: gridColor,
+            drawBorder: true
           },
           ticks: {
-            color: 'rgba(255, 255, 255, 0.7)'
+            color: textColor
           }
         },
         x: {
@@ -874,14 +1016,14 @@ function initializeCharts() {
             display: false
           },
           ticks: {
-            color: 'rgba(255, 255, 255, 0.7)'
+            color: textColor
           }
         }
       }
     }
   });
   
-  window.statusChart = new Chart(statusCtx, {
+  statusChart = new Chart(statusCtx, {
     type: 'doughnut',
     data: {
       labels: ['Normal', 'Atenção', 'Crítico'],
@@ -893,15 +1035,17 @@ function initializeCharts() {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
       plugins: {
         legend: {
           position: 'bottom',
           labels: {
-            color: 'rgba(255, 255, 255, 0.7)',
+            color: textColor,
             font: {
               size: 10
-            }
+            },
+            padding: 15
           }
         },
         tooltip: {
@@ -931,6 +1075,12 @@ document.addEventListener('click', (e) => {
 function fecharPrescricao() {
   document.getElementById('prescricao-overlay').classList.remove('active');
   document.getElementById('prescricao-offcanvas').classList.remove('active');
+}
+
+// FUNÇÕES DO POPUP DE DETALHES
+function fecharPopupMaquina() {
+  const popup = document.getElementById('machine-details-popup');
+  if (popup) popup.classList.remove('active');
 }
 
 // Fecha offcanvas com ESC
@@ -1188,8 +1338,103 @@ function abrirPopupMaquina(maquinaId) {
   abrirPrescricao(maquinaId);
 }
 
+// THEME TOGGLE
+function toggleTheme() {
+  const root = document.documentElement;
+  const currentTheme = root.getAttribute('data-theme') || 'dark';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  
+  // Atualiza cores CSS
+  if (newTheme === 'light') {
+    root.style.setProperty('--bg', '#fafafa');
+    root.style.setProperty('--bg2', '#ffffff');
+    root.style.setProperty('--bg3', '#f0f0f0');
+    root.style.setProperty('--text', '#222222');
+    root.style.setProperty('--text2', '#666666');
+    root.style.setProperty('--text3', '#999999');
+    root.style.setProperty('--border', 'rgba(0,0,0,0.08)');
+    root.style.setProperty('--border2', 'rgba(0,0,0,0.15)');
+    root.style.setProperty('--green', '#059669');
+    root.style.setProperty('--green-dim', '#d1fae5');
+    root.style.setProperty('--amber', '#d97706');
+    root.style.setProperty('--amber-dim', '#fef3c7');
+    root.style.setProperty('--red', '#dc2626');
+    root.style.setProperty('--red-dim', '#fee2e2');
+  } else {
+    root.style.setProperty('--bg', '#0e1210');
+    root.style.setProperty('--bg2', '#151a17');
+    root.style.setProperty('--bg3', '#1c2420');
+    root.style.setProperty('--text', '#e8f0eb');
+    root.style.setProperty('--text2', '#7a9080');
+    root.style.setProperty('--text3', '#4a6055');
+    root.style.setProperty('--border', 'rgba(255,255,255,0.07)');
+    root.style.setProperty('--border2', 'rgba(255,255,255,0.13)');
+    root.style.setProperty('--green', '#4ade80');
+    root.style.setProperty('--green-dim', '#15803d33');
+    root.style.setProperty('--amber', '#fbbf24');
+    root.style.setProperty('--amber-dim', '#b45309');
+    root.style.setProperty('--red', '#f87171');
+    root.style.setProperty('--red-dim', '#7f1d1d');
+  }
+  
+  root.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  
+  // Atualiza emoji do botão
+  const themeBtn = document.querySelector('.theme-toggle');
+  if (themeBtn) {
+    themeBtn.textContent = newTheme === 'light' ? '🌙' : '☀️';
+  }
+  
+  // Atualiza gráficos com novas cores
+  if (temperatureChart && statusChart) {
+    const textColor = newTheme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+    const gridColor = newTheme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+    
+    // Atualiza temperatura
+    temperatureChart.options.scales.y.ticks.color = textColor;
+    temperatureChart.options.scales.y.grid.color = gridColor;
+    temperatureChart.options.scales.x.ticks.color = textColor;
+    temperatureChart.options.scales.x.grid.color = gridColor;
+    temperatureChart.update('none');
+    
+    // Atualiza status
+    statusChart.options.plugins.legend.labels.color = textColor;
+    statusChart.update('none');
+  }
+}
+
 // INICIALIZA NO LOAD
 window.addEventListener('DOMContentLoaded', () => {
+  // Carrega tema salvo
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const root = document.documentElement;
+  root.setAttribute('data-theme', savedTheme);
+  
+  // Aplica cores do tema salvo
+  if (savedTheme === 'light') {
+    root.style.setProperty('--bg', '#fafafa');
+    root.style.setProperty('--bg2', '#ffffff');
+    root.style.setProperty('--bg3', '#f0f0f0');
+    root.style.setProperty('--text', '#222222');
+    root.style.setProperty('--text2', '#666666');
+    root.style.setProperty('--text3', '#999999');
+    root.style.setProperty('--border', 'rgba(0,0,0,0.08)');
+    root.style.setProperty('--border2', 'rgba(0,0,0,0.15)');
+    root.style.setProperty('--green', '#059669');
+    root.style.setProperty('--green-dim', '#d1fae5');
+    root.style.setProperty('--amber', '#d97706');
+    root.style.setProperty('--amber-dim', '#fef3c7');
+    root.style.setProperty('--red', '#dc2626');
+    root.style.setProperty('--red-dim', '#fee2e2');
+  }
+  
+  // Atualiza emoji do botão de tema
+  const themeBtn = document.querySelector('.theme-toggle');
+  if (themeBtn) {
+    themeBtn.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+  }
+  
   initializeCharts();
   atualizarStatusMQTT(); // Uma vez imediatamente
   pollMQTT();             // Depois a cada 5s

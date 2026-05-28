@@ -100,7 +100,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
 
     try:
         timestamp = _normalizar_timestamp(dados["timestamp"])
-        leitura = LeituraTelemetria.objects.create(
+        leitura = LeituraTelemetria(
             id=uuid_recebido,
             maquina_id=str(dados["maquina_id"]).strip(),
             temperatura=float(dados["temperatura"]),
@@ -108,8 +108,9 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             rpm=int(dados["rpm"]),
             timestamp=timestamp,
         )
-        logger.info("Leitura registrada com sucesso. UUID: %s | maquina: %s | temp: %.1f°C",
-                    leitura.id, leitura.maquina_id, leitura.temperatura)
+        leitura.save()  # Garante que o método save() seja chamado para atribuir seq_id
+        logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
+                    leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
         return "criado", str(leitura.id)
 
     except IntegrityError:
