@@ -1,154 +1,56 @@
 #!/usr/bin/env python
 """
-Script de Validação Rápida - FieldNode
-Verifica se todas as correções foram aplicadas corretamente
+Validacao rapida da estrutura atual do FieldNode.
+
+Nao executa servidores. A ideia e pegar erro bobo antes da banca pegar,
+porque a banca nao costuma dar desconto por link fossilizado.
 """
-import os
+
+from pathlib import Path
 import sys
 
-def check_file_exists(path, description):
-    """Verifica se arquivo existe"""
-    if os.path.exists(path):
-        print(f"✅ {description}")
-        return True
-    else:
-        print(f"❌ {description} - ARQUIVO NÃO ENCONTRADO")
-        return False
 
-def check_file_contains(path, text, description):
-    """Verifica se arquivo contém texto específico"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            if text in content:
-                print(f"✅ {description}")
-                return True
-            else:
-                print(f"❌ {description} - TEXTO NÃO ENCONTRADO")
-                return False
-    except Exception as e:
-        print(f"❌ {description} - ERRO: {e}")
-        return False
+ROOT = Path(__file__).resolve().parents[1]
 
-def check_file_not_contains(path, text, description):
-    """Verifica se arquivo NÃO contém texto específico"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            if text not in content:
-                print(f"✅ {description}")
-                return True
-            else:
-                print(f"❌ {description} - TEXTO AINDA PRESENTE (deveria ter sido removido)")
-                return False
-    except Exception as e:
-        print(f"❌ {description} - ERRO: {e}")
-        return False
+
+def check(condition, description):
+    marker = "OK" if condition else "ERRO"
+    print(f"[{marker}] {description}")
+    return bool(condition)
+
+
+def file_contains(path, text):
+    target = ROOT / path
+    return target.exists() and text in target.read_text(encoding="utf-8")
+
 
 def main():
-    print("\n" + "="*60)
-    print("  VALIDAÇÃO DO SISTEMA FIELDNODE")
-    print("="*60 + "\n")
-    
-    results = []
-    
-    # 1. Verificar correção do bug crítico
-    print("📋 1. BUG CRÍTICO DE VALIDAÇÃO")
-    results.append(check_file_not_contains(
-        'api_tcc/services/telemetria.py',
-        'if not Colheitadeira.objects.filter(modelo__nome=maquina_id).exists():',
-        'Validação bloqueante removida'
-    ))
-    results.append(check_file_contains(
-        'api_tcc/services/telemetria.py',
-        'CORREÇÃO: Removida validação',
-        'Comentário de correção presente'
-    ))
-    print()
-    
-    # 2. Verificar visual unificado
-    print("📋 2. VISUAL UNIFICADO")
-    results.append(check_file_contains(
-        'frontend/detalhes.html',
-        '<link rel="stylesheet" href="styles.css"/>',
-        'detalhes.html usa styles.css'
-    ))
-    results.append(check_file_not_contains(
-        'frontend/detalhes.html',
-        'bootstrap@5.3.0',
-        'Bootstrap removido de detalhes.html'
-    ))
-    print()
-    
-    # 3. Verificar sistema de busca
-    print("📋 3. SISTEMA DE BUSCA")
-    results.append(check_file_contains(
-        'frontend/dashboard.html',
-        'autocomplete-dropdown',
-        'Dropdown de autocompletar presente'
-    ))
-    results.append(check_file_contains(
-        'frontend/dashboard.html',
-        'function selecionarMaquinaAutocomplete',
-        'Função de seleção implementada'
-    ))
-    print()
-    
-    # 4. Verificar novas máquinas
-    print("📋 4. NOVAS MÁQUINAS CADASTRADAS")
-    results.append(check_file_contains(
-        'scripts/simular_mqtt.py',
-        'NH-CR8090-02',
-        'New Holland CR8090-02 cadastrada'
-    ))
-    results.append(check_file_contains(
-        'scripts/simular_mqtt.py',
-        'VALTRA-BC8800-01',
-        'Valtra BC8800-01 cadastrada'
-    ))
-    results.append(check_file_contains(
-        'scripts/simular_mqtt.py',
-        'VALTRA-BC6800-02',
-        'Valtra BC6800-02 cadastrada'
-    ))
-    print()
-    
-    # 5. Verificar documentação
-    print("📋 5. DOCUMENTAÇÃO")
-    results.append(check_file_exists(
-        'FLUXO-COMPLETO.md',
-        'Guia de fluxo completo criado'
-    ))
-    results.append(check_file_exists(
-        'docs/GUIA-SISTEMA-BUSCA.md',
-        'Guia do sistema de busca criado'
-    ))
-    results.append(check_file_exists(
-        'TESTE-RAPIDO-BUSCA.md',
-        'Guia de teste rápido criado'
-    ))
-    print()
-    
-    # Resultado final
-    print("="*60)
-    total = len(results)
-    passed = sum(results)
-    failed = total - passed
-    
-    print(f"\n📊 RESULTADO: {passed}/{total} verificações passaram")
-    
-    if failed == 0:
-        print("\n🎉 SISTEMA VALIDADO COM SUCESSO!")
-        print("\nPróximos passos:")
-        print("  1. python manage.py runserver")
-        print("  2. python scripts/mqtt_listen.py")
-        print("  3. python scripts/simular_mqtt.py")
-        print("  4. Acesse: http://127.0.0.1:8000/frontend/dashboard.html")
-        return 0
-    else:
-        print(f"\n⚠️  {failed} verificação(ões) falharam")
-        print("\nRevise os itens marcados com ❌ acima")
-        return 1
+    print("\nVALIDACAO FIELDNODE\n")
 
-if __name__ == '__main__':
+    checks = [
+        check((ROOT / "frontend-next/src/app/dashboard/page.tsx").exists(), "rota Next /dashboard existe"),
+        check((ROOT / "frontend-next/src/app/colheitadeiras/page.tsx").exists(), "rota Next /colheitadeiras existe"),
+        check((ROOT / "frontend-next/src/app/operarios/page.tsx").exists(), "rota Next /operarios existe"),
+        check((ROOT / "frontend-next/src/app/detalhes/page.tsx").exists(), "rota Next /detalhes existe"),
+        check((ROOT / "frontend-next/src/components/AppShell.tsx").exists(), "AppShell compartilhado existe"),
+        check((ROOT / "frontend-next/tailwind.config.ts").exists(), "tailwind.config.ts existe"),
+        check(file_contains("frontend-next/next.config.ts", 'output: "standalone"'), "Next configurado para build standalone"),
+        check(file_contains("docker-compose.yml", "frontend:"), "docker-compose sobe frontend"),
+        check(file_contains("docker-compose.yml", "FIELDNODE_SERVER_API_URL=http://web:8000/api"), "frontend container aponta para API interna"),
+        check(file_contains("setup/urls.py", "api/health/"), "endpoint /api/health/ registrado"),
+        check(file_contains("api_tcc/api/views_ingestao.py", "X-API-Key"), "ingestao documenta API key"),
+        check(file_contains("api_tcc/api/views_ingestao.py", "_verificar_api_key"), "ingestao valida API key"),
+        check(file_contains(".gitignore", ".env"), ".env ignorado pelo git"),
+        check(not (ROOT / "frontend-old").exists(), "frontend-old removido"),
+        check(not (ROOT / "frontend").exists(), "starter frontend antigo removido"),
+    ]
+
+    passed = sum(checks)
+    total = len(checks)
+    print(f"\nResultado: {passed}/{total}")
+
+    return 0 if passed == total else 1
+
+
+if __name__ == "__main__":
     sys.exit(main())

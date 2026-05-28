@@ -1,6 +1,9 @@
 import { Suspense } from 'react';
 import { telemetryService } from '@/services/telemetryService';
+import { AppShell } from '@/components/AppShell';
+import { ErrorState } from '@/components/EmptyState';
 import { FleetGrid } from '@/components/FleetGrid';
+import { MetricCard } from '@/components/MetricCard';
 import { SkeletonGrid } from '@/components/SkeletonGrid';
 
 async function FleetData() {
@@ -9,43 +12,36 @@ async function FleetData() {
   try {
     machines = await telemetryService.getFleetStatus();
   } catch {
-    return (
-      <section className="rounded-lg border border-red-200 bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-sm font-semibold uppercase tracking-wide text-red-600">Falha ao carregar</p>
-        <h2 className="mt-2 text-xl font-bold text-slate-950">Nao consegui falar com a API agora.</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Confira se o backend Django esta rodando em 127.0.0.1:8000. O dashboard continua de pe, so esta sem dados
-          frescos para mostrar.
-        </p>
-      </section>
-    );
+    return <ErrorState title="Nao consegui falar com a API agora." message="Confira se o backend Django esta rodando em 127.0.0.1:8000. O dashboard continua de pe, so esta sem dados frescos para mostrar." />;
   }
 
-  return <FleetGrid machines={machines} />;
+  const activeMachines = machines.filter((machine) => machine.status_de_operacao.em_operacao).length;
+  const movingMachines = machines.filter((machine) => machine.estado_de_movimento.em_movimento).length;
+  const totalHours = machines.reduce((sum, machine) => sum + machine.status_de_operacao.tempo_de_operacao, 0);
+
+  return (
+    <div className="space-y-5">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricCard label="Maquinas" value={machines.length} helper="cadastradas na frota" />
+        <MetricCard label="Em operacao" value={activeMachines} helper={`${movingMachines} em movimento`} tone="emerald" />
+        <MetricCard label="Horas" value={`${totalHours.toFixed(1)}h`} helper="tempo total reportado" tone="amber" />
+      </section>
+      <FleetGrid machines={machines} />
+    </div>
+  );
 }
 
 export default function DashboardPage() {
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">FieldNode</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">Frota em campo</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Monitoramento das colheitadeiras com cache offline e reenvio automatico de telemetria.
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-            <span className="font-semibold text-slate-950">Sync offline</span>
-            <span className="ml-2 text-emerald-700">ativo</span>
-          </div>
-        </header>
-
-        <Suspense fallback={<SkeletonGrid />}>
-          <FleetData />
-        </Suspense>
-      </div>
-    </main>
+    <AppShell
+      active="/dashboard"
+      eyebrow="FieldNode"
+      title="Frota em campo"
+      actions={<div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">Sync offline ativo</div>}
+    >
+      <Suspense fallback={<SkeletonGrid />}>
+        <FleetData />
+      </Suspense>
+    </AppShell>
   );
 }

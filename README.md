@@ -1,180 +1,171 @@
-# 🚜 FieldNode
+# FieldNode
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Django-092E20?style=for-the-badge&logo=django&logoColor=white"/>
-  <img src="https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white"/>
-  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white"/>
-</p>
+Telemetria offline-first para maquinas agricolas, com ingestao Django, dashboard Next.js e sincronizacao tolerante a falhas.
 
-> **Telemetria Offline-First para o Agronegócio.**  
-> O dado de campo existe. O FieldNode garante que ele chegue, mesmo sem internet.
+## Visao Geral
 
-## 🌾 O Problema
-
-Cerca de 40% das operações de colheita no Brasil ocorrem em áreas de sombra de conectividade (sem 4G/Wi-Fi). Sistemas comerciais falham porque dependem de nuvem em tempo real. Quando um rolamento superaquece sem internet, a máquina quebra e o prejuízo é imediato.
-
-## 🛠 A Solução
-
-O FieldNode é um ecossistema de hardware e software focado em **resiliência**. 
-
-1. **Módulos ESP32** na máquina coletam telemetria e transmitem via **ESP-NOW** (protocolo P2P sem necessidade de roteador).
-2. Um **Gateway Local** recebe os dados e disponibiliza um dashboard em tempo real direto no campo.
-3. Quando a máquina ou o Gateway encontra conectividade (chegada na sede), os dados são sincronizados automaticamente com o **Backend Django** usando deduplicação por UUID, evitando perda ou replicação de dados.
-
-## 🏗 Arquitetura Final
+O FieldNode segue um fluxo simples e forte:
 
 ```text
-[Sensor Vibr./Temp] ---> (ESP32 Node) --[ESP-NOW]--> (ESP32 Gateway)
-                                                                   |
-                                                        (Local Wi-Fi)
-                                                                   |
-                                                       [Dashboard Web Local]
-                                                                   |
-                                                        (Internet / Sync)
-                                                                   v
-                                                       [API Django / MySQL]
+Sensor ESP32 -> Gateway Local -> Dashboard Next.js -> API Django -> MySQL
 ```
 
-### Componentes Principais
+A ideia central e nao perder dado quando a rede rural resolve tirar ferias. Os dispositivos coletam telemetria, reenviam quando existe conexao e a API usa UUID para evitar duplicidade.
 
-- **ESP32 Nodes**: Coleta de dados de sensores (temperatura, vibração, RPM) e transmissão via ESP-NOW.
-- **ESP32 Gateway**: Recebe dados via ESP-NOW, expõe API local para dashboard e gerencia sincronização com backend.
-- **Backend Django**: API REST para ingestão, processamento de IA (detecção de anomalias, prescrições) e relatórios.
-- **Banco de Dados**: MySQL 8 (produção) / SQLite (desenvolvimento) para armazenamento de telemetria e modelos de IA.
-- **Frontend Local**: Dashboard web estático (HTML/CSS/JS) servido pelo Django para visualização em tempo real no campo.
-- **Sincronização Offline-First**: UUID v4 garante idempotência; tentativas de reenvio até confirmação de sucesso.
+## Stack
 
-## 🚀 Como Rodar o Projeto (Setup Local)
+| Camada | Tecnologia |
+| --- | --- |
+| Backend | Django 5.2 + Django REST Framework |
+| Frontend | Next.js + React + Tailwind CSS |
+| Banco | MySQL 8 em Docker ou SQLite em desenvolvimento |
+| Hardware | ESP32, ESP-NOW e simuladores MQTT |
+| Docs API | Swagger em `/swagger/` |
 
-### Pré-requisitos
-- Python 3.10+
-- MySQL 8 (ou use SQLite em desenvolvimento)
-- Node.js (opcional, para frontend)
+## Rodando Com Docker Compose
 
-### Início Rápido (2 minutos)
+Esse e o caminho recomendado para apresentacao, porque sobe backend, banco e frontend juntos. Nada de "na minha maquina foi", esse classico da dramaturgia tecnica.
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/Desmantelar-bit/fieldnode.git
-cd fieldnode
+docker compose up --build
+```
 
-# 2. Crie e ative o ambiente virtual
+Acesse:
+
+```text
+Frontend Next.js: http://127.0.0.1:3000/dashboard
+API Django:       http://127.0.0.1:8000/api/health/
+Swagger:          http://127.0.0.1:8000/swagger/
+```
+
+O `docker-compose.yml` usa:
+
+```text
+FIELDNODE_SERVER_API_URL=http://web:8000/api
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
+```
+
+Isso existe por um motivo bem pouco poetico: o servidor Next dentro do container fala com Django por `web:8000`, enquanto o navegador do usuario fala com Django por `127.0.0.1:8000`.
+
+## Rodando Localmente Sem Docker
+
+### Backend
+
+```bash
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/macOS
-
-# 3. Instale as dependências
+.venv\Scripts\activate
 pip install -r requirements.txt
-
-# 4. Configure o ambiente
-cp .env.example .env
-# Edite .env se necessário (valores padrão funcionam para dev)
-
-# 5. Rode as migrações
+copy .env.example .env
 python manage.py migrate
-
-# 6. Inicie o servidor
 python manage.py runserver
 ```
 
-### Acessar o Sistema
+### Frontend
 
-**Dashboard Operacional (recomendado):**
-```
-http://127.0.0.1:8000/frontend/dashboard.html
-```
-
-**Landing Page:**
-```
-http://127.0.0.1:8000/frontend/
-```
-
-**Documentação da API (Swagger):**
-```
-http://127.0.0.1:8000/swagger/
-```
-
-### Popular com Dados de Demonstração
+Em outro terminal:
 
 ```bash
-# Em outro terminal (com o servidor rodando):
-python scripts/demo_pane.py
+cd frontend-next
+npm ci
+npm run dev
 ```
 
-Isso iniciará um simulador MQTT que envia telemetria de 3 máquinas em tempo real.
-O dashboard atualizará automaticamente a cada 3 segundos.
+Acesse:
 
-## 🔐 Principais Endpoints (API)
-
-| Endpoint | Método | Descrição |
-|----------|--------|-----------|
-| `/api/telemetria/` | POST | Recebe batch de leitura offline (requer `X-API-Key`) |
-| `/api/telemetria/` | GET | Lista últimas 50 leituras (dev/debug) |
-| `/api/telemetria/ultimas/` | GET | Última leitura de cada máquina ativa |
-| `/api/anomalias/` | GET | Detecta leituras fora do padrão (Isolation Forest) |
-| `/api/manutencao/` | GET | Prevê probabilidade de manutenção (Random Forest) |
-| `/api/prescricoes/` | GET | Gera prescrições de manutenção com IA (combina IA + regras) |
-| `/api/relatorio/` | GET | Relatório operacional (JSON/CSV) |
-| `/api/metricas/` | GET | Métricas operacionais do sistema |
-| `/api/status-mqtt/` | GET | Status de conectividade MQTT |
-
-### Exemplo de Prescrição
-```bash
-curl -X GET "http://localhost:8000/api/prescricoes/?maquina_id=CASE-TC5000-01"
+```text
+http://127.0.0.1:3000/dashboard
 ```
 
-### Exemplo de Ingestão
+## Build De Producao Do Frontend
+
 ```bash
-curl -X POST http://localhost:8000/api/telemetria/ \
+cd frontend-next
+npm run build
+npm run start
+```
+
+O Next.js nao e servido pelo Django neste projeto. Ele roda como servico proprio, e o Django fica responsavel pela API. Tentar enfiar SSR dentro de `collectstatic` seria bonito no discurso e torto na pratica.
+
+## Variaveis De Ambiente
+
+Copie `.env.example` para `.env` e ajuste quando necessario.
+
+Variaveis principais:
+
+```text
+SECRET_KEY
+FIELDNODE_API_KEY
+DEBUG
+ALLOWED_HOSTS
+CORS_ALLOWED_ORIGINS
+NEXT_PUBLIC_API_URL
+NEXT_PUBLIC_FIELDNODE_API_KEY
+FIELDNODE_SERVER_API_URL
+USE_SQLITE
+DB_NAME
+DB_USER
+DB_PASSWORD
+DB_HOST
+DB_PORT
+```
+
+O arquivo `.env` esta no `.gitignore`. Segredo versionado e o tipo de erro que faz banca tecnica levantar a sobrancelha antes do cafe esfriar.
+
+## Rotas Principais
+
+### Frontend
+
+| Rota | Uso |
+| --- | --- |
+| `/dashboard` | Visao geral da frota |
+| `/colheitadeiras` | Leituras recentes por maquina |
+| `/operarios` | Equipe cadastrada |
+| `/detalhes?id=COLH-01` | Historico e metricas da maquina |
+
+### API
+
+| Endpoint | Metodo | Uso |
+| --- | --- | --- |
+| `/api/health/` | GET | Checagem simples de saude |
+| `/api/telemetria/` | POST | Ingestao com `X-API-Key` |
+| `/api/telemetria/` | GET | Ultimas leituras para debug |
+| `/api/leituras/ultimas/` | GET | Ultima leitura por maquina |
+| `/api/operario/` | GET | Operarios cadastrados |
+| `/api/colheitadeira/` | GET | Frota cadastrada |
+| `/api/anomalias/` | GET | Analise de anomalias |
+| `/api/manutencao/` | GET | Estimativa de manutencao |
+| `/api/prescricoes/` | GET | Prescricao operacional |
+| `/api/relatorio/` | GET | Relatorio JSON ou CSV |
+
+Exemplo de ingestao:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/telemetria/ \
   -H "Content-Type: application/json" \
   -H "X-API-Key: fieldnode-demo-2024" \
-  -d '{
-    "id": "uuid-v4",
-    "maquina_id": "CASE-TC5000-01",
-    "temperatura": 78.5,
-    "vibracao": 0.42,
-    "rpm": 1850,
-    "timestamp": "2024-04-23T14:32:01Z"
-  }'
+  -d "{\"id\":\"550e8400-e29b-41d4-a716-446655440000\",\"maquina_id\":\"COLH-01\",\"temperatura\":78.5,\"vibracao\":0.42,\"rpm\":1850,\"timestamp\":\"2026-05-28T14:32:01Z\"}"
 ```
 
-## 📊 Stack Técnica
+## Validacao Rapida
 
-| Camada | Tecnologia |
-|--------|------------|
-| Hardware | ESP32 + Arduino/C++ |
-| Wireless | ESP-NOW + MQTT (para simulação) |
-| Backend | Django 5.2 + DRF 3.15 |
-| Banco | MySQL 8 (SQLite em dev) |
-| IA/ML | scikit-learn (Isolation Forest, Random Forest) |
-| Docs | Swagger (drf-yasg) |
-| Frontend | HTML/CSS/JS + Chart.js |
-| Deploy | Docker + Docker Compose (produção) |
+```bash
+python scripts/teste_fluxo_completo.py
+```
 
-## 🧠 Equipe e Contexto
+Para validar so a estrutura de arquivos:
 
-Projeto de Conclusão de Curso (TCC) desenvolvido por estudantes técnicos em Desenvolvimento de Sistemas do SENAI-SP (2026). Tratado com engenharia e rigor de mercado.
+```bash
+python scripts/validar_sistema.py
+```
 
-| | | | |
-|:-:|:-:|:-:|:-:|
-| [Vinícius Morales](https://github.com/ViniciusMorales) | [Paola Machado](https://github.com/Paola5858) | [Ana Caroline Furlaneto](https://github.com/acfurlaneto) | Giovana D'Angelo |
+## Observacoes Para Banca
 
-## 📝 Licença
+- A ingestao exige `X-API-Key`.
+- O frontend antigo foi removido para evitar rotas quebradas e duplicidade.
+- O Next.js roda como servico separado no Compose.
+- O dashboard tem timeout de API para nao travar quando o backend demora.
+- O `.env` nao deve ser commitado.
+
+## Licenca
 
 MIT
-
----
-
-## 📚 Documentação Adicional
-
-- **[INSTRUCOES-APRESENTACAO.md](INSTRUCOES-APRESENTACAO.md)** — Guia completo para apresentação na banca (15 min)
-- **[CHEAT-SHEET-APRESENTACAO.md](CHEAT-SHEET-APRESENTACAO.md)** — Resumo de uma página para consulta rápida
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — Diagnóstico e solução de problemas comuns
-- **[docs/FASE-1-CONCLUIDA.md](docs/FASE-1-CONCLUIDA.md)** — Relatório das correções implementadas
-
-### Documentação Técnica Existente
-
-- **[docs/CORRECOES-FINAIS.md](docs/CORRECOES-FINAIS.md)** — Histórico de correções e decisões técnicas
-- **[docs/DEFESA-BANCA.md](docs/DEFESA-BANCA.md)** — Argumentos técnicos para defesa
-- **[docs/GUIA-RAPIDO-SIMULACAO.md](docs/GUIA-RAPIDO-SIMULACAO.md)** — Como usar os simuladores
-- **[docs/faq_banca.md](docs/faq_banca.md)** — Perguntas frequentes da banca com respostas preparadas
