@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: fieldnode_db
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+       - USE_SQLITE=False
+       - DB_NAME=fieldnode_db
+       - DB_USER=root
+       - DB_PASSWORD=root_password
+       - DB_HOST=db
+       - DB_PORT=3306
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:

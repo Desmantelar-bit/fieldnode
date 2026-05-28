@@ -16,24 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView
-from django.http import FileResponse
-from django.conf import settings
-import os
 from rest_framework import routers
 from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-
-
-def serve_frontend(request, filename='index.html'):
-    """Serve arquivos do frontend"""
-    frontend_path = os.path.join(settings.BASE_DIR, 'frontend', filename)
-    if os.path.exists(frontend_path):
-        return FileResponse(open(frontend_path, 'rb'))
-    else:
-        return FileResponse(open(os.path.join(settings.BASE_DIR, 'frontend', 'index.html'), 'rb'))
 
 
 schema_view = get_schema_view(
@@ -64,11 +51,12 @@ router.register(r'estadodemovimento', viewsets.EstadodeMovimentoViewSet, basenam
 router.register(r'transbordo', viewsets.TransbordoViewSet, basename='transbordo')
 router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colheitadeira')
 
-urlpatterns = [ # Rota para o admin e para as APIs geradas pelos viewsets
-    path('', include(router.urls)),  # API Root na raiz
-    path('admin/', admin.site.urls),
-    path('api/', include(router.urls)),
-    path('api/telemetria/', IngestaoTelemetriaView.as_view(), name='ingestao-telemetria'),
+urlpatterns = [  # Rota para o admin e para as APIs geradas pelos viewsets
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),
+    path(
+        "api/telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"
+    ),
 ]
 
 urlpatterns += [ # Rotas para a documentação Swagger e Redoc
@@ -77,21 +65,12 @@ urlpatterns += [ # Rotas para a documentação Swagger e Redoc
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
-urlpatterns += [ # Rota para detecção de anomalias
-    path('api/anomalias/', AnomaliaView.as_view(), name='anomalias'),
-    path('api/leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
-    path('api/manutencao/', ManutencaoView.as_view(), name='manutencao'),
-    path('api/metricas/', MetricasView.as_view(), name='metricas'),
-    path('api/status-mqtt/', StatusMQTTView.as_view(), name='status-mqtt'),
-    path('api/prescricoes/', PrescricaoView.as_view(), name='prescricao'),
-    path('api/relatorio/', RelatorioView.as_view(), name='relatorio'),
-]
-
-# Rotas para o frontend
-# IMPORTANTE: Não usar path('', ...) aqui pois conflita com DefaultRouter
-# Acesse o dashboard em: http://127.0.0.1:8000/frontend/dashboard.html
-# Acesse a landing page em: http://127.0.0.1:8000/frontend/
-urlpatterns += [
-    path('frontend/<path:filename>', serve_frontend, name='frontend-file'),
-    path('frontend/', serve_frontend, name='frontend-index'),
+urlpatterns += [  # Rota para detecção de anomalias
+    path("api/anomalias/", AnomaliaView.as_view(), name="anomalias"),
+    path("api/leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
+    path("api/manutencao/", ManutencaoView.as_view(), name="manutencao"),
+    path("api/metricas/", MetricasView.as_view(), name="metricas"),
+    path("api/status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
+    path("api/prescricoes/", PrescricaoView.as_view(), name="prescricao"),
+    path("api/relatorio/", RelatorioView.as_view(), name="relatorio"),
 ]

@@ -21,18 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env_config(
-    "SECRET_KEY", default="django-insecure-fieldnode-default-key-for-dev"
-)
+SECRET_KEY = env_config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_config("DEBUG", default=True, cast=bool)
-FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY", default="fieldnode-demo-2024")
+DEBUG = env_config("DEBUG", default=False, cast=bool)
+FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
 
-ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="*").split(",")
+ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split(",")
 
 # Configurações de CORS para permitir que o Dashboard acesse a API
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = env_config(
+    "CORS_ALLOWED_ORIGINS", default="http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
 CORS_ALLOW_CREDENTIALS = True
 
 
