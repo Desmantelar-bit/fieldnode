@@ -53,8 +53,18 @@ export const TelemetryInputSchema = z.object({
 });
 
 export const TelemetrySchema = TelemetryInputSchema.extend({
+  id: z.string().optional(),
+  seq_id: z.coerce.number().optional(),
   nivel_risco: z.enum(['NORMAL', 'ATENCAO', 'CRITICO']).optional(),
   total_leituras: z.coerce.number().optional(),
+  recebido_em: z.string().optional(),
+});
+
+export const OperatorSchema = z.object({
+  id: z.coerce.number(),
+  nome: z.string().default('Operario sem nome'),
+  tempo_de_servico: z.coerce.number().default(0),
+  no_banco: z.boolean().default(false),
 });
 
 export const MachineFleetSchema = z.object({
@@ -68,3 +78,4 @@ export const MachineFleetSchema = z.object({
 export type Telemetry = z.infer<typeof TelemetrySchema>;
 export type TelemetryInput = z.infer<typeof TelemetryInputSchema>;
 export type Machine = z.infer<typeof MachineFleetSchema>;
+export type Operator = z.infer<typeof OperatorSchema>;

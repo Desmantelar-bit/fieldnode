@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
 from api_tcc.api import viewsets
-from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
+from api_tcc.api.views_ingestao import AnomaliaView, HealthView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -70,6 +70,7 @@ urlpatterns += [  # Rota para detecção de anomalias
     path("api/leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
     path("api/manutencao/", ManutencaoView.as_view(), name="manutencao"),
     path("api/metricas/", MetricasView.as_view(), name="metricas"),
+    path("api/health/", HealthView.as_view(), name="health"),
     path("api/status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("api/prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("api/relatorio/", RelatorioView.as_view(), name="relatorio"),

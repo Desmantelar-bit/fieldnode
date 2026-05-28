@@ -33,6 +33,13 @@ from api_tcc.services.telemetria import registrar_leitura
 logger = logging.getLogger(__name__)
 
 
+class HealthView(APIView):
+    """GET /api/health/ - checagem simples para scripts e deploy."""
+
+    def get(self, request):
+        return Response({'status': 'ok'})
+
+
 class AnomaliaView(APIView):
     """
     GET /api/anomalias/

@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #090d0b;
+  --foreground: #edf7f1;
+  --panel: #101714;
+  --panel-2: #17211d;
+  --muted: #7f9488;
+  --line: rgba(219, 255, 233, 0.1);
+  --green: #64d98c;
+  --amber: #f2c15f;
+  --red: #f07878;
 }
 
 @theme inline {
@@ -20,4 +27,16 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(100, 217, 140, 0.28);
+}
+
+.glass-panel {
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    var(--panel);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
 }
