@@ -175,6 +175,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'id':          {'read_only': True},
+            'seq_id':      {'read_only': True},
             'recebido_em': {'read_only': True},
         }
 

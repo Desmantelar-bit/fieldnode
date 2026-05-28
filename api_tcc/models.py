@@ -179,6 +179,7 @@ class Colheitadeira(models.Model):
 
 class LeituraTelemetria(models.Model):
     id          = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    seq_id      = models.BigIntegerField(unique=True, editable=False, verbose_name='ID Sequencial', null=True)
     maquina_id  = models.CharField(max_length=50, verbose_name='ID da Máquina')
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
@@ -191,8 +192,14 @@ class LeituraTelemetria(models.Model):
         verbose_name = 'Leitura de Telemetria'
         verbose_name_plural = 'Leituras de Telemetria'
 
+    def save(self, *args, **kwargs):
+        if self.seq_id is None:
+            ultimo = LeituraTelemetria.objects.order_by('-seq_id').first()
+            self.seq_id = (ultimo.seq_id + 1) if ultimo and ultimo.seq_id else 1
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f'{self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
+        return f'#{self.seq_id} — {self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
 
 class TelemetriaInvalida(models.Model):
     """
