@@ -42,3 +42,5 @@ venv/
 yarn-debug.log
 yarn-error.log
 
+# IDE/Tooling Cache
+.kilo/
