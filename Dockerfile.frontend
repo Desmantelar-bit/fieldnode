@@ -2,7 +2,7 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 COPY frontend-next/package*.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 FROM node:22-alpine AS builder
 
