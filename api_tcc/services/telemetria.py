@@ -115,22 +115,22 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                      uuid_recebido, dados.get("maquina_id"))
         return "duplicata", str(uuid_recebido)
 
-     try:
-         timestamp = _normalizar_timestamp(dados["timestamp"])
-         leitura = LeituraTelemetria(
-             id=uuid_recebido,
-             maquina_id=str(dados["maquina_id"]).strip(),
-             temperatura=float(dados["temperatura"]),
-             vibracao=float(dados["vibracao"]),
-             rpm=int(dados["rpm"]),
-             latitude=float(dados["latitude"]) if "latitude" in dados and dados["latitude"] is not None else None,
-             longitude=float(dados["longitude"]) if "longitude" in dados and dados["longitude"] is not None else None,
-             timestamp=timestamp,
-         )
-         leitura.save()  # Garante que o método save() seja chamado para atribuir seq_id
-         logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
-                     leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
-         return "criado", str(leitura.id)
+    try:
+        timestamp = _normalizar_timestamp(dados["timestamp"])
+        leitura = LeituraTelemetria(
+            id=uuid_recebido,
+            maquina_id=str(dados["maquina_id"]).strip(),
+            temperatura=float(dados["temperatura"]),
+            vibracao=float(dados["vibracao"]),
+            rpm=int(dados["rpm"]),
+            latitude=float(dados["latitude"]) if "latitude" in dados and dados["latitude"] is not None else None,
+            longitude=float(dados["longitude"]) if "longitude" in dados and dados["longitude"] is not None else None,
+            timestamp=timestamp,
+        )
+        leitura.save()
+        logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
+                    leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
+        return "criado", str(leitura.id)
 
     except IntegrityError:
         # Race condition: dois workers receberam o mesmo UUID ao mesmo tempo
