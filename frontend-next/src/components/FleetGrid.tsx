@@ -37,6 +37,16 @@ export function FleetGrid({ machines }: { machines: Machine[] }) {
               <dd className="mt-1 font-semibold text-slate-50">{machine.status_de_operacao.tempo_de_operacao}h</dd>
             </div>
           </dl>
+
+          {/* Botão para ver prescrições */}
+          <div className="mt-4">
+            <a
+              href={`/dashboard/maquinas/${machine.modelo.nome}/prescricao`}
+              className="w-full inline-flex items-center justify-center px-3 py-2 bg-emerald-600/10 border border-emerald-500/20 text-sm font-medium text-emerald-100 hover:bg-emerald-600/20 hover:border-emerald-500/30 transition-colors rounded-md"
+            >
+              Ver Prescrição
+            </a>
+          </div>
         </article>
       ))}
     </div>

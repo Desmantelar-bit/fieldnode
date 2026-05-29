@@ -304,3 +304,20 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
     def get_status_risco(self, obj):
         """Retorna a classificação de risco processada pelo serviço de telemetria."""
         return calcular_status_risco(obj.temperatura, obj.vibracao, obj.rpm)
+
+
+class PrescricaoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Prescricao
+        fields = [
+            "id",
+            "colheitadeira",
+            "titulo",
+            "descricao",
+            "data_geracao",
+            "status",
+        ]
+        extra_kwargs = {
+            'id': {'read_only': True},
+            'data_geracao': {'read_only': True},
+        }
