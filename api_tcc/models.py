@@ -184,6 +184,8 @@ class LeituraTelemetria(models.Model):
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
     rpm         = models.IntegerField(verbose_name='RPM')
+    latitude = models.FloatField(verbose_name="Latitude", null=True, blank=True)
+    longitude = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor', db_index=True)
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em', db_index=True)
 

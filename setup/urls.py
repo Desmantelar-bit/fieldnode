@@ -19,6 +19,7 @@ from django.urls import path, include
 from rest_framework import routers
 from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import AnomaliaView, HealthView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
+from api_tcc import views_gps
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -74,4 +75,5 @@ urlpatterns += [  # Rota para detecção de anomalias
     path("api/status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("api/prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("api/relatorio/", RelatorioView.as_view(), name="relatorio"),
+    path("api/maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
 ]
