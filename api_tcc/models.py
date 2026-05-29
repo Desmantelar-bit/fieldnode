@@ -233,3 +233,29 @@ class TelemetriaInvalida(models.Model):
 
     def __str__(self):
         return f'{self.maquina_id} — {self.motivo_rejeicao[:60]} — {self.recebido_em}'
+
+
+class Prescricao(models.Model):
+    STATUS_CHOICES = (
+        ("pendente", "Pendente"),
+        ("concluida", "Concluída"),
+        ("cancelada", "Cancelada"),
+    )
+    colheitadeira = models.ForeignKey(
+        Colheitadeira, on_delete=models.CASCADE, verbose_name="Colheitadeira"
+    )
+    titulo = models.CharField(max_length=200, verbose_name="Título")
+    descricao = models.TextField(verbose_name="Descrição")
+    data_geracao = models.DateTimeField(
+        auto_now_add=True, verbose_name="Data de Geração"
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pendente", verbose_name="Status"
+    )
+
+    class Meta:
+        verbose_name = "Prescrição"
+        verbose_name_plural = "Prescrições"
+
+    def __str__(self):
+        return f"{self.titulo} - {self.colheitadeira.modelo.nome}"

@@ -1,78 +1,73 @@
-'use client';
+"use client";
+import React, { useState } from "react";
 
-import { useState } from 'react';
+export default function RelatoriosPage() {
+  const [maquinaId, setMaquinaId] = useState("");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
 
-export default function CadastroColheitadeira() {
-  const [formData, setFormData] = useState({
-    modelo_id: '',
-    combustivel_id: '',
-    operario_id: '',
-    // Outros campos omitidos para brevidade, mas seguem a mesma lógica
-  });
+  const handleDownload = async () => {
+    if (!maquinaId) return alert("Selecione uma máquina");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+    setStatus("loading");
     try {
-      const response = await fetch('http://localhost:8000/api/colheitadeiras/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `/api/relatorios?maquina_id=${maquinaId}&tipo=csv`,
+      );
+      if (!response.ok) throw new Error();
 
-      if (response.ok) {
-        alert('Colheitadeira cadastrada com sucesso!');
-      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio_${maquinaId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      setStatus("success");
     } catch (error) {
-      console.error('Erro ao cadastrar:', error);
+      setStatus("error");
     }
   };
 
-  // Exemplo de ajuste solicitado para a função cadastrarModelo
-  const handleCadastrarModelo = async (nomeModelo: string, marcaId: number) => {
-    const payload = {
-      nome: nomeModelo,
-      marca_id: marcaId, // Alterado de 'marca' para 'marca_id'
-    };
-
-    await fetch('http://localhost:8000/api/modelos/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  };
-
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Cadastro de Colheitadeira</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="p-8 max-w-2xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Extração de Relatórios</h1>
+      <div className="bg-white p-6 rounded-xl shadow-md space-y-4">
         <div>
-          <label className="block">ID do Modelo:</label>
+          <label className="block text-sm font-medium text-gray-700">
+            ID da Máquina
+          </label>
           <input
-            type="number"
-            className="border p-2 rounded w-full"
-            value={formData.modelo_id}
-            onChange={(e) => setFormData({...formData, modelo_id: e.target.value})}
-            required
+            type="text"
+            className="mt-1 block w-full border rounded-md p-2"
+            value={maquinaId}
+            onChange={(e) => setMaquinaId(e.target.value)}
+            placeholder="Ex: JD-8400"
           />
         </div>
-        <div>
-          <label className="block">ID do Operário:</label>
-          <input
-            type="number"
-            className="border p-2 rounded w-full"
-            value={formData.operario_id}
-            onChange={(e) => setFormData({...formData, operario_id: e.target.value})}
-            required
-          />
-        </div>
+
         <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          onClick={handleDownload}
+          disabled={status === "loading"}
+          className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition disabled:bg-gray-400"
         >
-          Salvar Máquina
+          {status === "loading" ? "Gerando..." : "Baixar Relatório (CSV)"}
         </button>
-      </form>
+
+        {status === "success" && (
+          <p className="text-green-600 text-center">
+            Relatório gerado com sucesso!
+          </p>
+        )}
+        {status === "error" && (
+          <p className="text-red-600 text-center">
+            Erro ao gerar relatório. Tente novamente.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
