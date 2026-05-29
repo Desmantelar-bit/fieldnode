@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 
+
 // Define the type for the machine position data from the API
 type MachinePosition = {
   id: number;
@@ -17,22 +18,32 @@ type MachinePosition = {
   };
 };
 
+const MapClient = dynamic(() => import("@/components/MapClient"), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-[24rem] w-full rounded-2xl bg-white/5 p-6 text-slate-300">
+      Carregando mapa...
+    </div>
+  ),
+});
+
 const MapPage = () => {
-  const [machinePositions, setMachinePositions] = useState<MachinePosition[]>([]);
+  const [machinePositions, setMachinePositions] = useState<MachinePosition[]>(
+    [],
+  );
   const [isMobile, setIsMobile] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/maquinas/posicao/');
+        const response = await fetch("/api/maquinas/posicao/");
         if (!response.ok) {
-          throw new Error('Failed to fetch machine positions');
+          throw new Error("Failed to fetch machine positions");
         }
         const data: MachinePosition[] = await response.json();
         setMachinePositions(data);
       } catch (error) {
-        console.error('Error fetching machine positions:', error);
+        console.error("Error fetching machine positions:", error);
       }
     };
 
@@ -42,18 +53,13 @@ const MapPage = () => {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(pointer: coarse), (max-width: 768px)');
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 768px)");
     const update = () => setIsMobile(Boolean(mq.matches));
     update();
-    mq.addEventListener?.('change', update);
-    return () => mq.removeEventListener?.('change', update);
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
   }, []);
-
-  const MapClient = dynamic(() => import('@/components/MapClient'), {
-    ssr: false,
-    loading: () => <div className="min-h-[24rem] w-full rounded-2xl bg-white/5 p-6 text-slate-300">Carregando mapa...</div>,
-  });
 
   return (
     <div className="min-h-[50vh] h-[calc(100vh-6rem)] w-full">
