@@ -28,7 +28,7 @@ from api_tcc.models import LeituraTelemetria
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.ia.anomalias import detectar_anomalias
 from api_tcc.ia.manutencao import prever_manutencao
-from api_tcc.services.telemetria import registrar_leitura
+from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
 
@@ -169,14 +169,15 @@ class UltimaLeituraView(APIView):
         for row in rows:
             mid, temp, vib, rpm, ts, total = row
 
-            # Classificação de risco baseada em limites operacionais documentados
-            # (mesmos thresholds usados pela IA para consistência de UI)
-            if temp > 85 or vib > 0.8:
-                nivel = 'CRITICO'
-            elif temp > 75 or vib > 0.5:
-                nivel = 'ATENCAO'
-            else:
-                nivel = 'NORMAL'
+            # Classificação de risco usando o serviço de telemetria (centralizado)
+            status_dict = calcular_status_risco(temp, vib, rpm)
+            # Mapear o rótulo de risco do serviço para o formato esperado pela view
+            nivel_risco_map = {
+                'Crítico': 'CRITICO',
+                'Alerta': 'ATENCAO',
+                'Normal': 'NORMAL'
+            }
+            nivel = nivel_risco_map.get(status_dict['rotuloRisco'], 'NORMAL')
 
             resultado.append({
                 'maquina_id':    mid,

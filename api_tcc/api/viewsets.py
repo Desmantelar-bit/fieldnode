@@ -4,7 +4,7 @@ from api_tcc import models
 from api_tcc.api import serializers
 
 
-def _make_viewset(model, serializer, descriptions):
+def _make_viewset(model, serializer, descriptions, queryset=None):
     """Gera um ModelViewSet com @swagger_auto_schema em cada action."""
 
     @swagger_auto_schema(operation_description=descriptions.get('list', ''), responses={200: serializer(many=True)})
@@ -31,7 +31,7 @@ def _make_viewset(model, serializer, descriptions):
         model.__name__ + 'ViewSet',
         (viewsets.ModelViewSet,),
         {
-            'queryset': model.objects.all(),
+            'queryset': queryset if queryset is not None else model.objects.all(),
             'serializer_class': serializer,
             'list': list,
             'create': create,
@@ -54,12 +54,12 @@ def _desc(nome):
 
 UnidadedeMedidaViewSet  = _make_viewset(models.UnidadedeMedida,  serializers.UnidadedeMedidaSerializer,  _desc('unidade de medida'))
 MarcaViewSet            = _make_viewset(models.Marca,            serializers.MarcaSerializer,            _desc('marca'))
-ModeloViewSet           = _make_viewset(models.Modelo,           serializers.ModeloSerializer,           _desc('modelo'))
+ModeloViewSet           = _make_viewset(models.Modelo,           serializers.ModeloSerializer,           _desc('modelo'), queryset=models.Modelo.objects.select_related('marca'))
 CombustivelViewSet      = _make_viewset(models.Combustivel,      serializers.CombustivelSerializer,      _desc('combustível'))
 OperarioViewSet         = _make_viewset(models.Operario,         serializers.OperarioSerializer,         _desc('operário'))
-PressaoPneusViewSet     = _make_viewset(models.PressaoPneus,     serializers.PressaoPneusSerializer,     _desc('pressão dos pneus'))
-AlturadoCorteViewSet    = _make_viewset(models.AlturadoCorte,    serializers.AlturadoCorteSerializer,    _desc('altura de corte'))
-PressaodoCorteViewSet   = _make_viewset(models.PressaodoCorte,   serializers.PressaodoCorteSerializer,   _desc('pressão de corte'))
+PressaoPneusViewSet     = _make_viewset(models.PressaoPneus,     serializers.PressaoPneusSerializer,     _desc('pressão dos pneus'), queryset=models.PressaoPneus.objects.select_related('unidade_de_medida'))
+AlturadoCorteViewSet    = _make_viewset(models.AlturadoCorte,    serializers.AlturadoCorteSerializer,    _desc('altura de corte'), queryset=models.AlturadoCorte.objects.select_related('unidade_de_medida'))
+PressaodoCorteViewSet   = _make_viewset(models.PressaodoCorte,   serializers.PressaodoCorteSerializer,   _desc('pressão de corte'), queryset=models.PressaodoCorte.objects.select_related('unidade_de_medida'))
 TempUmi_AmbienteViewSet = _make_viewset(models.TempUmi_Ambiente, serializers.TempUmi_AmbienteSerializer, _desc('temperatura e umidade do ambiente'))
 TemperaturaMaquinaViewSet = _make_viewset(models.TemperaturaMaquina, serializers.TemperaturaMaquinaSerializer, _desc('temperatura da máquina'))
 StatusdeOperacaoViewSet = _make_viewset(models.StatusdeOperacao, serializers.StatusdeOperacaoSerializer, _desc('status de operação'))
