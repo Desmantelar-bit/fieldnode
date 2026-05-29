@@ -169,3 +169,32 @@ def _registrar_leitura_invalida(dados: dict, motivo: str) -> None:
     except Exception as exc:
         # Não deixa falha de auditoria derrubar o fluxo principal
         logger.error("Falha ao registrar leitura inválida (auditoria): %s", str(exc))
+
+
+def calcular_status_risco(temperatura: float, vibracao: float, rpm: int) -> dict:
+    """
+    Centraliza a lógica de classificação de risco da máquina.
+    Define cores e rótulos baseados nos thresholds operacionais.
+    """
+    # Thresholds Críticos
+    if temperatura > 110.0 or vibracao > 8.0:
+        return {
+            "nivelCor": "#FFFFFF",
+            "nivelBg": "#FF5252",  # Vermelho
+            "rotuloRisco": "Crítico",
+        }
+
+    # Thresholds de Alerta
+    elif temperatura > 95.0 or vibracao > 5.0:
+        return {
+            "nivelCor": "#000000",
+            "nivelBg": "#FFD740",  # Amarelo/Âmbar
+            "rotuloRisco": "Alerta",
+        }
+
+    # Operação Normal
+    return {
+        "nivelCor": "#FFFFFF",
+        "nivelBg": "#4CAF50",  # Verde
+        "rotuloRisco": "Normal",
+    }
