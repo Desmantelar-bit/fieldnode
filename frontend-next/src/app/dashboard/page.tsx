@@ -6,6 +6,9 @@ import { FleetGrid } from '@/components/FleetGrid';
 import { MetricCard } from '@/components/MetricCard';
 import { SkeletonGrid } from '@/components/SkeletonGrid';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function FleetData() {
   let machines;
 
