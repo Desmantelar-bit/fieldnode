@@ -11,8 +11,8 @@ import {
 
 const API_URL =
   typeof window === 'undefined'
-    ? (process.env.FIELDNODE_SERVER_API_URL || 'http://web:8000/api')
-    : 'http://localhost:8000/api';
+    ? (process.env.FIELDNODE_SERVER_API_URL || 'http://localhost:8000/api')
+    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api');
 const API_KEY = process.env.NEXT_PUBLIC_FIELDNODE_API_KEY || '';
 const API_TIMEOUT_MS = 5000;
 

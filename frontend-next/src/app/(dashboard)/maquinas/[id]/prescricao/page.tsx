@@ -25,7 +25,7 @@ export default async function PrescricaoPage({
   try {
     // Buscar prescrições armazenadas para esta máquina
     const response = await fetch(
-      `${apiUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`,
+      `${apiUrl}/prescricoes/?maquina_id=${encodeURIComponent(maquinaId)}`,
       {
         cache: "no-store",
         headers: { Accept: "application/json" },
