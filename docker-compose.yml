@@ -6,7 +6,7 @@ services:
       MYSQL_DATABASE: fieldnode_db
       MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -36,11 +36,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api
+        NEXT_PUBLIC_FIELDNODE_API_KEY: fieldnode-demo-2024
     ports:
       - "3000:3000"
     environment:
       - FIELDNODE_SERVER_API_URL=http://web:8000/api
-      - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
       - NEXT_PUBLIC_FIELDNODE_API_KEY=fieldnode-demo-2024
     depends_on:
       - web
