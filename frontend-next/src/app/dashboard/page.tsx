@@ -37,7 +37,12 @@ export default function DashboardPage() {
       active="/dashboard"
       eyebrow="FieldNode"
       title="Frota em campo"
-      actions={<div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">Sync offline ativo</div>}
+      actions={
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 shadow-[0_0_18px_rgba(100,217,140,0.15)] animate-pulse">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_6px_rgba(100,217,140,0.7)]" />
+          Sync offline ativo
+        </div>
+      }
     >
       <Suspense fallback={<SkeletonGrid />}>
         <FleetData />

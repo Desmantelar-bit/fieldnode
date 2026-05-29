@@ -10,8 +10,12 @@ let apiConfig = {
   apiKey: '',
 };
 
+const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE));
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)),
+  );
   self.skipWaiting();
 });
 

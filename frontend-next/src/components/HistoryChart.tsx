@@ -26,9 +26,17 @@ export function HistoryChart({
     <article className="glass-panel rounded-lg p-5">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
-        <span className="font-mono text-xs text-slate-500">{values.length} leituras</span>
+        <span className="font-mono text-xs text-slate-500">
+          {values.length} leituras
+        </span>
       </div>
-      <svg viewBox="0 0 240 120" className="mt-5 h-56 w-full rounded-md border border-white/10 bg-black/15 p-4" role="img" aria-label={title}>
+      <svg
+        viewBox="0 0 240 120"
+        className="mt-5 h-40 sm:h-56 w-full rounded-md border border-white/10 bg-black/15 p-4"
+        role="img"
+        aria-label={title}
+        preserveAspectRatio="xMidYMid meet"
+      >
         {values.slice(-24).map((value, index) => {
           const height = Math.max((value / max) * 96, 4);
           return (

@@ -29,6 +29,19 @@ body {
   box-sizing: border-box;
 }
 
+/* Touch improvements */
+button, a {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  touch-action: manipulation;
+}
+
+/* Ensure content is not hidden behind mobile bottom nav when present */
+@media (max-width: 1023px) {
+  main > section {
+    padding-bottom: 5rem;
+  }
+}
+
 ::selection {
   background: rgba(100, 217, 140, 0.28);
 }
@@ -39,4 +52,11 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
     var(--panel);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+}
+
+/* Marker SVG display fix for Leaflet data URLs */
+.leaflet-marker-icon img, .leaflet-marker-icon svg {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
 }
