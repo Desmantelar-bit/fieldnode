@@ -24,8 +24,7 @@ from datetime import datetime
 import csv
 import io
 
-from api_tcc.models import LeituraTelemetria
-from api_tcc.api.serializers import LeituraTelemetriaSerializer
+
 from api_tcc.ia.anomalias import detectar_anomalias
 from api_tcc.ia.manutencao import prever_manutencao
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
@@ -359,34 +358,4 @@ class PrescricaoView(APIView):
         return Response(resultado)
 
 
-class PrescricaoListView(APIView):
-    """
-    GET /api/prescricoes/lista/?maquina_id=COLH-01
 
-    Lista as prescrições armazenadas no banco de dados para uma máquina específica.
-    """
-    def get(self, request):
-        maquina_id = request.query_params.get('maquina_id')
-        if not maquina_id:
-            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
-        
-        # Encontrar a colheitadeira associada ao maquina_id
-        # Nota: Esta lógica assume que maquina_id corresponde ao nome do modelo
-        # Pode ser necessário ajustar conforme o mapeamento real entre ID da máquina e modelo
-        colheitadeira = models.Colheitadeira.objects.filter(
-            modelo__nome=maquina_id
-        ).first()
-        
-        if not colheitadeira:
-            return Response(
-                {'status': 'erro', 'detalhe': 'Nenhuma colheitadeira encontrada para este maquina_id'}, 
-                status=404
-            )
-        
-        # Buscar prescrições armazenadas para esta colheitadeira
-        prescricoes = models.Prescricao.objects.filter(
-            colheitadeira=colheitadeira
-        ).order_by('-data_geracao')
-        
-        serializer = serializers.PrescricaoSerializer(prescricoes, many=True)
-        return Response(serializer.data)

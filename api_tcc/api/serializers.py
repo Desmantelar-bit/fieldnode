@@ -221,6 +221,7 @@ class ColheitadeiraSerializer(serializers.ModelSerializer):
         model = models.Colheitadeira
         fields = [
             "id",
+            "maquina_id",
             "modelo",
             "modelo_id",
             "combustivel",

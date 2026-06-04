@@ -8,7 +8,7 @@ def analisar_telemetria_e_gerar_prescricoes(maquina_id):
     if not leituras.exists():
         return
 
-    colheitadeira = Colheitadeira.objects.filter(modelo__nome=maquina_id).first() # Ajustar conforme lógica de ID
+    colheitadeira = Colheitadeira.objects.filter(maquina_id=maquina_id).first()
     if not colheitadeira:
         return
 

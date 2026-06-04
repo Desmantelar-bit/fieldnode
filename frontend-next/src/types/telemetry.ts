@@ -69,6 +69,7 @@ export const OperatorSchema = z.object({
 
 export const MachineFleetSchema = z.object({
   id: z.coerce.number(),
+  maquina_id: z.string().optional(),
   modelo: MachineModelSchema,
   operario: NamedRefSchema.default({ nome: 'Sem operador' }),
   status_de_operacao: OperationStatusSchema,
