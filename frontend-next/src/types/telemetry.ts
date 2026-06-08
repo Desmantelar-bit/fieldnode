@@ -52,10 +52,16 @@ export const TelemetryInputSchema = z.object({
   timestamp: z.string().min(1),
 });
 
+export const StatusRiscoSchema = z.object({
+  nivelCor: z.string().optional(),
+  nivelBg: z.string().optional(),
+  rotuloRisco: z.string().optional(),
+});
+
 export const TelemetrySchema = TelemetryInputSchema.extend({
   id: z.string().optional(),
   seq_id: z.coerce.number().optional(),
-  nivel_risco: z.enum(['NORMAL', 'ATENCAO', 'CRITICO']).optional(),
+  status_risco: StatusRiscoSchema.optional(),
   total_leituras: z.coerce.number().optional(),
   recebido_em: z.string().optional(),
 });

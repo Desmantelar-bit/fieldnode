@@ -25,6 +25,8 @@ import csv
 import io
 
 
+from api_tcc.models import LeituraTelemetria
+from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.ia.anomalias import detectar_anomalias
 from api_tcc.ia.manutencao import prever_manutencao
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco

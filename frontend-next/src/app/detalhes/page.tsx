@@ -44,7 +44,8 @@ export default async function DetailsPage({ searchParams }: { searchParams: Prom
   }
 
   const latest = readings[0];
-  const risk = latest.nivel_risco || classifyRisk(latest);
+  const riscoObj = latest.status_risco || {};
+  const risk = riscoObj.rotuloRisco || classifyRisk(latest);
   const tempTone = latest.temperatura > 85 ? 'red' : latest.temperatura > 75 ? 'amber' : 'emerald';
   const vibTone = latest.vibracao > 0.8 ? 'red' : latest.vibracao > 0.5 ? 'amber' : 'emerald';
   const rpmTone = latest.rpm < 1300 ? 'amber' : 'emerald';
