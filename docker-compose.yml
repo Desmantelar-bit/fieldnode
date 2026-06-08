@@ -9,6 +9,12 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   web:
     build: .
@@ -29,24 +35,36 @@ services:
        - DB_PORT=3306
        - ALLOWED_HOSTS=127.0.0.1,localhost,web
        - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+       - FRONTEND_URL=http://frontend:3000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api
-        NEXT_PUBLIC_FIELDNODE_API_KEY: fieldnode-demo-2024
+    image: node:22-bookworm-slim
+    working_dir: /app
+    volumes:
+      - ./frontend-next:/app
+      - frontend_node_modules:/app/node_modules
     ports:
       - "3000:3000"
     environment:
-      - FIELDNODE_SERVER_API_URL=http://web:8000/api
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=http://web:8000/api
       - NEXT_PUBLIC_FIELDNODE_API_KEY=fieldnode-demo-2024
+    entrypoint: >
+      sh -c "if [ ! -d node_modules ] || [ ! -f node_modules/.bin/next ]; then
+               npm install --legacy-peer-deps;
+             fi &&
+             npm run dev"
     depends_on:
       - web
 
 volumes:
   mysql_data:
+  frontend_node_modules:

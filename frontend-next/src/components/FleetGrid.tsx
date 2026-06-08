@@ -4,7 +4,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 
 export function FleetGrid({ machines }: { machines: Machine[] }) {
   if (machines.length === 0) {
-    return <EmptyState title="Nenhuma colheitadeira cadastrada ainda." message="Assim que a API listar maquinas, elas aparecem aqui. Por enquanto, o campo esta quieto demais." />;
+    return <EmptyState title="Nenhuma colheitadeira cadastrada ainda." message="Assim que a API listar máquinas, elas aparecem aqui. Por enquanto, o campo esta quieto demais." />;
   }
 
   return (
@@ -21,6 +21,10 @@ export function FleetGrid({ machines }: { machines: Machine[] }) {
 
           <dl className="mt-5 grid grid-cols-1 gap-3 text-sm text-slate-400 min-[420px]:grid-cols-2">
             <div className="rounded-md border border-white/10 bg-white/[0.035] p-3">
+              <dt>ID Maquina</dt>
+              <dd className="mt-1 truncate font-semibold text-slate-50 font-mono">{machine.maquina_id || machine.id}</dd>
+            </div>
+            <div className="rounded-md border border-white/10 bg-white/[0.035] p-3">
               <dt>Operario</dt>
               <dd className="mt-1 truncate font-semibold text-slate-50">{machine.operario.nome}</dd>
             </div>
@@ -32,22 +36,22 @@ export function FleetGrid({ machines }: { machines: Machine[] }) {
               <dt>Movimento</dt>
               <dd className="mt-1 font-semibold text-slate-50">{machine.estado_de_movimento.em_movimento ? 'Em campo' : 'Parada'}</dd>
             </div>
-            <div className="rounded-md border border-white/10 bg-white/[0.035] p-3">
+            <div className="rounded-md border border-white/10 bg-white/[0.035] p-3 col-span-full">
               <dt>Horas</dt>
               <dd className="mt-1 font-semibold text-slate-50">{machine.status_de_operacao.tempo_de_operacao}h</dd>
             </div>
           </dl>
 
-          {/* Botão para ver prescrições */}
-          <div className="mt-4">
-            <a
-              href={`/dashboard/maquinas/${machine.maquina_id || machine.id}/prescricao`}
-              className="w-full inline-flex items-center justify-center px-3 py-2 bg-emerald-600/10 border border-emerald-500/20 text-sm font-medium text-emerald-100 hover:bg-emerald-600/20 hover:border-emerald-500/30 transition-colors rounded-md"
-
-            >
-              Ver Prescrição
-            </a>
-          </div>
+          {machine.maquina_id && (
+            <div className="mt-4">
+              <a
+                href={`/maquinas/${machine.maquina_id}/prescricao`}
+                className="w-full inline-flex items-center justify-center px-3 py-2 bg-emerald-600/10 border border-emerald-500/20 text-sm font-medium text-emerald-100 hover:bg-emerald-600/20 hover:border-emerald-500/30 transition-colors rounded-md"
+              >
+                Ver Prescricao
+              </a>
+            </div>
+          )}
         </article>
       ))}
     </div>

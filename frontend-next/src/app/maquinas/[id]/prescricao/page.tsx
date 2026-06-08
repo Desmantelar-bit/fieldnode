@@ -18,12 +18,12 @@ export default async function PrescricaoPage({
 }) {
   const { id: maquinaId } = await params;
 
-  const apiUrl = process.env.FIELDNODE_SERVER_API_URL || "http://web:8000/api";
+  const apiUrl =
+    process.env.FIELDNODE_SERVER_API_URL || "http://web:8000/api";
 
   let prescricoes: PrescricaoResponse[] = [];
 
   try {
-    // Buscar prescrições armazenadas para esta máquina
     const response = await fetch(
       `${apiUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`,
       {
@@ -40,77 +40,69 @@ export default async function PrescricaoPage({
   } catch (error) {
     console.error("Erro ao buscar prescrições:", error);
     return (
-      <AppShell active="/dashboard" eyebrow="Manutencao" title="Prescricoes">
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrições">
         <ErrorState
-          title="Nao consegui carregar as prescricoes."
-          message="Confira se o backend esta rodando e tente novamente."
+          title="Não consegui carregar as prescrições."
+          message="Confira se o backend está rodando e tente novamente."
         />
       </AppShell>
     );
   }
 
   return (
-    <AppShell active="/dashboard" eyebrow="Manutencao" title="Prescricoes">
+    <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrições">
       <div className="space-y-6">
-        {/* Cabeçalho com informações da máquina e botão de voltar */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-50">
-              Prescricoes para {maquinaId}
+              Prescrições para {maquinaId}
             </h1>
-            <p className="text-sm text-slate-400">
-              Lista de recomendacoes de manutencao geradas pelo sistema
+            <p className="mt-1 text-sm text-slate-400">
+              Recomendações de manutenção geradas pelo sistema.
             </p>
           </div>
           <a
-            href="/dashboard"
-            className="px-4 py-2 bg-slate-800/20 border border-slate-700/30 rounded-md hover:bg-slate-800/30 text-sm font-medium transition-colors"
+            href="/colheitadeiras"
+            className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
           >
-            Voltar ao Dashboard
+            Voltar
           </a>
         </div>
 
-        {/* Lista de prescrições ou estado vazio */}
         {prescricoes.length === 0 ? (
           <EmptyState
-            title="Nenhuma prescricao encontrada."
-            message="Nenhuma recomendacao de manutencao foi gerada ou armazenada para esta máquina ainda."
+            title="Nenhuma prescrição encontrada."
+            message="Nenhuma recomendação de manutenção foi gerada ou armazenada para esta máquina ainda."
           />
         ) : (
           <div className="space-y-4">
             {prescricoes.map((prescricao) => (
               <div
                 key={prescricao.id}
-                className="glass-panel rounded-lg p-5 border border-white/10 bg-white/[0.02] hover:border-white/5"
+                className="glass-panel rounded-lg p-5 border border-white/10 bg-white/[0.02]"
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <h2 className="text-lg font-semibold text-slate-50">
                       {prescricao.titulo}
                     </h2>
-                    <p className="text-sm text-slate-400 mb-2">
-                      <span className="font-medium">Status:</span>
+                    <p className="mt-1 text-sm text-slate-400">
+                      <span className="font-medium text-slate-300">Status:</span>{" "}
                       {prescricao.status.charAt(0).toUpperCase() +
                         prescricao.status.slice(1)}
                     </p>
-                    <p className="text-sm text-slate-400">
-                      <span className="font-medium">Gerada em:</span>
-                      {new Date(prescricao.data_geracao).toLocaleDateString(
-                        "pt-BR",
-                      )}
-                      {new Date(prescricao.data_geracao).toLocaleTimeString(
-                        "pt-BR",
-                      )}
+                    <p className="mt-1 text-sm text-slate-400">
+                      <span className="font-medium text-slate-300">Gerada em:</span>{" "}
+                      {new Date(prescricao.data_geracao).toLocaleString("pt-BR")}
                     </p>
                   </div>
-                  {/* Badge de status */}
                   <span
-                    className={`px-3 py-1 rounded text-xs font-semibold ${
+                    className={`shrink-0 rounded px-2.5 py-1 text-xs font-semibold border ${
                       prescricao.status === "pendente"
-                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                        ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
                         : prescricao.status === "concluida"
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "bg-red-500/20 text-red-400 border border-red-500/30"
+                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                          : "bg-red-500/15 text-red-300 border-red-500/30"
                     }`}
                   >
                     {prescricao.status === "pendente"
@@ -121,9 +113,9 @@ export default async function PrescricaoPage({
                   </span>
                 </div>
 
-                <div className="prose prose-sm max-w-none">
-                  <p className="text-slate-400">{prescricao.descricao}</p>
-                </div>
+                <p className="mt-4 text-sm text-slate-300">
+                  {prescricao.descricao}
+                </p>
               </div>
             ))}
           </div>

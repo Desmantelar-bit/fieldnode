@@ -9,8 +9,9 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
-  { href: '/colheitadeiras', label: 'Maquinas', icon: 'machine' },
-  { href: '/operarios', label: 'Operarios', icon: 'users' },
+  { href: '/colheitadeiras', label: 'Máquinas', icon: 'machine' },
+  { href: '/operarios', label: 'Operários', icon: 'users' },
+  { href: '/relatorios', label: 'Relatórios', icon: 'report' },
 ];
 
 const icons: Record<string, ReactNode> = {
