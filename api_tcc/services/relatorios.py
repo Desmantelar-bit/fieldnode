@@ -112,10 +112,10 @@ def gerar_relatorio_completo(maquina_id, data_inicio=None, data_fim=None, format
 
 def _gerar_relatorio_csv(maquina_id, data_inicio, data_fim, stats, leituras, prescricoes):
     """Gera relatório em formato CSV."""
-    response = HttpResponse(content_type='text/csv')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="relatorio_completo_{maquina_id}_{data_inicio.strftime("%Y%m%d")}_{data_fim.strftime("%Y%m%d")}.csv"'
 
-    writer = csv.writer(response)
+    writer = csv.writer(response, lineterminator='\n')
 
     # Cabeçalho do relatório
     writer.writerow(['Relatório Completo de Telemetria - FieldNode'])
