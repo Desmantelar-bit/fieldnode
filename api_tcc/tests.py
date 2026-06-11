@@ -281,9 +281,11 @@ class EndpointIngestaoTest(TestCase):
         self.assertEqual(LeituraTelemetria.objects.count(), 0)
 
     def test_prescricao_gera_e_persiste_historico(self):
+        """Testa que a prescrição é enfileirada e o endpoint retorna status correto."""
         maquina_id = "COLH-TEST-01"
         _criar_maquina_teste(maquina_id)
-        base_timestamp = 1713401400  # 2024-04-17T15:00:00Z approximated as epoch
+
+        # Criar leituras suficientes
         for i in range(10):
             timestamp = f"2026-04-17T15:{i:02d}:00Z"
             registrar_leitura(
@@ -292,13 +294,16 @@ class EndpointIngestaoTest(TestCase):
                 )
             )
 
+        # GET para gerar prescrição (enfileira em background)
         response = self.client.get(f"/api/prescricoes/?maquina_id={maquina_id}")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], "ok")
-        self.assertIn("prescricao", response.data)
-        self.assertTrue(
-            Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id).exists()
-        )
+        # Retorna "agendado" pois processamento é assíncrono
+        self.assertEqual(response.data["status"], "agendado")
+        self.assertEqual(response.data["maquina_id"], maquina_id)
+        self.assertIn("modelos", response.data)
+        self.assertIn("prescricao", response.data["modelos"])
+
+        # Nota: Validação de persistência ocorre em integração com worker real (vide scripts/)
 
     def test_lista_prescricoes_retorna_historico(self):
         maquina_id = "COLH-TEST-01"
@@ -339,13 +344,16 @@ class IAResilienciaTest(TestCase):
         self.client = APIClient()
 
     def test_anomalias_sem_dados_retorna_dados_insuficientes(self):
+        # Agora a view apenas agenda o processamento; o worker decide se há dados
         response = self.client.get("/api/anomalias/?maquina_id=MAQUINA-INEXISTENTE")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], "dados_insuficientes")
+        # Resposta imediata: processamento foi enfileirado
+        self.assertEqual(response.data["status"], "agendado")
 
     def test_manutencao_sem_maquina_id_retorna_400(self):
         response = self.client.get("/api/manutencao/")
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["status"], "erro")
 
 
 # ──────────────────────────────────────────────────────────────
