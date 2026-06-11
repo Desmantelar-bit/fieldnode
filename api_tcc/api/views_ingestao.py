@@ -25,9 +25,9 @@ import csv
 import io
 
 
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import LeituraTelemetria, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.ia.pipeline import rodar_modelos
+from api_tcc.ia.pipeline import agendar_processamento_ia
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
@@ -45,17 +45,20 @@ class AnomaliaView(APIView):
     GET /api/anomalias/
     GET /api/anomalias/?maquina_id=COLH-01
 
-    Detecta leituras fora do padrão usando Isolation Forest.
-    Requer mínimo de 20 leituras no banco para funcionar.
-
-    Limitação conhecida: modelo retreinado a cada requisição —
-    aceitável para protótipo, mas em produção usar cache com TTL.
+    Enfileira detecção de anomalias para processamento em background.
+    Resposta rápida evita bloqueio do request por modelos de IA.
     """
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
+        if not maquina:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
+
         logger.debug("Requisição de anomalias. maquina_id=%s", maquina)
-        resultado = rodar_modelos(maquina, modelos=("anomalias",))
-        return Response(resultado.get("anomalias", resultado))
+        resultado = agendar_processamento_ia(maquina, modelos=("anomalias",))
+        return Response(resultado)
 
 
 class IngestaoTelemetriaView(APIView):
@@ -196,12 +199,8 @@ class ManutencaoView(APIView):
     """
     GET /api/manutencao/?maquina_id=COLH-01
 
-    Prevê probabilidade de necessidade de manutenção.
-    Requer mínimo de 30 leituras da máquina especificada.
-
-    Limitação conhecida: modelo treinado a cada requisição com dados
-    sintéticos (labels baseados em padrões operacionais, não falhas reais).
-    Em produção: retreinar mensalmente com histórico de manutenções confirmadas.
+    Enfileira análise de manutenção para execução em background.
+    Retorna rapidamente para não bloquear o request com modelagem de IA.
     """
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
@@ -211,8 +210,8 @@ class ManutencaoView(APIView):
                 status=400
             )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
-        resultado = rodar_modelos(maquina, modelos=("manutencao",))
-        return Response(resultado.get("manutencao", resultado))
+        resultado = agendar_processamento_ia(maquina, modelos=("manutencao",))
+        return Response(resultado)
 
 
 class MetricasView(APIView):
@@ -288,13 +287,13 @@ class StatusMQTTView(APIView):
 class RelatorioView(APIView):
     """
     GET /api/relatorio/?maquina_id=COLH-01&periodo=7
-    
+
     Gera relatório operacional com:
     - Horas operadas no período
     - Picos de temperatura registrados
     - Número de alertas/anomalias
     - Recomendação de manutenção
-    
+
     Parâmetros:
     - maquina_id: obrigatório
     - periodo: dias (padrão: 7)
@@ -340,23 +339,75 @@ class RelatorioView(APIView):
         return buf.getvalue()
 
 
+class PrescricaoListView(APIView):
+    """
+    GET /api/prescricoes/lista/?maquina_id=COLH-01
+
+    Lista o histórico de prescrições geradas para a máquina.
+    """
+
+    def get(self, request):
+        maquina_id = request.query_params.get("maquina_id")
+        if not maquina_id:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"}, status=400
+            )
+
+        prescricoes = Prescricao.objects.filter(
+            colheitadeira__maquina_id=maquina_id
+        ).order_by("-data_geracao")
+
+        return Response(
+            [
+                {
+                    "id": p.id,
+                    "maquina_id": p.colheitadeira.maquina_id,
+                    "titulo": p.titulo,
+                    "descricao": p.descricao,
+                    "status": p.status,
+                    "data_geracao": p.data_geracao,
+                }
+                for p in prescricoes
+            ]
+        )
+
+
 class PrescricaoView(APIView):
     """
     GET /api/prescricoes/?maquina_id=COLH-01
 
-    Gera prescrições de manutenção baseadas em análise de IA.
-    Requer mínimo de leituras históricas para gerar recomendações.
-
-    Parâmetro obrigatório: maquina_id
-    Retorna lista de prescrições com ações recomendadas e prioridade.
+    Agrega geração de prescrição em background.
+    Retorna imediatamente a última prescrição persistida e agenda nova geração.
     """
     def get(self, request):
         maquina_id = request.query_params.get('maquina_id')
         if not maquina_id:
-            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
-        from api_tcc.ia.prescricoes import gerar_prescricao
-        resultado = gerar_prescricao(maquina_id=maquina_id, limite=10)
-        return Response(resultado)
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
 
+        queued = agendar_processamento_ia(maquina_id, modelos=("prescricao",))
+        ultima = (
+            Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id)
+            .order_by("-data_geracao")
+            .first()
+        )
 
+        if ultima:
+            return Response(
+                {
+                    "status": "agendado",
+                    "maquina_id": maquina_id,
+                    "ultima_prescricao": {
+                        "id": ultima.id,
+                        "titulo": ultima.titulo,
+                        "descricao": ultima.descricao,
+                        "status_prescricao": ultima.status,
+                        "data_geracao": ultima.data_geracao,
+                    },
+                    "queue": queued,
+                }
+            )
 
+        return Response(queued)

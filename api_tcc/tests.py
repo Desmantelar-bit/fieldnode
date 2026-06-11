@@ -17,10 +17,20 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from django.conf import settings
 from api_tcc.models import (
-    LeituraTelemetria, Colheitadeira, Modelo, Marca,
-    Combustivel, PressaoPneus, AlturadoCorte, PressaodoCorte,
-    TempUmi_Ambiente, TemperaturaMaquina, Operario,
-    StatusdeOperacao, EstadodeMovimento
+    LeituraTelemetria,
+    Colheitadeira,
+    Modelo,
+    Marca,
+    Combustivel,
+    PressaoPneus,
+    AlturadoCorte,
+    PressaodoCorte,
+    TempUmi_Ambiente,
+    TemperaturaMaquina,
+    Operario,
+    StatusdeOperacao,
+    EstadodeMovimento,
+    Prescricao,
 )
 from api_tcc.services.telemetria import validar_payload, registrar_leitura
 import uuid
@@ -40,58 +50,48 @@ def _criar_maquina_teste(maquina_id: str):
         id=1,
         defaults={"nome": "Centímetro"}
     )
-    
+
     # Reutilizar Marca se existir
     marca, _ = Marca.objects.get_or_create(nome="CLAAS")
-    
+
     # Criar Modelo com o maquina_id como nome
     modelo, _ = Modelo.objects.get_or_create(
         nome=maquina_id,
         defaults={"marca": marca}
     )
-    
+
     # Reutilizar ou criar objetos comuns
     combustivel, _ = Combustivel.objects.get_or_create(
-        tipo="Diesel",
-        defaults={"porcentagem": 100.0}
+        tipo="Diesel", defaults={"porcentagem": 100.0}
     )
     pressao_pneus, _ = PressaoPneus.objects.get_or_create(
-        pressao=2.5,
-        defaults={"unidade_de_medida": unidade}
+        pressao=2.5, defaults={"unidade_de_medida": unidade}
     )
     altura_corte, _ = AlturadoCorte.objects.get_or_create(
-        altura=5.0,
-        defaults={"unidade_de_medida": unidade}
+        altura=5.0, defaults={"unidade_de_medida": unidade}
     )
     pressao_corte, _ = PressaodoCorte.objects.get_or_create(
-        pressao=30.0,
-        defaults={"unidade_de_medida": unidade}
+        pressao=30.0, defaults={"unidade_de_medida": unidade}
     )
-    temp_umi, _ = TempUmi_Ambiente.objects.get_or_create(
-        temperatura=25.0,
-        umidade=60.0
-    )
+    temp_umi, _ = TempUmi_Ambiente.objects.get_or_create(temperatura=25.0, umidade=60.0)
     temp_maquina, _ = TemperaturaMaquina.objects.get_or_create(
-        temperatura=85.0,
-        defaults={"maquina": modelo}
+        temperatura=85.0, defaults={"maquina": modelo}
     )
     operario, _ = Operario.objects.get_or_create(
-        nome="Operário Teste",
-        defaults={"tempo_de_servico": 5, "no_banco": True}
+        nome="Operário Teste", defaults={"tempo_de_servico": 5, "no_banco": True}
     )
     status_op, _ = StatusdeOperacao.objects.get_or_create(
-        em_operacao=True,
-        defaults={"tempo_de_operacao": 8.0}
+        em_operacao=True, defaults={"tempo_de_operacao": 8.0}
     )
     estado_mov, _ = EstadodeMovimento.objects.get_or_create(
-        em_movimento=True,
-        defaults={"velocidade": 6.5}
+        em_movimento=True, defaults={"velocidade": 6.5}
     )
-    
+
     # Criar Colheitadeira
     colheitadeira, _ = Colheitadeira.objects.get_or_create(
         modelo=modelo,
         defaults={
+            "maquina_id": maquina_id,
             "combustivel": combustivel,
             "pressao_pneus": pressao_pneus,
             "altura_do_corte": altura_corte,
@@ -101,8 +101,11 @@ def _criar_maquina_teste(maquina_id: str):
             "operario": operario,
             "status_de_operacao": status_op,
             "estado_de_movimento": estado_mov,
-        }
+        },
     )
+    if colheitadeira.maquina_id != maquina_id:
+        colheitadeira.maquina_id = maquina_id
+        colheitadeira.save(update_fields=["maquina_id"])
     return colheitadeira
 
 
@@ -127,7 +130,7 @@ class ValidacaoPayloadTest(TestCase):
     Garante que a função de validação rejeita exatamente o que deve rejeitar
     e aceita o que é válido — sem depender de banco ou HTTP.
     """
-    
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -195,7 +198,7 @@ class DeduplicacaoUUIDTest(TestCase):
     o firmware reenvía o mesmo pacote.
     O banco não pode ter duplicatas — isso corromperia análises de IA.
     """
-    
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -277,6 +280,42 @@ class EndpointIngestaoTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(LeituraTelemetria.objects.count(), 0)
 
+    def test_prescricao_gera_e_persiste_historico(self):
+        maquina_id = "COLH-TEST-01"
+        _criar_maquina_teste(maquina_id)
+        base_timestamp = 1713401400  # 2024-04-17T15:00:00Z approximated as epoch
+        for i in range(10):
+            timestamp = f"2026-04-17T15:{i:02d}:00Z"
+            registrar_leitura(
+                _payload_valido(
+                    id=str(uuid.uuid4()), maquina_id=maquina_id, timestamp=timestamp
+                )
+            )
+
+        response = self.client.get(f"/api/prescricoes/?maquina_id={maquina_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "ok")
+        self.assertIn("prescricao", response.data)
+        self.assertTrue(
+            Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id).exists()
+        )
+
+    def test_lista_prescricoes_retorna_historico(self):
+        maquina_id = "COLH-TEST-01"
+        colheitadeira = _criar_maquina_teste(maquina_id)
+        Prescricao.objects.create(
+            colheitadeira=colheitadeira,
+            titulo="Teste histórico",
+            descricao="Descrição de teste",
+            status="pendente",
+        )
+
+        response = self.client.get(f"/api/prescricoes/lista/?maquina_id={maquina_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        self.assertGreaterEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["maquina_id"], maquina_id)
+
     def test_payload_sem_maquina_id_retorna_400(self):
         payload = _payload_valido(id=str(uuid.uuid4()))
         del payload["maquina_id"]
@@ -331,16 +370,16 @@ class MetricasTest(TestCase):
         # Criar algumas leituras válidas
         registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-01"))
         registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-02"))
-        
+
         response = self.client.get("/api/metricas/")
         self.assertEqual(response.status_code, 200)
-        
+
         # Verificar campos obrigatórios
         self.assertIn("leituras_validas", response.data)
         self.assertIn("leituras_invalidas", response.data)
         self.assertIn("taxa_rejeicao_pct", response.data)
         self.assertIn("maquinas_ativas", response.data)
-        
+
         # Verificar valores
         self.assertEqual(response.data["leituras_validas"], 2)
         self.assertEqual(response.data["leituras_invalidas"], 0)

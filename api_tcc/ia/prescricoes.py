@@ -95,7 +95,7 @@ def gerar_prescricao(maquina_id, limite=10):
     modelo_rf.fit(X, y)
 
     ultima = df[FEATURES].iloc[[-1]]
-    
+
     # Verificar se o modelo tem ambas as classes (0 e 1)
     classes = modelo_rf.classes_
     if len(classes) == 1:
@@ -110,6 +110,29 @@ def gerar_prescricao(maquina_id, limite=10):
         temp_atual, vib_atual, rpm_atual, prob_risco, eh_anomalia
     )
 
+    colheitadeira = Colheitadeira.objects.filter(maquina_id=maquina_id).first()
+    if not colheitadeira:
+        return {
+            "status": "erro",
+            "detalhe": f"Colheitadeira não encontrada para maquina_id {maquina_id}",
+        }
+
+    titulo = f"Prescrição {severidade} - {acao}"
+
+    try:
+        with transaction.atomic():
+            prescricao = Prescricao.objects.create(
+                colheitadeira=colheitadeira,
+                titulo=titulo[:200],
+                descricao=texto,
+                status="pendente",
+            )
+    except Exception as exc:
+        return {
+            "status": "erro",
+            "detalhe": "Falha ao salvar prescrição no banco.",
+        }
+
     return {
         "status": "ok",
         "maquina_id": maquina_id,
@@ -118,6 +141,7 @@ def gerar_prescricao(maquina_id, limite=10):
         "severidade": severidade,
         "confianca": confianca,
         "timestamp": str(df.iloc[0]["timestamp"]),
+        "prescricao_id": prescricao.id,
     }
 
 
