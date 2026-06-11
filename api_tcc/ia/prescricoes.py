@@ -8,9 +8,11 @@ Motor prescritivo MVP: gera recomendações operacionais baseadas em:
 
 Retorna prescrição em texto humano, não gerada por IA generativa.
 """
+from django.db import transaction
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
+
 from api_tcc.ia.pipeline import carregar_dados
+from api_tcc.models import Colheitadeira, Prescricao
 
 
 def gerar_prescricao(maquina_id, limite=10):

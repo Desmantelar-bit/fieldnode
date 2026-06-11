@@ -10,9 +10,9 @@ def classificar_estado(maquina_id=None):
     if not maquina_id:
         return {"status": "erro", "detalhe": "maquina_id é obrigatório"}
 
-    resultado = carregar_dados(maquina_id, limite=300)
+    resultado = carregar_dados(maquina_id, limite=300, minimo=10)
 
-    if isinstance(resultado, dict) and resultado.get("status") == "dados_insuficientes":
+    if isinstance(resultado, dict):
         return resultado
 
     df = resultado
@@ -31,6 +31,7 @@ def classificar_estado(maquina_id=None):
     contagem = df['estado'].value_counts().to_dict()
 
     return {
+        'status':         'ok',
         'maquina_id':     maquina_id,
         'estado_atual':   ultima['estado'],
         'distribuicao':   contagem,

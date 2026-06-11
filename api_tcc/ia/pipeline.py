@@ -1,64 +1,81 @@
 """
 api_tcc/ia/pipeline.py
 
-Pipeline centralizado de carregamento e pré-processamento de dados de telemetria.
+Pipeline centralizado de leitura e execucao dos modelos de IA.
 
-Todos os módulos de IA (anomalias, estado, manutenção, prescrições) usam esta
-função para obter dados do banco, garantindo:
-- Uma query por chamada (não 3 queries redundantes)
-- Escalabilidade com múltiplos workers (sem cache em dicionário global)
-- Validação consistente de dados
-- Interface simples: (maquina_id, limite) -> DataFrame
+Views e futuros workers devem chamar este modulo em vez de montar queries e
+orquestrar modelos por conta propria. Menos duplicacao, menos surpresa, menos
+API esperando cada pedaco do sistema bancar o chef e o garcom ao mesmo tempo.
 """
 import pandas as pd
+
 from api_tcc.models import LeituraTelemetria
 
 
-def carregar_dados(maquina_id, limite=300):
+def carregar_dados(maquina_id, limite=300, minimo=10):
     """
-    Carrega as últimas N leituras de telemetria de uma máquina.
+    Carrega as ultimas leituras validas de uma maquina como DataFrame.
 
-    Parâmetros:
-        maquina_id (str): ID da máquina a filtrar
-        limite (int): número máximo de leituras a retornar (padrão 300)
-
-    Retorna:
-        DataFrame Pandas com colunas ['id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp']
-        se houver dados suficientes, ordenado por timestamp decrescente (mais recente primeiro).
-
-        Caso contrário, retorna um dicionário de erro:
-        {
-            'status': 'dados_insuficientes',
-            'minimo': N,
-            'atual': M,
+    Retorna um dict de erro quando nao ha maquina_id ou quando nao existe volume
+    minimo de dados para os modelos.
+    """
+    if not maquina_id:
+        return {
+            "status": "erro",
+            "detalhe": "maquina_id e obrigatorio",
         }
 
-    Decisão de design:
-        - Usa ORM Django para aproveitar índices compostos (maquina_id, -timestamp)
-        - Converte para DataFrame apenas uma vez (eficiência)
-        - Não realiza cache aqui — cache é responsabilidade do framework/Redis
-        - Não treina modelos aqui — apenas carrega e valida dados
-    """
-    qs = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by('-timestamp')[:limite]
+    registros = list(
+        LeituraTelemetria.objects.filter(maquina_id=maquina_id)
+        .order_by("-timestamp")
+        .values("id", "maquina_id", "temperatura", "vibracao", "rpm", "timestamp")[:limite]
+    )
 
-    if qs.count() < 10:
+    if len(registros) < minimo:
         return {
-            'status': 'dados_insuficientes',
-            'minimo': 10,
-            'atual': qs.count(),
+            "status": "dados_insuficientes",
+            "minimo": minimo,
+            "atual": len(registros),
         }
 
-    df = pd.DataFrame(list(qs.values(
-        'id', 'maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp'
-    )))
+    df = pd.DataFrame(registros).dropna()
 
-    df = df.dropna()
-
-    if len(df) < 10:
+    if len(df) < minimo:
         return {
-            'status': 'dados_insuficientes',
-            'minimo': 10,
-            'atual': len(df),
+            "status": "dados_insuficientes",
+            "minimo": minimo,
+            "atual": len(df),
         }
 
     return df
+
+
+def rodar_modelos(maquina_id, modelos=None):
+    """
+    Executa modelos por um ponto unico de entrada.
+
+    Imports locais evitam ciclo entre modulos. Esse contrato tambem permite
+    plugar um worker de background depois sem reescrever as views.
+    """
+    if not maquina_id:
+        return {"status": "erro", "detalhe": "maquina_id e obrigatorio"}
+
+    modelos = set(modelos or ("anomalias", "estado", "manutencao"))
+    resultado = {"status": "ok", "maquina_id": maquina_id}
+
+    if "anomalias" in modelos:
+        from api_tcc.ia.anomalias import detectar_anomalias
+
+        resultado["anomalias"] = detectar_anomalias(maquina_id=maquina_id)
+
+    if "estado" in modelos:
+        from api_tcc.ia.estado import classificar_estado
+
+        resultado["estado"] = classificar_estado(maquina_id=maquina_id)
+
+    if "manutencao" in modelos:
+        from api_tcc.ia.manutencao import prever_manutencao
+
+        resultado["manutencao"] = prever_manutencao(maquina_id=maquina_id)
+
+    return resultado
