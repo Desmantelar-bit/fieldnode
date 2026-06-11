@@ -27,8 +27,7 @@ import io
 
 from api_tcc.models import LeituraTelemetria
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.ia.anomalias import detectar_anomalias
-from api_tcc.ia.manutencao import prever_manutencao
+from api_tcc.ia.pipeline import rodar_modelos
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
@@ -55,8 +54,8 @@ class AnomaliaView(APIView):
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
         logger.debug("Requisição de anomalias. maquina_id=%s", maquina)
-        resultado = detectar_anomalias(maquina_id=maquina)
-        return Response(resultado)
+        resultado = rodar_modelos(maquina, modelos=("anomalias",))
+        return Response(resultado.get("anomalias", resultado))
 
 
 class IngestaoTelemetriaView(APIView):
@@ -212,8 +211,8 @@ class ManutencaoView(APIView):
                 status=400
             )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
-        resultado = prever_manutencao(maquina_id=maquina)
-        return Response(resultado)
+        resultado = rodar_modelos(maquina, modelos=("manutencao",))
+        return Response(resultado.get("manutencao", resultado))
 
 
 class MetricasView(APIView):

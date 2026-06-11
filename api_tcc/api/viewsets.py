@@ -1,10 +1,11 @@
-from rest_framework import viewsets
+from rest_framework import status, viewsets
+from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from api_tcc import models
 from api_tcc.api import serializers
 
 
-def _make_viewset(model, serializer, descriptions, queryset=None):
+def _make_viewset(model, serializer, descriptions, queryset=None, soft_delete_field=None):
     """Gera um ModelViewSet com @swagger_auto_schema em cada action."""
 
     @swagger_auto_schema(operation_description=descriptions.get('list', ''), responses={200: serializer(many=True)})
@@ -25,6 +26,11 @@ def _make_viewset(model, serializer, descriptions, queryset=None):
 
     @swagger_auto_schema(operation_description=descriptions.get('destroy', ''), responses={204: 'No content'})
     def destroy(self, request, *args, **kwargs):
+        if soft_delete_field:
+            instance = self.get_object()
+            setattr(instance, soft_delete_field, False)
+            instance.save(update_fields=[soft_delete_field])
+            return Response(status=status.HTTP_204_NO_CONTENT)
         return super(self.__class__, self).destroy(request, *args, **kwargs)
 
     return type(
@@ -65,4 +71,10 @@ TemperaturaMaquinaViewSet = _make_viewset(models.TemperaturaMaquina, serializers
 StatusdeOperacaoViewSet = _make_viewset(models.StatusdeOperacao, serializers.StatusdeOperacaoSerializer, _desc('status de operação'))
 EstadodeMovimentoViewSet = _make_viewset(models.EstadodeMovimento, serializers.EstadodeMovimentoSerializer, _desc('estado de movimento'))
 TransbordoViewSet       = _make_viewset(models.Transbordo,       serializers.TransbordoSerializer,       _desc('transbordo'))
-ColheitadeiraViewSet    = _make_viewset(models.Colheitadeira,    serializers.ColheitadeiraSerializer,    _desc('colheitadeira'))
+ColheitadeiraViewSet    = _make_viewset(
+    models.Colheitadeira,
+    serializers.ColheitadeiraSerializer,
+    _desc('colheitadeira'),
+    queryset=models.Colheitadeira.objects.filter(ativo=True),
+    soft_delete_field='ativo',
+)

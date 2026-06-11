@@ -221,6 +221,7 @@ class ColheitadeiraSerializer(serializers.ModelSerializer):
         model = models.Colheitadeira
         fields = [
             "id",
+            "ativo",
             "maquina_id",
             "modelo",
             "modelo_id",
@@ -272,6 +273,8 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "temperatura",
             "vibracao",
             "rpm",
+            "latitude",
+            "longitude",
             "timestamp",
             "recebido_em",
             "status_risco",

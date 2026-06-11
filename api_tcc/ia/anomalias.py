@@ -1,4 +1,3 @@
-import pandas as pd
 from sklearn.ensemble import IsolationForest
 from api_tcc.ia.pipeline import carregar_dados
 
@@ -23,12 +22,13 @@ def detectar_anomalias(maquina_id=None, contamination=0.05):
             "detalhe": "maquina_id é obrigatório",
         }
 
-    resultado = carregar_dados(maquina_id, limite=500)
+    resultado = carregar_dados(maquina_id, limite=500, minimo=10)
 
-    if isinstance(resultado, dict) and resultado.get("status") == "dados_insuficientes":
-        resultado["anomalias"] = []
-        resultado["total"] = 0
-        resultado["analisadas"] = 0
+    if isinstance(resultado, dict):
+        if resultado.get("status") == "dados_insuficientes":
+            resultado["anomalias"] = []
+            resultado["total"] = 0
+            resultado["analisadas"] = 0
         return resultado
 
     df = resultado

@@ -1,6 +1,4 @@
 # api_tcc/ia/manutencao.py
-import pandas as pd
-import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from api_tcc.ia.pipeline import carregar_dados
 
@@ -18,9 +16,9 @@ def prever_manutencao(maquina_id):
     if not maquina_id:
         return {"status": "erro", "detalhe": "maquina_id é obrigatório"}
 
-    resultado = carregar_dados(maquina_id, limite=300)
+    resultado = carregar_dados(maquina_id, limite=300, minimo=20)
 
-    if isinstance(resultado, dict) and resultado.get("status") == "dados_insuficientes":
+    if isinstance(resultado, dict):
         return resultado
 
     df = resultado

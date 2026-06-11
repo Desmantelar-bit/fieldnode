@@ -160,6 +160,7 @@ class TemperaturaMaquina(models.Model):
 class Colheitadeira(models.Model):
     modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
     maquina_id         = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name='ID da Máquina (Telemetria)')
+    ativo              = models.BooleanField(default=True, db_index=True, verbose_name='Ativa')
     combustivel        = models.ForeignKey(Combustivel,       on_delete=models.PROTECT, verbose_name='Combustível')
     pressao_pneus      = models.ForeignKey(PressaoPneus,      on_delete=models.PROTECT, verbose_name='Pressão dos Pneus')
     altura_do_corte    = models.ForeignKey(AlturadoCorte,     on_delete=models.PROTECT, verbose_name='Altura de Corte')
@@ -192,6 +193,9 @@ class LeituraTelemetria(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['maquina_id', '-timestamp']),
+        ]
         verbose_name = 'Leitura de Telemetria'
         verbose_name_plural = 'Leituras de Telemetria'
 
@@ -245,7 +249,7 @@ class Prescricao(models.Model):
         ("cancelada", "Cancelada"),
     )
     colheitadeira = models.ForeignKey(
-        Colheitadeira, on_delete=models.CASCADE, verbose_name="Colheitadeira"
+        Colheitadeira, on_delete=models.PROTECT, verbose_name="Colheitadeira"
     )
     titulo = models.CharField(max_length=200, verbose_name="Título")
     descricao = models.TextField(verbose_name="Descrição")
