@@ -46,17 +46,6 @@ export function HistoryChart({
   const min = Math.min(...points, 0);
   const range = max - min || 1;
 
-  const x = (i: number) => pad.left + (points.length > 1 ? (i / (points.length - 1)) * innerW : innerW / 2);
-  const y = (v: number) => pad.top + innerH - ((v - effectiveMin) / effectiveRange) * innerH;
-
-  const line = points.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ');
-  const area = `${line} L ${x(points.length - 1)} ${pad.top + innerH} L ${x(0)} ${pad.top + innerH} Z`;
-
-  const ticks = 5;
-  const yTicks = Array.from({ length: ticks }, (_, i) => effectiveMin + (effectiveRange * i) / (ticks - 1));
-  const xTicks = points.filter((_, i) => points.length <= 12 || i % Math.ceil(points.length / 12) === 0).map((_, i) => i);
-
-  const colors = toneStyles[tone] || toneStyles.emerald;
   const rangeConfig = thresholdRanges[field];
 
   let effectiveMin = min;
@@ -68,6 +57,18 @@ export function HistoryChart({
     effectiveMax = Math.max(max, rangeConfig.max);
     effectiveRange = effectiveMax - effectiveMin || 1;
   }
+
+  const x = (i: number) => pad.left + (points.length > 1 ? (i / (points.length - 1)) * innerW : innerW / 2);
+  const y = (v: number) => pad.top + innerH - ((v - effectiveMin) / effectiveRange) * innerH;
+
+  const line = points.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ');
+  const area = `${line} L ${x(points.length - 1)} ${pad.top + innerH} L ${x(0)} ${pad.top + innerH} Z`;
+
+  const ticks = 5;
+  const yTicks = Array.from({ length: ticks }, (_, i) => effectiveMin + (effectiveRange * i) / (ticks - 1));
+  const xTicks = points.filter((_, i) => points.length <= 12 || i % Math.ceil(points.length / 12) === 0).map((_, i) => i);
+
+  const colors = toneStyles[tone] || toneStyles.emerald;
 
   function clampY(value: number) {
     return Math.max(pad.top, Math.min(pad.top + innerH, value));

@@ -55,8 +55,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://web:8000/api
+      - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
       - NEXT_PUBLIC_FIELDNODE_API_KEY=fieldnode-demo-2024
+      - FIELDNODE_SERVER_API_URL=http://web:8000/api
     entrypoint: >
       sh -c "if [ ! -d node_modules ] || [ ! -f node_modules/.bin/next ]; then
                npm install --legacy-peer-deps;

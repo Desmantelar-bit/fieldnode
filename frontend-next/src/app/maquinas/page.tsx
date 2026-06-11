@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, ErrorState } from "@/components/EmptyState";
 import { FleetGrid } from "@/components/FleetGrid";
@@ -9,22 +9,31 @@ import { telemetryService } from "@/services/telemetryService";
 import type { Machine } from "@/types/telemetry";
 
 export default function MaquinasPage() {
+  console.log('🚜 MaquinasPage montada');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
 
   const carregar = async () => {
+    console.log('🔄 Carregando máquinas...');
     setLoading(true);
     setError(null);
     try {
       const dados = await telemetryService.getFleetStatus();
+      console.log('✅ Máquinas carregadas:', dados.length, dados);
       setMachines(dados);
     } catch (err) {
+      console.error('❌ Erro ao carregar máquinas:', err);
       setError(err instanceof Error ? err.message : "Falha ao carregar colheitadeiras.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('🎯 useEffect executado');
+    carregar();
+  }, []);
 
   if (loading) {
     return (
