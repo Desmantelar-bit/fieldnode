@@ -10,32 +10,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class PrescricaoListView(APIView):
-    def get(self, request):
-        maquina_id = request.query_params.get('maquina_id')
-        
-        if not maquina_id:
-            return Response(
-                {"error": "maquina_id é obrigatório"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Unificação: Garante que a análise seja executada e persistida antes da consulta
-        analisar_telemetria_e_gerar_prescricoes(maquina_id)
-
-        # Buscar prescrições pela colheitadeira associada ao maquina_id
-        prescricoes = Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id)
-        data = [{
-            "id": p.id,
-            "colheitadeira": maquina_id,
-            "titulo": p.titulo,
-            "descricao": p.descricao,
-            "data_geracao": p.data_geracao,
-            "status": p.status,
-        } for p in prescricoes]
-        return Response(data)
-
-
 class GerarRelatorioView(APIView):
     permission_classes = [IsAuthenticated]
 

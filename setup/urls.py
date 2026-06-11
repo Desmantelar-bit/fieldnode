@@ -18,8 +18,18 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
 from api_tcc.api import viewsets
-from api_tcc.api.views_ingestao import AnomaliaView, HealthView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
-from api_tcc.api.views import PrescricaoListView
+from api_tcc.api.views_ingestao import (
+    AnomaliaView,
+    HealthView,
+    IngestaoTelemetriaView,
+    UltimaLeituraView,
+    ManutencaoView,
+    MetricasView,
+    StatusMQTTView,
+    PrescricaoView,
+    PrescricaoListView,
+    RelatorioView,
+)
 from api_tcc import views_gps
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
