@@ -111,8 +111,8 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     # Deduplicação: evita gravar o mesmo pacote duas vezes
     # (o ESP32 pode reenviar após timeout mesmo que o servidor já recebeu)
     if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
-        logger.debug("Duplicata ignorada. UUID: %s | maquina: %s",
-                     uuid_recebido, dados.get("maquina_id"))
+        logger.info("UUID ignorado (duplicata): %s | maquina: %s",
+                    uuid_recebido, dados.get("maquina_id"))
         return "duplicata", str(uuid_recebido)
 
     try:
@@ -134,7 +134,8 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
 
     except IntegrityError:
         # Race condition: dois workers receberam o mesmo UUID ao mesmo tempo
-        logger.debug("IntegrityError — duplicata por race condition. UUID: %s", uuid_recebido)
+        logger.info("UUID ignorado (race condition): %s | maquina: %s", 
+                    uuid_recebido, dados.get("maquina_id"))
         return "duplicata", str(uuid_recebido)
 
     except Exception as exc:

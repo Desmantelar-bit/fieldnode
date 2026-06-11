@@ -24,6 +24,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = env_config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
+# Solução para problema de variável de ambiente DEBUG=release do sistema
+import os
+if os.environ.get("DEBUG") == "release":
+    os.environ.pop("DEBUG", None)
+
 DEBUG = env_config("DEBUG", default=False, cast=bool)
 FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
 
@@ -149,4 +154,38 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-au
+# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuração de logging para deduplicação
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'fieldnode.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'api_tcc': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
