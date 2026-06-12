@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#0a0b09"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icons/icon-192x192.png"/>
+<title>FieldNode — Telemetria Off-Grid para Colheitadeiras</title>
+<meta name="description" content="O dado existe. O FieldNode garante que ele chegue. Telemetria offline-first para máquinas agrícolas em áreas sem sinal."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0a0b09;
+  --bg2:      #111310;
+  --bg3:      #181a15;
+  --surface:  #1e211a;
+  --wire:     rgba(255,255,255,0.06);
+  --wire2:    rgba(255,255,255,0.12);
+  --amber:    #e8a020;
+  --amber-dim:#2a1e05;
+  --green:    #3dba6f;
+  --green-dim:#0b2118;
+  --red:      #e05252;
+  --red-dim:  #2a0d0d;
+  --text:     #e8ece2;
+  --text2:    #8a9080;
+  --text3:    #4a5244;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'IBM Plex Sans', sans-serif;
+  --display:  'Syne', sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  overflow-x:hidden;
+  line-height:1.6;
+}
+
+a{color:inherit;text-decoration:none}
+
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(var(--wire) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wire) 1px, transparent 1px);
+  background-size:60px 60px;
+  pointer-events:none;
+  z-index:0;
+}
+
+nav{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:100;
+  padding:0 40px;
+  height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:rgba(10,11,9,0.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--wire2);
+}
+.nav-logo{
+  font-family:var(--display);
+  font-weight:800;
+  font-size:17px;
+  letter-spacing:-0.02em;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.nav-logo .logo-mark{
+  width:28px;height:28px;
+  border:1.5px solid var(--amber);
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.nav-logo .logo-mark::before{
+  content:'';
+  width:8px;height:8px;
+  border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 8px var(--amber);
+}
+.nav-links{
+  display:flex;
+  align-items:center;
+  gap:32px;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  color:var(--text2);
+}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  padding:8px 18px;
+  border:1px solid var(--amber);
+  border-radius:2px;
+  color:var(--amber);
+  transition:all .2s;
+  cursor:pointer;
+}
+.nav-cta:hover{background:var(--amber);color:#000}
+
+.hero{
+  position:relative;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:120px 80px 80px;
+  overflow:hidden;
+  z-index:1;
+}
+
+.hero-bg-viz{
+  position:absolute;
+  top:50%;right:0;
+  transform:translateY(-50%);
+  width:520px;
+  height:520px;
+  pointer-events:none;
+}
+
+.status-ring{
+  position:absolute;
+  border-radius:50%;
+  border:1px solid;
+  animation:ring-pulse 3s ease-in-out infinite;
+}
+.sr-1{
+  width:140px;height:140px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.4);
+  animation-delay:0s;
+}
+.sr-2{
+  width:260px;height:260px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.18);
+  animation-delay:0.6s;
+}
+.sr-3{
+  width:380px;height:380px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.08);
+  animation-delay:1.2s;
+}
+.sr-4{
+  width:500px;height:500px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  border-color:rgba(232,160,32,0.04);
+  animation-delay:1.8s;
+}
+@keyframes ring-pulse{
+  0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  50%{opacity:0.5;transform:translate(-50%,-50%) scale(1.02)}
+}
+
+.hero-bg-viz .center-dot{
+  position:absolute;
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 24px var(--amber), 0 0 48px rgba(232,160,32,0.3);
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+
+.live-ticker{
+  position:absolute;
+  right:40px;
+  top:50%;
+  transform:translateY(-50%);
+  width:160px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.ticker-row{
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:2px;
+  padding:8px 12px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text2);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.ticker-row .val{font-size:13px;font-weight:500}
+.ticker-row .val.ok{color:var(--green)}
+.ticker-row .val.warn{color:var(--amber)}
+.ticker-row .val.crit{color:var(--red)}
+.ticker-row .blink{
+  width:5px;height:5px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:blink-dot 1.5s ease-in-out infinite;
+}
+@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:0.2}}
+
+.hero-kicker{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.15em;
+  color:var(--amber);
+  margin-bottom:24px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.hero-kicker::before{
+  content:'';
+  width:32px;height:1px;
+  background:var(--amber);
+}
+
+.hero h1{
+  font-family:var(--display);
+  font-weight:800;
+  font-size:clamp(48px, 6vw, 88px);
+  line-height:0.95;
+  letter-spacing:-0.03em;
+  margin-bottom:32px;
+  max-width:700px;
+}
+.hero h1 em{
+  font-style:normal;
+  color:var(--amber);
+  position:relative;
+}
+
+.hero-sub{
+  font-size:16px;
+  color:var(--text2);
+  max-width:480px;
+  margin-bottom:48px;
+  line-height:1.7;
+  font-weight:300;
+}
+.hero-sub strong{color:var(--text);font-weight:500}
+
+.hero-actions{
+  display:flex;
+  gap:16px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:var(--amber);
+  color:#000;
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.06em;
+  font-weight:500;
+  padding:14px 28px;
+  border:none;
+  border-radius:2px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-primary:hover{background:#f0b030;transform:translateY(-1px)}
+.btn-secondary{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:transparent;
+  color:var(--text2);
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.06em;
+  padding:14px 28px;
+  border:1px solid var(--wire2);
+  border-radius:2px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-secondary:hover{border-color:var(--wire);color:var(--text)}
+
+.hero-stat-strip{
+  margin-top:80px;
+  display:flex;
+  gap:48px;
+  padding-top:40px;
+  border-top:1px solid var(--wire2);
+}
+.hero-stat .n{
+  font-family:var(--display);
+  font-size:36px;
+  font-weight:800;
+  letter-spacing:-0.02em;
+  color:var(--amber);
+}
+.hero-stat .label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-top:4px;
+}
+
+section{
+  position:relative;
+  z-index:1;
+}
+.section-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.15em;
+  color:var(--text3);
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.section-label::before{
+  content:'';
+  width:20px;height:1px;
+  background:var(--text3);
+}
+.section-title{
+  font-family:var(--display);
+  font-weight:700;
+  font-size:clamp(32px,4vw,52px);
+  line-height:1.05;
+  letter-spacing:-0.025em;
+  margin-bottom:16px;
+}
+.section-sub{
+  font-size:15px;
+  color:var(--text2);
+  max-width:480px;
+  line-height:1.7;
+  font-weight:300;
+}
+
+.problem{
+  padding:100px 80px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:center;
+}
+.problem-story{
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  padding:32px;
+  position:relative;
+}
+.problem-story::before{
+  content:'RELATO DE CAMPO';
+  position:absolute;
+  top:-1px;left:20px;
+  background:var(--red);
+  color:#fff;
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.15em;
+  padding:3px 10px;
+  border-radius:0 0 2px 2px;
+}
+.problem-story p{
+  font-size:15px;
+  color:var(--text2);
+  line-height:1.8;
+  font-style:italic;
+  font-weight:300;
+}
+.problem-story p strong{color:var(--text);font-style:normal;font-weight:500}
+
+.problem-cost{
+  margin-top:24px;
+  padding-top:24px;
+  border-top:1px solid var(--wire2);
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+.cost-num{
+  font-family:var(--display);
+  font-size:42px;
+  font-weight:800;
+  color:var(--red);
+  letter-spacing:-0.02em;
+}
+.cost-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  line-height:1.5;
+}
+
+.arch{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+  border-bottom:1px solid var(--wire2);
+}
+.arch-header{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:end;
+  margin-bottom:60px;
+}
+
+.pipeline{
+  display:flex;
+  align-items:stretch;
+  gap:0;
+  background:var(--bg3);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.pipeline-step{
+  flex:1;
+  padding:28px 20px;
+  border-right:1px solid var(--wire2);
+  position:relative;
+}
+.pipeline-step:last-child{border-right:none}
+.pipeline-step.active{background:var(--surface)}
+
+.pipe-num{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-bottom:16px;
+}
+.pipe-icon{
+  width:36px;height:36px;
+  border:1.5px solid var(--wire2);
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+  font-size:16px;
+}
+.pipe-name{
+  font-family:var(--display);
+  font-size:14px;
+  font-weight:700;
+  margin-bottom:8px;
+  letter-spacing:-0.01em;
+}
+.pipe-desc{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text2);
+  line-height:1.6;
+}
+.pipe-status{
+  margin-top:16px;
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  padding:3px 8px;
+  border-radius:2px;
+  display:inline-block;
+}
+.ps-ok{background:var(--green-dim);color:var(--green)}
+.ps-warn{background:var(--amber-dim);color:var(--amber)}
+.ps-sync{background:var(--bg);color:var(--text3);border:1px solid var(--wire2)}
+
+.features{
+  padding:100px 80px;
+}
+.features-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.feature-cell{
+  background:var(--bg);
+  padding:36px 32px;
+  position:relative;
+  transition:background .2s;
+}
+.feature-cell:hover{background:var(--bg2)}
+.feature-cell.highlight{background:var(--bg2)}
+.feature-cell.highlight::after{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:2px;
+  background:var(--amber);
+}
+
+.feat-tag{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.12em;
+  color:var(--text3);
+  margin-bottom:20px;
+}
+.feat-num{
+  font-family:var(--display);
+  font-size:48px;
+  font-weight:800;
+  letter-spacing:-0.03em;
+  line-height:1;
+  margin-bottom:16px;
+  color:var(--text3);
+}
+.feature-cell.highlight .feat-num{color:var(--amber)}
+
+.feat-title{
+  font-family:var(--display);
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  margin-bottom:12px;
+}
+.feat-desc{
+  font-size:13px;
+  color:var(--text2);
+  line-height:1.7;
+  font-weight:300;
+}
+
+.specs{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+  border-bottom:1px solid var(--wire2);
+}
+.specs-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.spec-row{
+  background:var(--bg2);
+  padding:20px 28px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  transition:background .15s;
+}
+.spec-row:hover{background:var(--bg3)}
+.spec-key{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.06em;
+  color:var(--text2);
+}
+.spec-val{
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:500;
+  color:var(--text);
+}
+.spec-val.good{color:var(--green)}
+.spec-val.warn{color:var(--amber)}
+
+.stack{
+  padding:100px 80px;
+}
+.stack-header{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:end;
+  margin-bottom:60px;
+}
+.stack-table{
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.stack-row{
+  display:grid;
+  grid-template-columns:140px 1fr 80px;
+  padding:16px 24px;
+  border-bottom:1px solid var(--wire2);
+  align-items:center;
+  gap:16px;
+  transition:background .15s;
+}
+.stack-row:last-child{border-bottom:none}
+.stack-row:hover{background:var(--bg2)}
+.stack-layer{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.12em;
+  color:var(--text3);
+}
+.stack-tech{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text);
+}
+.stack-status{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  text-align:right;
+  padding:3px 8px;
+  border-radius:2px;
+}
+.ss-done{background:var(--green-dim);color:var(--green)}
+.ss-road{background:var(--bg3);color:var(--text3);border:1px solid var(--wire)}
+
+.team{
+  padding:100px 80px;
+  background:var(--bg2);
+  border-top:1px solid var(--wire2);
+}
+.team-grid{
+  margin-top:60px;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:1px;
+  background:var(--wire2);
+  border:1px solid var(--wire2);
+  border-radius:4px;
+  overflow:hidden;
+}
+.team-card{
+  background:var(--bg2);
+  padding:32px 28px;
+  transition:background .2s;
+}
+.team-card:hover{background:var(--bg3)}
+.team-avatar{
+  width:48px;height:48px;
+  border-radius:50%;
+  border:1.5px solid var(--wire2);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:500;
+  color:var(--amber);
+  background:var(--amber-dim);
+  margin-bottom:16px;
+}
+.team-name{
+  font-family:var(--display);
+  font-size:16px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  margin-bottom:4px;
+}
+.team-role{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+  margin-bottom:16px;
+}
+.team-links{
+  display:flex;
+  gap:8px;
+}
+.team-link{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  border:1px solid var(--wire2);
+  padding:4px 8px;
+  border-radius:2px;
+  transition:all .15s;
+}
+.team-link:hover{color:var(--amber);border-color:var(--amber)}
+
+.cta-final{
+  padding:120px 80px;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+.cta-final::before{
+  content:'';
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:600px;height:600px;
+  border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(232,160,32,0.06) 0%, transparent 70%);
+  pointer-events:none;
+}
+.cta-final .tagline{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.2em;
+  color:var(--amber);
+  margin-bottom:24px;
+}
+.cta-final h2{
+  font-family:var(--display);
+  font-size:clamp(36px,5vw,72px);
+  font-weight:800;
+  line-height:0.95;
+  letter-spacing:-0.03em;
+  margin-bottom:24px;
+}
+.cta-final .sub{
+  font-size:15px;
+  color:var(--text2);
+  max-width:400px;
+  margin:0 auto 48px;
+  font-weight:300;
+  line-height:1.7;
+}
+.cta-actions{
+  display:flex;
+  gap:16px;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+
+footer{
+  padding:32px 80px;
+  border-top:1px solid var(--wire2);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+footer .copy{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+}
+footer .badge{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--text3);
+  border:1px solid var(--wire2);
+  padding:4px 12px;
+  border-radius:2px;
+}
+
+.reveal{
+  opacity:0;
+  transform:translateY(20px);
+  transition:opacity .6s ease, transform .6s ease;
+}
+.reveal.visible{opacity:1;transform:none}
+
+@media(max-width:900px){
+  nav{padding:0 20px}
+  .nav-links{display:none}
+  .hero{padding:100px 24px 60px}
+  .hero-bg-viz{display:none}
+  .live-ticker{display:none}
+  .hero-stat-strip{gap:28px;flex-wrap:wrap}
+  .problem,.arch-header,.stack-header{grid-template-columns:1fr;gap:40px;padding:60px 24px}
+  .arch{padding:60px 24px}
+  .pipeline{flex-direction:column}
+  .pipeline-step{border-right:none;border-bottom:1px solid var(--wire2)}
+  .pipeline-step:last-child{border-bottom:none}
+  .features{padding:60px 24px}
+  .features-grid{grid-template-columns:1fr}
+  .specs{padding:60px 24px}
+  .specs-grid{grid-template-columns:1fr}
+  .stack{padding:60px 24px}
+  .team{padding:60px 24px}
+  .team-grid{grid-template-columns:1fr 1fr}
+  .cta-final{padding:80px 24px}
+  footer{padding:24px;flex-direction:column;gap:12px;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="logo-mark"></div>
+    FieldNode
+  </div>
+  <div class="nav-links">
+    <a href="#problema">Problema</a>
+    <a href="#arquitetura">Arquitetura</a>
+    <a href="#specs">Specs</a>
+    <a href="#stack">Stack</a>
+    <a href="#equipe">Equipe</a>
+  </div>
+  <a class="nav-cta" href="#contato">VER DEMO</a>
+</nav>
+
+<section class="hero">
+  <div class="hero-bg-viz">
+    <div class="status-ring sr-4"></div>
+    <div class="status-ring sr-3"></div>
+    <div class="status-ring sr-2"></div>
+    <div class="status-ring sr-1"></div>
+    <div class="center-dot"></div>
+    <canvas id="orbit-canvas" width="520" height="520" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+  </div>
+
+  <div class="live-ticker">
+    <div class="ticker-row">
+      <span>TEMP</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val warn" id="t-temp">78.3°C</span>
+        <div class="blink"></div>
+      </div>
+    </div>
+    <div class="ticker-row">
+      <span>RPM</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val ok" id="t-rpm">1847</span>
+        <div class="blink" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+      </div>
+    </div>
+    <div class="ticker-row">
+      <span>VIB</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="val ok" id="t-vib">0.38g</span>
+        <div class="blink" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+      </div>
+    </div>
+    <div class="ticker-row" style="margin-top:8px;background:var(--amber-dim);border-color:rgba(232,160,32,0.2);">
+      <span style="color:var(--amber)">STATUS</span>
+      <span class="val warn" style="font-size:10px;letter-spacing:0.08em;">OFFLINE</span>
+    </div>
+    <div class="ticker-row">
+      <span>BUFFER</span>
+      <span class="val ok">247 reg</span>
+    </div>
+    <div class="ticker-row">
+      <span>SYNC</span>
+      <span class="val" style="color:var(--text3);font-size:10px;">PENDENTE</span>
+    </div>
+  </div>
+
+  <div class="hero-kicker">TELEMETRIA AGRÍCOLA OFF-GRID</div>
+  <h1>O dado existe.<br/><em>O problema</em><br/>é que ele não chega.</h1>
+  <p class="hero-sub">
+    <strong>FieldNode</strong> captura temperatura, vibração e RPM em campo,
+    exibe dashboard local via Wi-Fi e sincroniza automaticamente quando
+    a conectividade retorna. Sem app. Sem sinal. Sem perda.
+  </p>
+
+  <div class="hero-actions">
+    <a class="btn-primary" href="#arquitetura">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      VER ARQUITETURA
+    </a>
+    <a class="btn-secondary" href="#specs">
+      ESPECIFICAÇÕES TÉCNICAS →
+    </a>
+  </div>
+
+  <div class="hero-stat-strip reveal">
+    <div class="hero-stat">
+      <div class="n">R$12k</div>
+      <div class="label">PERDA MÉDIA<br/>POR PARADA</div>
+    </div>
+    <div class="hero-stat">
+      <div class="n">30–40%</div>
+      <div class="label">DAS OPERAÇÕES<br/>SEM SINAL</div>
+    </div>
+    <div class="hero-stat">
+      <div class="n">&lt;3s</div>
+      <div class="label">LATÊNCIA DO<br/>ALERTA LOCAL</div>
+    </div>
+    <div class="hero-stat">
+      <div class="n">30d</div>
+      <div class="label">BUFFER OFFLINE<br/>SEM SOBRESCREVER</div>
+    </div>
+  </div>
+</section>
+
+<section class="problem" id="problema">
+  <div class="reveal">
+    <div class="section-label">O PROBLEMA</div>
+    <h2 class="section-title">Máquinas que valem milhões operando às cegas</h2>
+    <p class="section-sub">
+      Plataformas como John Deere Operations Center e Solinftec funcionam apenas com
+      conectividade contínua. Em campo aberto, durante a safra, essa premissa quebra.
+      O sensor registra, o alarme não chega.
+    </p>
+  </div>
+  <div class="problem-story reveal">
+    <p>
+      "Quinta-feira de safra, duas da tarde. Operador a oito quilômetros da sede,
+      <strong>zero sinal de celular.</strong> A máquina começa a vibrar diferente.
+      Ele segue trabalhando — não tem como saber que o rolamento está aquecendo fora
+      do padrão há mais de trinta minutos."
+    </p>
+    <p style="margin-top:16px;color:var(--text3);font-size:13px;">
+      "Três horas depois, a colhedora para."
+    </p>
+    <div class="problem-cost">
+      <div class="cost-num">R$12k</div>
+      <div class="cost-label">PREJUÍZO IMEDIATO<br/>SAFRA PERDIDA<br/>HORA PARADA</div>
+    </div>
+  </div>
+</section>
+
+<section class="arch" id="arquitetura">
+  <div class="arch-header">
+    <div class="reveal">
+      <div class="section-label">ARQUITETURA</div>
+      <h2 class="section-title">Offline-first.<br/>Por design.</h2>
+    </div>
+    <p class="section-sub reveal" style="max-width:360px;">
+      O sistema opera completamente sem internet. A conectividade é otimização,
+      não dependência. Princípio DTN aplicado ao campo.
+    </p>
+  </div>
+
+  <div class="pipeline reveal">
+    <div class="pipeline-step">
+      <div class="pipe-num">01</div>
+      <div class="pipe-icon">📡</div>
+      <div class="pipe-name">Nó Sensor</div>
+      <div class="pipe-desc">ESP32 #1 — DS18B20 + SW-420<br/>1 leitura / 2 segundos<br/>JSON serializado</div>
+      <div class="pipe-status ps-ok">● EMBARCADO</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="pipe-num">02</div>
+      <div class="pipe-icon" style="border-color:rgba(232,160,32,0.3);">🔗</div>
+      <div class="pipe-name">ESP-NOW</div>
+      <div class="pipe-desc">Protocolo direto<br/>50–500m alcance<br/>Latência &lt;10ms</div>
+      <div class="pipe-status ps-warn">◆ SEM ROTEADOR</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipe-num">03</div>
+      <div class="pipe-icon">🖥</div>
+      <div class="pipe-name">Gateway de Campo</div>
+      <div class="pipe-desc">ESP32 #2 — dashboard HTML<br/>Buffer 30 dias<br/>Wi-Fi hotspot local</div>
+      <div class="pipe-status ps-ok">● OFFLINE OK</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipe-num">04</div>
+      <div class="pipe-icon">☁️</div>
+      <div class="pipe-name">Sync Django</div>
+      <div class="pipe-desc">POST com retry + UUID<br/>Deduplicação automática<br/>Random Forest + Isolation Forest</div>
+      <div class="pipe-status ps-sync">↺ QUANDO ONLINE</div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="reveal" style="margin-bottom:0">
+    <div class="section-label">DIFERENCIAIS</div>
+    <h2 class="section-title">Seis coisas que nenhuma<br/>plataforma existente entrega</h2>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-cell highlight reveal">
+      <div class="feat-tag">FEATURE 01</div>
+      <div class="feat-num">00</div>
+      <div class="feat-title">Dashboard 100% offline</div>
+      <p class="feat-desc">O supervisor abre o Wi-Fi do gateway no celular e acessa telemetria em tempo real. Sem app, sem sinal, sem servidor externo.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 02</div>
+      <div class="feat-num">30d</div>
+      <div class="feat-title">Buffer que não sobrescreve</div>
+      <p class="feat-desc">Até 30 dias de leituras armazenadas no dispositivo. Nenhum dado é perdido por falta de conectividade.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 03</div>
+      <div class="feat-num">&lt;3s</div>
+      <div class="feat-title">Alerta embarcado</div>
+      <p class="feat-desc">Regras de alerta rodam diretamente no ESP32. Latência do sensor ao dashboard menor que 3 segundos, sem depender de backend.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 04</div>
+      <div class="feat-num">AI</div>
+      <div class="feat-title">Análise retroativa de risco</div>
+      <p class="feat-desc">Ao sincronizar, o backend roda Isolation Forest + Random Forest sobre toda a sessão offline e gera relatório automático de manutenção.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 05</div>
+      <div class="feat-num">UUID</div>
+      <div class="feat-title">Sync idempotente</div>
+      <p class="feat-desc">Retry com backoff exponencial. Deduplicação por UUID garante que o mesmo pacote enviado N vezes resulte em exatamente 1 registro no banco.</p>
+    </div>
+    <div class="feature-cell reveal">
+      <div class="feat-tag">FEATURE 06</div>
+      <div class="feat-num">∞</div>
+      <div class="feat-title">Compatível com frota antiga</div>
+      <p class="feat-desc">Funciona com qualquer máquina via sensores físicos externos. Não exige acesso ao barramento CAN/J1939 — amplia a vida tecnológica da frota.</p>
+    </div>
+  </div>
+</section>
+
+<section class="specs" id="specs">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:end;margin-bottom:60px;">
+    <div class="reveal">
+      <div class="section-label">MÉTRICAS OPERACIONAIS</div>
+      <h2 class="section-title">Números que<br/>a banca vai perguntar.</h2>
+    </div>
+    <p class="section-sub reveal">
+      Tudo aqui é resultado de teste real ou especificação de componente documentada.
+      Nenhum número inventado.
+    </p>
+  </div>
+
+  <div class="specs-grid reveal">
+    <div class="spec-row">
+      <span class="spec-key">TAXA DE AMOSTRAGEM</span>
+      <span class="spec-val good">1 leitura / 2 segundos</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">LATÊNCIA DO ALERTA</span>
+      <span class="spec-val good">&lt; 3 segundos</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ALCANCE ESP-NOW (TÍPICO)</span>
+      <span class="spec-val">50 – 200m</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ALCANCE ESP-NOW (CAMPO ABERTO)</span>
+      <span class="spec-val good">até 500m</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">CAPACIDADE DE BUFFER</span>
+      <span class="spec-val good">30 dias sem sobrescrever</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">LATÊNCIA ESP-NOW</span>
+      <span class="spec-val good">&lt; 10ms</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">FALSO POSITIVO (META)</span>
+      <span class="spec-val">&lt; 5%</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">ACURÁCIA IA (META LABORATÓRIO)</span>
+      <span class="spec-val good">&gt; 85%</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">SINCRONIZAÇÃO</span>
+      <span class="spec-val">Automática + retry exponencial</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">DEDUPLICAÇÃO</span>
+      <span class="spec-val good">UUID — idempotente</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">PEERS ESP-NOW SIMULTÂNEOS</span>
+      <span class="spec-val">até 20 nós</span>
+    </div>
+    <div class="spec-row">
+      <span class="spec-key">CUSTO ESTIMADO / MÁQUINA</span>
+      <span class="spec-val warn">~R$ 150 hardware</span>
+    </div>
+  </div>
+</section>
+
+<section class="stack" id="stack">
+  <div class="stack-header">
+    <div class="reveal">
+      <div class="section-label">STACK TÉCNICA</div>
+      <h2 class="section-title">Cada decisão<br/>tem justificativa.</h2>
+    </div>
+    <p class="section-sub reveal">
+      Nenhuma tecnologia foi escolhida por familiaridade.
+      Cada item foi selecionado pelo trade-off custo/confiabilidade no contexto de campo.
+    </p>
+  </div>
+
+  <div class="stack-table reveal">
+    <div class="stack-row" style="background:var(--bg3);border-bottom:1px solid var(--wire2);">
+      <span class="stack-layer" style="color:var(--text2);font-weight:500;">CAMADA</span>
+      <span class="stack-tech" style="color:var(--text2);">TECNOLOGIA</span>
+      <span class="stack-status" style="color:var(--text3);">STATUS</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">HARDWARE</span>
+      <span class="stack-tech">2× ESP32 — C++ / Arduino IDE</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">WIRELESS</span>
+      <span class="stack-tech">ESP-NOW (protótipo) · LoRa (roadmap)</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">BACKEND</span>
+      <span class="stack-tech">Django 5.2 + DRF + MySQL 8</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">INGESTÃO</span>
+      <span class="stack-tech">MQTT + paho · REST API com UUID dedup</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">IA</span>
+      <span class="stack-tech">scikit-learn — Isolation Forest + Random Forest</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">DASHBOARD WEB</span>
+      <span class="stack-tech">HTML · CSS · JS · Chart.js · Bootstrap 5</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">DEPLOY</span>
+      <span class="stack-tech">Docker + Docker Compose · Render/Railway</span>
+      <span class="stack-status ss-done">PRONTO</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">SEGURANÇA</span>
+      <span class="stack-tech">API key (protótipo) · AES-128 + JWT (roadmap)</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">ALERTAS</span>
+      <span class="stack-tech">WhatsApp via Twilio / Z-API</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-layer">INTEGRAÇÃO</span>
+      <span class="stack-tech">John Deere Operations Center · Solinftec</span>
+      <span class="stack-status ss-road">ROADMAP</span>
+    </div>
+  </div>
+</section>
+
+<section class="team" id="equipe">
+  <div class="reveal" style="margin-bottom:0">
+    <div class="section-label">EQUIPE · SENAI 2026</div>
+    <h2 class="section-title">Técnico em Desenvolvimento de Sistemas</h2>
+    <p class="section-sub" style="margin-top:12px;">Desenvolvido como Trabalho de Conclusão de Curso com seriedade de engenharia.</p>
+  </div>
+
+  <div class="team-grid">
+    <div class="team-card reveal">
+      <div class="team-avatar">PM</div>
+      <div class="team-name">Paola Machado</div>
+      <div class="team-role">ARQUITETURA · PRODUTO</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/Paola5858" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/paolasoaresmachado/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">VM</div>
+      <div class="team-name">Vinícius Morales</div>
+      <div class="team-role">BACKEND · ESP32</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/ViniciusMorales" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/vin%C3%ADcius-morales-609744368/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">AF</div>
+      <div class="team-name">Ana Furlaneto</div>
+      <div class="team-role">FRONTEND · UX</div>
+      <div class="team-links">
+        <a class="team-link" href="https://github.com/acfurlaneto" target="_blank">GitHub</a>
+        <a class="team-link" href="https://www.linkedin.com/in/ana-furlaneto-a47746368/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">GD</div>
+      <div class="team-name">Giovana D'Angelo</div>
+      <div class="team-role">IA · DADOS</div>
+      <div class="team-links">
+        <a class="team-link" href="https://www.linkedin.com/in/giovanamdangelo/" target="_blank">LinkedIn</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final" id="contato">
+  <div class="tagline">FIELDNODE · TCC SENAI 2026</div>
+  <h2 class="reveal">O dado existe.<br/>O FieldNode garante<br/>que ele chegue.</h2>
+  <p class="sub reveal">
+    Telemetria offline-first para colheitadeiras agrícolas.
+    Sem sinal. Sem perda. Sem desculpa.
+  </p>
+  <div class="cta-actions reveal">
+    <a class="btn-primary" href="https://github.com/Desmantelar-bit/Api-TCC" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      VER REPOSITÓRIO
+    </a>
+    <a class="btn-secondary" href="http://localhost:8000/swagger/" target="_blank">
+      API DOCS (SWAGGER) →
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="copy">© 2026 FieldNode · SENAI Técnico em Desenvolvimento de Sistemas · Araçatuba, SP</div>
+  <div class="badge">TCC · MIT License</div>
+</footer>
+
+<script>
+// PWA SERVICE WORKER REGISTRATION
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/frontend/sw.js')
+      .then((registration) => {
+        console.log('[PWA] Service Worker registered successfully:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('[PWA] Service Worker registration failed:', error);
+      });
+  });
+}
+
+const canvas = document.getElementById('orbit-canvas');
+if(canvas){
+  const ctx = canvas.getContext('2d');
+  const cx = 260, cy = 260;
+  const nodes = [
+    {r:130, angle:0,     speed:0.012, color:'#3dba6f', size:5},
+    {r:200, angle:2.1,   speed:0.007, color:'#e05252', size:4},
+    {r:130, angle:3.7,   speed:0.012, color:'#e8a020', size:5},
+    {r:200, angle:5.2,   speed:0.007, color:'#3dba6f', size:3},
+    {r:260, angle:1.0,   speed:0.004, color:'#e8a020', size:3},
+  ];
+  function drawOrbit(){
+    ctx.clearRect(0,0,520,520);
+    nodes.forEach(n=>{
+      n.angle += n.speed;
+      const x = cx + n.r * Math.cos(n.angle);
+      const y = cy + n.r * Math.sin(n.angle);
+      ctx.beginPath();
+      ctx.arc(x, y, n.size, 0, Math.PI*2);
+      ctx.fillStyle = n.color;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = n.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+    requestAnimationFrame(drawOrbit);
+  }
+  drawOrbit();
+}
+
+function randomInRange(min, max){ return (Math.random()*(max-min)+min).toFixed(1); }
+function animateTicker(){
+  const temp = document.getElementById('t-temp');
+  const rpm  = document.getElementById('t-rpm');
+  const vib  = document.getElementById('t-vib');
+  if(!temp) return;
+  const t = parseFloat(randomInRange(74, 82));
+  temp.textContent = t + '°C';
+  temp.className = 'val ' + (t>80?'crit':t>76?'warn':'ok');
+  rpm.textContent = Math.round(randomInRange(1800,1950));
+  vib.textContent = randomInRange(0.28,0.52) + 'g';
+}
+setInterval(animateTicker, 2000);
+
+const reveals = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting) e.target.classList.add('visible');
+  });
+},{threshold:0.1});
+reveals.forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

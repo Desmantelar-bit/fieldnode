@@ -1,0 +1,34 @@
+{
+  "version": "0.2",
+  "language": "en,pt",
+  "words": [
+    "topbar",
+    "colh",
+    "pcorte",
+    "scikit",
+    "pytest",
+    "Furlaneto",
+    "Combustivel",
+    "Tempumi",
+    "Estadodemovimento",
+    "Statusdeoperacao",
+    "Pressaopneus",
+    "Alturadocorte",
+    "Pressaodocorte",
+    "Operacao",
+    "Pressao",
+    "Unidadede",
+    "Tempode",
+    "Servico",
+    "Nobanco",
+    "Estadode",
+    "Statusde",
+    "Alturado",
+    "Pressaodo"
+  ],
+  "ignorePaths": [
+    "node_modules",
+    ".venv",
+    "*.min.js"
+  ]
+}

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FieldNode — Detalhes da Máquina</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { display: flex; }
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+    .content { padding: 24px 28px; flex: 1; overflow-y: auto; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+    .metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
+    .metric-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; text-align: center; }
+    .metric-label { font-size: 11px; font-family: var(--mono); color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+    .metric-value { font-size: 28px; font-weight: 600; color: var(--green); }
+
+    .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
+    .chart-card h5 { font-size: 13px; color: var(--text2); margin-bottom: 15px; font-weight: 500; }
+    .chart-container { position: relative; height: 300px; margin-top: 15px; }
+
+    .alert { padding: 20px; border-radius: var(--radius); margin: 20px 0; font-size: 13px; }
+    .alert-danger { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+    .alert-warning { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+    .alert-link { color: inherit; text-decoration: underline; font-weight: 500; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item active" href="colheitadeiras.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Máquinas
+    </a>
+    <a class="nav-item" href="operarios.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+    <a class="nav-item" href="cadastro.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Cadastro
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <a href="colheitadeiras.html" class="back-btn">← Voltar</a>
+    <div class="topbar-title" id="page-title">Carregando...</div>
+  </div>
+
+  <div class="content">
+    <div id="content">
+      <div style="text-align: center; padding: 40px;">
+        <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid var(--text3); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 12px; color: var(--text3); font-family: var(--mono); font-size: 12px;">Carregando dados da máquina...</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const maquinaId = params.get('id');
+
+if (!maquinaId) {
+  document.getElementById('content').innerHTML = 
+    '<div class="alert alert-danger">Nenhuma máquina selecionada. <a href="colheitadeiras.html" class="alert-link">Voltar</a></div>';
+}
+
+let tempChart = null;
+let vibChart = null;
+let rpmChart = null;
+
+async function carregarMaquina() {
+  try {
+    const leituras = await apiFetch(`/api/telemetria/?maquina_id=${maquinaId}`);
+    console.log('[DEBUG] Dados da API /api/telemetria/:', leituras);
+    
+    if (!leituras || leituras.length === 0) {
+      document.getElementById('content').innerHTML = 
+        '<div class="alert alert-warning">Nenhum dado encontrado para esta máquina. <a href="colheitadeiras.html" class="alert-link">Voltar</a></div>';
+      return;
+    }
+
+    const ultima = leituras[leituras.length - 1];
+    document.getElementById('page-title').textContent = `Máquina ${maquinaId}`;
+
+    const tempColor = ultima.temperatura > 85 ? '#f87171' : ultima.temperatura > 75 ? '#fbbf24' : '#4ade80';
+    const vibColor = ultima.vibracao > 0.8 ? '#f87171' : ultima.vibracao > 0.5 ? '#fbbf24' : '#4ade80';
+    const rpmColor = ultima.rpm < 1300 ? '#fbbf24' : '#4ade80';
+
+    let nivelRisco = 'NORMAL';
+    if (ultima.temperatura > 85 || ultima.vibracao > 0.8) {
+      nivelRisco = 'CRÍTICO';
+    } else if (ultima.temperatura > 75 || ultima.vibracao > 0.5) {
+      nivelRisco = 'ATENÇÃO';
+    }
+
+    document.getElementById('content').innerHTML = `
+      <div class="metric-row">
+        <div class="metric-box">
+          <div class="metric-label">Temperatura</div>
+          <div class="metric-value" style="color: ${tempColor}">${ultima.temperatura}°C</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Vibração</div>
+          <div class="metric-value" style="color: ${vibColor}">${ultima.vibracao}g</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">RPM</div>
+          <div class="metric-value" style="color: ${rpmColor}">${ultima.rpm}</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Status</div>
+          <div class="metric-value" style="font-size: 18px; color: ${tempColor}">${nivelRisco}</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de Temperatura</h5>
+        <div class="chart-container">
+          <canvas id="temp-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de Vibração</h5>
+        <div class="chart-container">
+          <canvas id="vib-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h5>Histórico de RPM</h5>
+        <div class="chart-container">
+          <canvas id="rpm-chart"></canvas>
+        </div>
+      </div>
+    `;
+
+    const labels = leituras.map((_, i) => `#${i + 1}`);
+    const tempData = leituras.map(l => l.temperatura);
+    const vibData = leituras.map(l => l.vibracao);
+    const rpmData = leituras.map(l => l.rpm);
+
+    const tempCtx = document.getElementById('temp-chart');
+    if (tempChart) tempChart.destroy();
+    tempChart = new Chart(tempCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Temperatura (°C)',
+          data: tempData,
+          borderColor: '#f87171',
+          backgroundColor: 'rgba(248, 113, 113, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a3a3a3' } }
+        },
+        scales: {
+          y: { beginAtZero: false, ticks: { color: '#737373' }, grid: { color: '#262626' } },
+          x: { ticks: { color: '#737373' }, grid: { color: '#262626' } }
+        }
+      }
+    });
+
+    const vibCtx = document.getElementById('vib-chart');
+    if (vibChart) vibChart.destroy();
+    vibChart = new Chart(vibCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Vibração (g)',
+          data: vibData,
+          borderColor: '#fbbf24',
+          backgroundColor: 'rgba(251, 191, 36, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a3a3a3' } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: '#737373' }, grid: { color: '#262626' } },
+          x: { ticks: { color: '#737373' }, grid: { color: '#262626' } }
+        }
+      }
+    });
+
+    const rpmCtx = document.getElementById('rpm-chart');
+    if (rpmChart) rpmChart.destroy();
+    rpmChart = new Chart(rpmCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'RPM',
+          data: rpmData,
+          borderColor: '#4ade80',
+          backgroundColor: 'rgba(74, 222, 128, 0.1)',
+          tension: 0.4,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a3a3a3' } }
+        },
+        scales: {
+          y: { beginAtZero: false, ticks: { color: '#737373' }, grid: { color: '#262626' } },
+          x: { ticks: { color: '#737373' }, grid: { color: '#262626' } }
+        }
+      }
+    });
+
+  } catch (e) {
+    console.error('[carregarMaquina]', e);
+    document.getElementById('content').innerHTML = 
+      `<div class="alert alert-danger">Erro ao carregar dados: ${e.message}<br><a href="colheitadeiras.html" class="alert-link">Voltar</a></div>`;
+  }
+}
+
+if (maquinaId) {
+  carregarMaquina();
+  // Sem polling - dados carregam uma vez ao abrir a página
+  // Para atualização em tempo real, use o dashboard
+}
+</script>
+
+
+</body>
+</html>

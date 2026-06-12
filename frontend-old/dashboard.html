@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#0e1210"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="manifest" href="manifest.json"/>
+  
+  <title>FieldNode — Dashboard de Frota</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <style>
+    /* SIDEBAR */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all .15s; text-decoration: none; }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .api-address { font-size:10px; color:var(--text3); margin-top:4px; font-family:var(--mono); }
+
+    /* MAIN */
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+    .topbar { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 10; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-title { font-size: 16px; font-weight: 600; }
+    .topbar-divider { width:1px; height:20px; background:var(--border); }
+    .theme-toggle { background: var(--bg3); border: 2px solid var(--border); color: var(--text); cursor: pointer; padding: 8px 14px; border-radius: var(--radius); font-size: 18px; transition: all .2s; font-weight: 600; }
+    .theme-toggle:hover { background: var(--green-dim); color: var(--green); border-color: var(--green); box-shadow: 0 0 12px rgba(74,222,128,0.3); }
+    .mqtt-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--mono); padding: 5px 12px; border-radius: 12px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(5,150,105,0.3); transition: all .3s; }
+    .mqtt-badge.offline { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.3); }
+    .mqtt-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 4px currentColor; }
+
+    .content { padding: 24px 28px; flex: 1; overflow-y: auto; }
+
+    /* DASHBOARD HEADER */
+    .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .dashboard-title { font-size: 20px; font-weight: 600; }
+    .dashboard-controls { display: flex; align-items: center; gap: 12px; }
+    .search-box { position: relative; display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); }
+    .search-box input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; width: 150px; }
+    .search-box input::placeholder { color: var(--text3); }
+    .autocomplete-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+    .autocomplete-dropdown.active { display: block; }
+    .autocomplete-item { padding: 10px 14px; cursor: pointer; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,.04); transition: all .15s; }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover { background: rgba(255,255,255,.05); }
+    .autocomplete-item-id { font-family: var(--mono); color: var(--text); font-weight: 500; }
+    .autocomplete-item-status { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .autocomplete-empty { padding: 14px; text-align: center; font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+    /* METRIC CARDS */
+    .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; transition: all .2s; }
+    .metric-card:hover { border-color: var(--border2); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .metric-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .metric-value { font-size: 28px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .metric-subtitle { font-size: 12px; color: var(--text2); }
+
+    /* STATUS TABLE */
+    .status-container { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .status-table-wrapper { overflow-x: auto; }
+    .status-table { width: 100%; border-collapse: collapse; }
+    .status-table thead { background: var(--bg3); }
+    .status-table th { padding: 14px 16px; text-align: left; font-size: 11px; font-family: var(--mono); color: var(--text3); letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 600; }
+    .status-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .status-table tr:last-child td { border-bottom: none; }
+    .status-table tbody tr:hover { background: rgba(74,222,128,0.05); }
+    .machine-cell { display: flex; align-items: center; gap: 10px; }
+    .machine-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .machine-info { display: flex; flex-direction: column; }
+    .machine-id-col { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+    .machine-name-col { font-weight: 500; }
+    .status-badge { font-size: 10px; padding: 4px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-weight: 600; }
+    .status-badge.normal { background: var(--green-dim); color: var(--green); border: 1px solid rgba(5,150,105,0.3); }
+    .status-badge.warning { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(217,119,6,0.3); }
+    .status-badge.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.3); }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+
+    /* CAROUSEL */
+    .carousel-controls { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-top: 1px solid var(--border); background: var(--bg3); }
+    .carousel-info { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+    .carousel-buttons { display: flex; gap: 8px; }
+    .carousel-btn { padding: 6px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); cursor: pointer; font-size: 12px; transition: all .15s; }
+    .carousel-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text2); }
+    .carousel-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* POPUP */
+    .popup-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); backdrop-filter: blur(10px); z-index: 100; align-items: center; justify-content: center; }
+    .popup-overlay.active { display: flex !important; }
+    .popup-content { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius-lg); width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto; padding: 28px; box-shadow: 0 24px 48px rgba(0,0,0,.3); }
+    .popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .popup-title { font-size: 18px; font-weight: 700; color: var(--text); }
+    .popup-close { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; font-size: 24px; line-height: 1; padding: 6px 12px; border-radius: 6px; transition: all .15s; font-weight: bold; }
+    .popup-close:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+    .popup-section { margin-bottom: 20px; background: var(--bg3); padding: 18px; border-radius: var(--radius); border: 1px solid var(--border); }
+    .popup-label { font-size: 12px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; font-weight: 700; }
+    .popup-data-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .popup-data-row:last-child { border-bottom: none; }
+    .popup-data-key { color: var(--text2); font-weight: 600; }
+    .popup-data-val { font-family: var(--mono); color: var(--text); font-weight: 700; font-size: 15px; }
+    .popup-buttons { display: flex; gap: 10px; margin-top: 24px; }
+    .popup-btn { flex: 1; padding: 14px; border: 1px solid var(--green); border-radius: var(--radius); background: var(--green-dim); color: var(--green); cursor: pointer; font-size: 14px; font-weight: 700; transition: all .15s; text-decoration: none; text-align: center; }
+    .popup-btn:hover { background: rgba(5, 150, 105, 0.15); color: var(--green); }
+
+    /* POPUP — SEÇÃO IA */
+    .popup-ia-section { margin-bottom: 20px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg3); }
+    .popup-ia-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: var(--green-dim); border-bottom: 1px solid var(--border); }
+    .popup-ia-icon { font-size: 18px; }
+    .popup-ia-title { font-size: 12px; font-family: var(--mono); color: var(--green); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .popup-ia-body { padding: 18px; background: var(--bg2); }
+    .popup-ia-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .popup-ia-row:last-child { border-bottom: none; }
+    .popup-ia-key { color: var(--text2); font-weight: 600; }
+    .popup-ia-val { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+    .popup-ia-val.ok    { color: var(--green); }
+    .popup-ia-val.warn  { color: var(--amber); }
+    .popup-ia-val.crit  { color: var(--red); }
+    .popup-ia-val.muted { color: var(--text3); }
+    .popup-ia-bar-wrap  { margin-top: 14px; }
+    .popup-ia-bar-label { display: flex; justify-content: space-between; font-size: 12px; font-family: var(--mono); color: var(--text2); margin-bottom: 8px; font-weight: 600; }
+    .popup-ia-bar-track { height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
+    .popup-ia-bar-fill  { height: 100%; border-radius: 4px; transition: width .6s ease; }
+    .popup-ia-loading   { padding: 20px; text-align: center; font-size: 13px; font-family: var(--mono); color: var(--text3); font-weight: 600; }
+
+    /* OFFCANVAS PRESCRITIVO */
+    .offcanvas-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(8px); z-index: 1000; opacity: 0; visibility: hidden; transition: all .3s ease; }
+    .offcanvas-overlay.active { opacity: 1; visibility: visible; }
+    .offcanvas { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: var(--bg); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform .3s ease; overflow-y: auto; z-index: 1001; }
+    .offcanvas.active { transform: translateX(0); }
+    .offcanvas-header { padding: 24px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+    .offcanvas-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .offcanvas-subtitle { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+    .offcanvas-close { position: absolute; top: 20px; right: 20px; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; font-size: 20px; line-height: 1; padding: 8px 12px; border-radius: 6px; transition: all .15s; }
+    .offcanvas-close:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+    .offcanvas-body { padding: 24px; }
+    
+    /* SEÇÕES DO OFFCANVAS */
+    .prescricao-section { margin-bottom: 24px; }
+    .prescricao-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; font-weight: 600; }
+    
+    /* NÍVEL DE RISCO */
+    .nivel-risco { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: var(--radius); margin-bottom: 16px; }
+    .nivel-risco.normal { background: var(--green-dim); border: 1px solid rgba(74,222,128,.3); }
+    .nivel-risco.atencao { background: var(--amber-dim); border: 1px solid rgba(251,191,36,.3); }
+    .nivel-risco.critico { background: var(--red-dim); border: 1px solid rgba(248,113,113,.3); }
+    .nivel-risco-icon { font-size: 24px; }
+    .nivel-risco.normal .nivel-risco-icon { color: var(--green); }
+    .nivel-risco.atencao .nivel-risco-icon { color: var(--amber); }
+    .nivel-risco.critico .nivel-risco-icon { color: var(--red); }
+    .nivel-risco-text { flex: 1; }
+    .nivel-risco-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .nivel-risco.normal .nivel-risco-title { color: var(--green); }
+    .nivel-risco.atencao .nivel-risco-title { color: var(--amber); }
+    .nivel-risco.critico .nivel-risco-title { color: var(--red); }
+    .nivel-risco-desc { font-size: 12px; color: var(--text2); }
+    
+    /* ANOMALIAS */
+    .anomalias-list { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .anomalia-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .anomalia-item:last-child { border-bottom: none; }
+    .anomalia-icon { font-size: 16px; color: var(--amber); }
+    .anomalia-text { font-size: 13px; color: var(--text2); }
+    .anomalias-empty { text-align: center; color: var(--text3); font-size: 12px; font-family: var(--mono); }
+    
+    /* PRESCRIÇÃO */
+    .prescricao-text { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-size: 14px; line-height: 1.5; color: var(--text); }
+    
+    /* AÇÃO RECOMENDADA */
+    .acao-recomendada { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .acao-recomendada.normal { border-color: var(--green); background: var(--green-dim); }
+    .acao-recomendada.atencao { border-color: var(--amber); background: var(--amber-dim); }
+    .acao-recomendada.critico { border-color: var(--red); background: var(--red-dim); }
+    .acao-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .acao-recomendada.normal .acao-title { color: var(--green); }
+    .acao-recomendada.atencao .acao-title { color: var(--amber); }
+    .acao-recomendada.critico .acao-title { color: var(--red); }
+    .acao-text { font-size: 13px; color: var(--text2); }
+    
+     /* LOADING STATE */
+     .prescricao-loading { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
+     
+     /* PULSE SPINNER */
+     .pulse-spinner { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--green); animation: pulse-anim 1.5s ease-in-out infinite; }
+     @keyframes pulse-anim { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.8); } }
+
+     /* CHARTS */
+     .charts-container {
+       background: var(--bg2);
+       border: 1px solid var(--border);
+       border-radius: var(--radius-lg);
+       padding: 20px;
+     }
+
+     /* TEMA CLARO - APRIMORAMENTOS */
+     [data-theme="light"] .nav-item:hover {
+       background: rgba(5,150,105,0.08);
+     }
+     
+     [data-theme="light"] .status-table tbody tr:hover {
+       background: rgba(5,150,105,0.08);
+     }
+     
+     [data-theme="light"] .metric-card:hover {
+       box-shadow: 0 4px 16px rgba(5,150,105,0.12);
+     }
+     
+     [data-theme="light"] .sidebar {
+       box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+     }
+
+     /* MOBILE RESPONSIVENESS */
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: -100%;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        background: var(--bg);
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .sidebar.mobile-open {
+        left: 0;
+      }
+      .main {
+        margin-left: 0;
+        width: 100%;
+      }
+      .topbar {
+        padding: 12px 16px;
+        position: relative;
+      }
+      .topbar-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .topbar-title {
+        font-size: 14px;
+      }
+      .mqtt-badge {
+        font-size: 10px;
+        padding: 4px 8px;
+      }
+      .content {
+        padding: 16px;
+      }
+      .dashboard-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .dashboard-title {
+        font-size: 18px;
+      }
+      .search-box {
+        width: 100%;
+      }
+      .search-box input {
+        width: 100%;
+        font-size: 14px;
+        padding: 10px 14px;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .metric-card {
+        padding: 16px;
+      }
+      .metric-value {
+        font-size: 24px;
+      }
+      .status-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .status-table {
+        min-width: 600px;
+      }
+      .status-table th,
+      .status-table td {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      .carousel-controls {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .carousel-info {
+        text-align: center;
+      }
+      .offcanvas {
+        width: 100%;
+        right: 0;
+      }
+      .offcanvas-header {
+        padding: 20px 16px;
+      }
+      .offcanvas-body {
+        padding: 16px;
+      }
+      .prescricao-section {
+        margin-bottom: 20px;
+      }
+    }
+
+    @media (max-width: 375px) {
+      .topbar {
+        padding: 10px 12px;
+      }
+      .content {
+        padding: 12px;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .metric-card {
+        padding: 14px;
+      }
+      .metric-value {
+        font-size: 20px;
+      }
+      .metric-label {
+        font-size: 10px;
+      }
+      .dashboard-title {
+        font-size: 16px;
+      }
+      .search-box input {
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+      .status-table th,
+      .status-table td {
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+      .machine-cell {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .machine-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+      .prescricao-section {
+        margin-bottom: 16px;
+      }
+      .nivel-risco {
+        padding: 12px;
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+      }
+      .nivel-risco-icon {
+        font-size: 20px;
+      }
+    }
+
+    /* MOBILE MENU BUTTON */
+    .mobile-menu-btn {
+      display: none;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: block;
+      }
+    }
+
+    /* MOBILE OVERLAY */
+    .mobile-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-overlay.active {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- MOBILE OVERLAY -->
+<div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item active" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="colheitadeiras.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Máquinas
+    </a>
+    <a class="nav-item" href="operarios.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+    <a class="nav-item" href="cadastro.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Cadastro
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+    <div class="api-address">127.0.0.1:8000</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+      <div class="topbar-title">Dashboard de Frota</div>
+      <div class="topbar-divider"></div>
+      <div class="mqtt-badge" id="mqtt-badge">
+        <div class="mqtt-dot"></div>
+        <span>Conectando...</span>
+      </div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">🌓</button>
+  </div>
+
+  <div class="content">
+    <!-- HEADER -->
+    <div class="dashboard-header">
+      <div class="dashboard-title">Máquinas em operação</div>
+      <div class="dashboard-controls">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="machine-search" placeholder="Buscar máquina..." autocomplete="off"/>
+          <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
+        </div>
+      </div>
+    </div>
+
+     <!-- METRICS CARDS -->
+     <div class="metrics-grid">
+       <div class="metric-card">
+         <div class="metric-label">Total de Leituras</div>
+         <div class="metric-value" id="metric-total-leituras">—</div>
+         <div class="metric-subtitle">Últimas 24h</div>
+       </div>
+       <div class="metric-card">
+         <div class="metric-label">Máquinas Ativas</div>
+         <div class="metric-value" id="metric-maquinas-ativas">—</div>
+         <div class="metric-subtitle">Em operação</div>
+       </div>
+       <div class="metric-card">
+         <div class="metric-label">Taxa de Rejeição</div>
+         <div class="metric-value" id="metric-taxa-rejeicao">—</div>
+         <div class="metric-subtitle">Leituras inválidas</div>
+       </div>
+     </div>
+
+     <!-- CHARTS -->
+     <div class="charts-container" style="margin-bottom: 24px;">
+       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+         <div style="position: relative; height: 300px; width: 100%;">
+           <canvas id="temperatureChart"></canvas>
+         </div>
+         <div style="position: relative; height: 300px; width: 100%;">
+           <canvas id="statusChart"></canvas>
+         </div>
+       </div>
+     </div>
+
+     <!-- STATUS TABLE -->
+    <div class="status-container">
+      <div class="status-table-wrapper">
+        <table class="status-table">
+          <thead id="status-table-head">
+            <tr>
+              <th>Máquina</th>
+              <th>Modelo</th>
+              <th>Temperatura</th>
+              <th>Combustível</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="status-table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 40px;">
+                <div class="pulse-spinner" style="display: inline-block; margin-right: 8px;"></div>
+                Carregando máquinas...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="carousel-controls">
+        <div class="carousel-info" id="carousel-info">Página 1</div>
+        <div class="carousel-buttons">
+          <button class="carousel-btn" id="carousel-prev" onclick="scrollMaquinasTabela(-1)">← Anterior</button>
+          <button class="carousel-btn" id="carousel-next" onclick="scrollMaquinasTabela(1)">Próximo →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- OFFCANVAS PRESCRITIVO -->
+<div class="offcanvas-overlay" id="prescricao-overlay" onclick="fecharPrescricao()"></div>
+<div class="offcanvas" id="prescricao-offcanvas">
+  <div class="offcanvas-header">
+    <div class="offcanvas-title" id="prescricao-title">Prescrição de Manutenção</div>
+    <div class="offcanvas-subtitle" id="prescricao-subtitle">—</div>
+    <button class="offcanvas-close" onclick="fecharPrescricao()">×</button>
+  </div>
+  
+  <div class="offcanvas-body" id="prescricao-body">
+    <div class="prescricao-loading">
+      <div class="pulse-spinner"></div>
+      Analisando máquina...
+    </div>
+  </div>
+</div>
+
+<!-- POPUP DE DETALHES DA MÁQUINA -->
+<div class="popup-overlay" id="machine-details-popup">
+  <div class="popup-content">
+    <div class="popup-header">
+      <div class="popup-title" id="popup-title">Detalhes da Máquina</div>
+      <button class="popup-close" onclick="fecharPopupMaquina()">×</button>
+    </div>
+    
+    <div class="popup-section">
+      <div class="popup-label">Informações Básicas</div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">ID da Máquina</span>
+        <span class="popup-data-val" id="popup-id">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Modelo</span>
+        <span class="popup-data-val" id="popup-modelo">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Temperatura</span>
+        <span class="popup-data-val" id="popup-temp">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Combustível</span>
+        <span class="popup-data-val" id="popup-fuel">—</span>
+      </div>
+      <div class="popup-data-row">
+        <span class="popup-data-key">Status</span>
+        <span class="popup-data-val" id="popup-status">—</span>
+      </div>
+    </div>
+    
+    <div class="popup-ia-section">
+      <div class="popup-ia-header">
+        <span class="popup-ia-icon">🤖</span>
+        <span class="popup-ia-title">Análise de IA</span>
+      </div>
+      <div class="popup-ia-body" id="popup-ia-body">
+        <div class="popup-ia-loading">⌛ Carregando análise...</div>
+      </div>
+    </div>
+    
+    <div class="popup-buttons">
+      <a class="popup-btn" id="popup-details-link" href="#">📊 Ver Detalhes Completos</a>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="config.js"></script>
+<script src="js/colors.js"></script>
+<script src="js/api.js"></script>
+<script src="js/status.js"></script>
+
+<script>
+// CACHE BUSTING - Força atualização ao abrir
+(function() {
+  const versao = new Date().getTime();
+  document.querySelectorAll('link[rel="stylesheet"]').forEach(el => {
+    if (!el.src.includes('?v=')) {
+      const url = new URL(el.href);
+      url.searchParams.set('v', versao);
+      el.href = url.toString();
+    }
+  });
+  console.log('[Dashboard] Cache busting aplicado - Versão:', versao);
+})();
+// PWA SERVICE WORKER REGISTRATION
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/frontend/sw.js')
+      .then((registration) => {
+        console.log('[PWA] Service Worker registered successfully:', registration.scope);
+        
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content available, show update notification
+              showUpdateNotification();
+            }
+          });
+        });
+      })
+      .catch((error) => {
+        console.error('[PWA] Service Worker registration failed:', error);
+      });
+  });
+}
+
+// PWA INSTALL PROMPT
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('[PWA] Install prompt available');
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallButton();
+});
+
+function showInstallButton() {
+  // Create install button if it doesn't exist
+  if (!document.getElementById('pwa-install-btn')) {
+    const installBtn = document.createElement('button');
+    installBtn.id = 'pwa-install-btn';
+    installBtn.innerHTML = '📱 Instalar App';
+    installBtn.className = 'btn btn-primary';
+    installBtn.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      padding: 12px 16px;
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: var(--radius);
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('[PWA] Install prompt outcome:', outcome);
+        deferredPrompt = null;
+        installBtn.remove();
+      }
+    });
+    
+    document.body.appendChild(installBtn);
+    
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+      if (installBtn.parentNode) {
+        installBtn.style.opacity = '0.7';
+      }
+    }, 10000);
+  }
+}
+
+function showUpdateNotification() {
+  // Create update notification
+  const updateNotification = document.createElement('div');
+  updateNotification.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--green);
+      border-radius: var(--radius);
+      padding: 16px;
+      z-index: 1001;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    ">
+      <div style="color: var(--text); font-size: 14px; margin-bottom: 8px;">
+        🔄 Nova versão disponível
+      </div>
+      <div style="color: var(--text2); font-size: 12px; margin-bottom: 12px;">
+        Recarregue a página para atualizar
+      </div>
+      <button onclick="window.location.reload()" style="
+        background: var(--green-dim);
+        color: var(--green);
+        border: 1px solid var(--green);
+        border-radius: var(--radius);
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-right: 8px;
+      ">Atualizar</button>
+      <button onclick="this.parentElement.parentElement.remove()" style="
+        background: var(--bg3);
+        color: var(--text2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+      ">Depois</button>
+    </div>
+  `;
+  
+  document.body.appendChild(updateNotification);
+  
+  // Auto-remove after 30 seconds
+  setTimeout(() => {
+    if (updateNotification.parentNode) {
+      updateNotification.remove();
+    }
+  }, 30000);
+}
+
+// MOBILE MENU FUNCTIONS
+function toggleMobileMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('mobile-overlay');
+  
+  sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('active');
+}
+
+function closeMobileMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('mobile-overlay');
+  
+  sidebar.classList.remove('mobile-open');
+  overlay.classList.remove('active');
+}
+
+// Close mobile menu when clicking nav items
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', closeMobileMenu);
+});
+
+// MQTT STATUS POLLING
+async function atualizarStatusMQTT() {
+  try {
+    const resp = await apiFetch('/api/status-mqtt/');
+    const badge = document.getElementById('mqtt-badge');
+
+    if (resp.mqtt_conectado) {
+      badge.innerHTML = '<div class="mqtt-dot"></div><span>● Conectado</span>';
+      badge.classList.remove('offline');
+    } else {
+      const segundos = resp.ultima_leitura_segundos_atras || 0;
+      badge.innerHTML = `<div class="mqtt-dot"></div><span>◯ Offline (${segundos}s)</span>`;
+      badge.classList.add('offline');
+    }
+  } catch (e) {
+    console.error('Falha ao buscar status MQTT', e);
+    const badge = document.getElementById('mqtt-badge');
+    badge.innerHTML = '<div class="mqtt-dot"></div><span>⚠ Erro</span>';
+    badge.classList.add('offline');
+  }
+}
+
+// ATUALIZA MÉTRICAS DO DASHBOARD
+async function atualizarMetricas() {
+  try {
+    const metricas = await apiFetch('/api/metricas/');
+    
+    document.getElementById('metric-total-leituras').textContent = 
+      metricas.total_leituras?.toLocaleString('pt-BR') || '0';
+    
+    document.getElementById('metric-maquinas-ativas').textContent = 
+      metricas.maquinas_ativas || '0';
+    
+    const taxaRejeicao = metricas.taxa_rejeicao || 0;
+    const taxaEl = document.getElementById('metric-taxa-rejeicao');
+    taxaEl.textContent = `${taxaRejeicao.toFixed(1)}%`;
+    taxaEl.style.color = taxaRejeicao > 5 ? '#f87171' : taxaRejeicao > 2 ? '#fbbf24' : '#4ade80';
+  } catch (e) {
+    console.error('Falha ao buscar métricas', e);
+  }
+}
+
+// POLLING RECURSIVO - Não empilha requisições
+async function pollStatus() {
+  try {
+    await Promise.all([
+      atualizarStatusMaquinas(),
+      atualizarMetricas(),
+      atualizarGraficos()
+    ]);
+  } catch (error) {
+    console.error("Falha no sync, retentando...", error);
+  } finally {
+    // Só agenda o próximo DEPOIS que o atual terminar (ou falhar)
+    setTimeout(pollStatus, 3000);
+  }
+}
+
+// ATUALIZA GRÁFICOS
+async function atualizarGraficos() {
+  if (!temperatureChart || !statusChart) return;
+  
+  try {
+    const maquinas = await apiFetch('/api/leituras/ultimas/');
+    
+    if (maquinas.length > 0) {
+      // Gráfico de temperatura
+      const labels = maquinas.map(m => m.maquina_id);
+      const temps = maquinas.map(m => m.temperatura || 0);
+      
+      temperatureChart.data.labels = labels;
+      temperatureChart.data.datasets[0].data = temps;
+      temperatureChart.update('none');
+      
+      // Gráfico de status
+      const statusCount = { normal: 0, atencao: 0, critico: 0 };
+      maquinas.forEach(m => {
+        const nivel = (m.nivel_risco || 'NORMAL').toLowerCase();
+        if (nivel === 'normal') statusCount.normal++;
+        else if (nivel === 'atencao' || nivel === 'atenção') statusCount.atencao++;
+        else if (nivel === 'critico' || nivel === 'crítico') statusCount.critico++;
+      });
+      
+      statusChart.data.datasets[0].data = [statusCount.normal, statusCount.atencao, statusCount.critico];
+      statusChart.update('none');
+    }
+  } catch (e) {
+    console.error('Erro ao atualizar gráficos:', e);
+  }
+}
+
+// MQTT POLLING - A cada 5s
+function pollMQTT() {
+  atualizarStatusMQTT();
+  setTimeout(pollMQTT, 5000);
+}
+
+// AUTOCOMPLETE
+const searchInput = document.getElementById('machine-search');
+const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    const termo = e.target.value.trim().toUpperCase();
+    
+    if (!termo) {
+      autocompleteDropdown.classList.remove('active');
+      return;
+    }
+    
+    const resultados = tabelaState.dados.filter(m => 
+      m.maquina_id.toUpperCase().includes(termo)
+    );
+    
+    if (resultados.length === 0) {
+      autocompleteDropdown.innerHTML = '<div class="autocomplete-empty">Nenhuma máquina encontrada</div>';
+      autocompleteDropdown.classList.add('active');
+      return;
+    }
+    
+    autocompleteDropdown.innerHTML = resultados.map(m => {
+      const statusText = m.temperatura ? `${m.temperatura}°C | ${m.vibracao}g | ${m.rpm} RPM` : 'Sem dados';
+      return `
+        <div class="autocomplete-item" onclick="selecionarMaquinaAutocomplete('${m.maquina_id}')">
+          <div class="autocomplete-item-id">${m.maquina_id}</div>
+          <div class="autocomplete-item-status">${statusText}</div>
+        </div>
+      `;
+    }).join('');
+    
+    autocompleteDropdown.classList.add('active');
+  });
+  
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const termo = e.target.value.trim().toUpperCase();
+      if (termo) {
+        const encontrada = tabelaState.dados.find(m => 
+          m.maquina_id.toUpperCase().includes(termo)
+        );
+        if (encontrada) {
+          selecionarMaquinaAutocomplete(encontrada.maquina_id);
+        }
+      }
+    }
+  });
+}
+
+function selecionarMaquinaAutocomplete(maquinaId) {
+  autocompleteDropdown.classList.remove('active');
+  searchInput.value = '';
+  abrirPrescricao(maquinaId);
+}
+
+// CHARTS
+let temperatureChart, statusChart;
+
+function initializeCharts() {
+  const tempCanvas = document.getElementById('temperatureChart');
+  const statusCanvas = document.getElementById('statusChart');
+  
+  if (!tempCanvas || !statusCanvas) return;
+  
+  // Garante que os canvas têm dimensões
+  tempCanvas.style.maxWidth = '100%';
+  tempCanvas.style.height = 'auto';
+  statusCanvas.style.maxWidth = '100%';
+  statusCanvas.style.height = 'auto';
+  
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const textColor = theme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+  const gridColor = theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  
+  const tempCtx = tempCanvas.getContext('2d');
+  const statusCtx = statusCanvas.getContext('2d');
+  
+  // Destrói gráficos anteriores se existirem
+  if (temperatureChart) temperatureChart.destroy();
+  if (statusChart) statusChart.destroy();
+  
+  temperatureChart = new Chart(tempCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Temperatura (°C)',
+        data: [],
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248, 113, 113, 0.1)',
+        tension: 0.3,
+        fill: true,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          grid: {
+            color: gridColor,
+            drawBorder: true
+          },
+          ticks: {
+            color: textColor
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: textColor
+          }
+        }
+      }
+    }
+  });
+  
+  statusChart = new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Normal', 'Atenção', 'Crítico'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['#4ade80', '#fbbf24', '#f87171'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: textColor,
+            font: {
+              size: 10
+            },
+            padding: 15
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = Math.round((value / total) * 100);
+              return `${label}: ${value} (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-box')) {
+    autocompleteDropdown.classList.remove('active');
+  }
+});
+
+// FUNÇÕES DO OFFCANVAS PRESCRITIVO
+function fecharPrescricao() {
+  document.getElementById('prescricao-overlay').classList.remove('active');
+  document.getElementById('prescricao-offcanvas').classList.remove('active');
+}
+
+// FUNÇÕES DO POPUP DE DETALHES
+function fecharPopupMaquina() {
+  const popup = document.getElementById('machine-details-popup');
+  if (popup) popup.classList.remove('active');
+}
+
+// Fecha offcanvas com ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    fecharPrescricao();
+  }
+});
+
+// Abre offcanvas prescritivo ao clicar em máquina
+async function abrirPrescricao(maquinaId) {
+  const overlay = document.getElementById('prescricao-overlay');
+  const offcanvas = document.getElementById('prescricao-offcanvas');
+  const body = document.getElementById('prescricao-body');
+  
+  // Atualiza título
+  document.getElementById('prescricao-title').textContent = 'Prescrição de Manutenção';
+  document.getElementById('prescricao-subtitle').textContent = maquinaId;
+  
+  // Mostra loading
+  body.innerHTML = `
+    <div class="prescricao-loading">
+      <div class="pulse-spinner"></div>
+      Analisando máquina...
+    </div>
+  `;
+  
+  // Abre offcanvas
+  overlay.classList.add('active');
+  offcanvas.classList.add('active');
+  
+  try {
+    // Busca prescrição da API
+    const prescricao = await apiFetch(`/api/prescricoes/?maquina_id=${maquinaId}`);
+    
+    if (prescricao.status === 'ok') {
+      renderPrescricao(prescricao);
+    } else {
+      renderErroPrescricao(prescricao.detalhe || 'Erro ao gerar prescrição');
+    }
+  } catch (error) {
+    console.error('Erro ao buscar prescrição:', error);
+    renderErroPrescricao('Falha na comunicação com a API');
+  }
+}
+
+function renderPrescricao(data) {
+  const body = document.getElementById('prescricao-body');
+  const severidade = (data.severidade || 'NORMAL').toLowerCase();
+  const maquinaId = data.maquina_id || document.getElementById('prescricao-subtitle').textContent;
+  
+  // Mapeia severidade para classes CSS
+  const severidadeClass = {
+    'normal': 'normal',
+    'atenção': 'atencao', 
+    'atencao': 'atencao',
+    'crítico': 'critico',
+    'critico': 'critico'
+  }[severidade] || 'normal';
+  
+  // Ícones por severidade
+  const icones = {
+    'normal': '✅',
+    'atencao': '⚠️', 
+    'critico': '🚨'
+  };
+  
+  // Títulos por severidade
+  const titulos = {
+    'normal': 'Operação Normal',
+    'atencao': 'Atenção Necessária',
+    'critico': 'Situação Crítica'
+  };
+  
+  body.innerHTML = `
+    <!-- Nível de Risco -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Nível de Risco</div>
+      <div class="nivel-risco ${severidadeClass}">
+        <div class="nivel-risco-icon">${icones[severidadeClass]}</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">${titulos[severidadeClass]}</div>
+          <div class="nivel-risco-desc">Confiança: ${Math.round((data.confianca || 0) * 100)}%</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Anomalias Detectadas -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Anomalias Detectadas</div>
+      <div class="anomalias-list">
+        ${renderAnomalias(data)}
+      </div>
+    </div>
+    
+    <!-- Prescrição -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Análise Prescritiva</div>
+      <div class="prescricao-text">
+        ${data.prescricao || 'Nenhuma prescrição disponível.'}
+      </div>
+    </div>
+    
+    <!-- Ação Recomendada -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Ação Recomendada</div>
+      <div class="acao-recomendada ${severidadeClass}">
+        <div class="acao-title">Próximos Passos</div>
+        <div class="acao-text">
+          ${data.acao_recomendada || 'Continuar operação normal.'}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Botões de Ação -->
+    <div class="prescricao-section">
+      <div class="prescricao-label">Relatórios</div>
+      <div style="display: flex; gap: 12px;">
+        <button class="popup-btn" onclick="baixarRelatorio('${maquinaId}', 'json')" style="flex: 1; background: var(--bg2); color: var(--text); border: 1px solid var(--border);">
+          📊 Ver Relatório
+        </button>
+        <button class="popup-btn" onclick="baixarRelatorio('${maquinaId}', 'csv')" style="flex: 1; background: var(--green-dim); color: var(--green); border: 1px solid var(--green);">
+          📄 Baixar CSV
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAnomalias(data) {
+  // Por enquanto, vamos simular anomalias baseadas na severidade
+  // Em uma implementação futura, isso viria da API de anomalias
+  const severidade = (data.severidade || 'NORMAL').toLowerCase();
+  
+  if (severidade === 'normal') {
+    return '<div class="anomalias-empty">✓ Nenhuma anomalia detectada</div>';
+  }
+  
+  const anomalias = [];
+  if (severidade === 'critico' || severidade === 'crítico') {
+    anomalias.push('Temperatura acima do limite crítico');
+    anomalias.push('Vibração excessiva detectada');
+  } else if (severidade === 'atencao' || severidade === 'atenção') {
+    anomalias.push('Temperatura elevada');
+  }
+  
+  if (anomalias.length === 0) {
+    return '<div class="anomalias-empty">⚠️ Anomalias em análise</div>';
+  }
+  
+  return anomalias.map(anomalia => `
+    <div class="anomalia-item">
+      <div class="anomalia-icon">⚠️</div>
+      <div class="anomalia-text">${anomalia}</div>
+    </div>
+  `).join('');
+}
+
+function renderErroPrescricao(mensagem) {
+  const body = document.getElementById('prescricao-body');
+  body.innerHTML = `
+    <div class="prescricao-section">
+      <div class="nivel-risco critico">
+        <div class="nivel-risco-icon">❌</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">Erro na Análise</div>
+          <div class="nivel-risco-desc">${mensagem}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Função para baixar relatórios
+async function baixarRelatorio(maquinaId, formato = 'json') {
+  try {
+    const periodo = 7; // 7 dias por padrão
+    const url = `/api/relatorio/?maquina_id=${maquinaId}&periodo=${periodo}&formato=${formato}`;
+    
+    if (formato === 'csv') {
+      // Para CSV, abre em nova aba para download
+      window.open(url, '_blank');
+    } else {
+      // Para JSON, busca dados e exibe
+      const relatorio = await apiFetch(url);
+      
+      if (relatorio.status === 'ok') {
+        exibirRelatorio(relatorio);
+      } else {
+        alert('Erro ao gerar relatório: ' + (relatorio.detalhe || 'Erro desconhecido'));
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao baixar relatório:', error);
+    alert('Falha na comunicação com a API');
+  }
+}
+
+function exibirRelatorio(relatorio) {
+  const body = document.getElementById('prescricao-body');
+  const dados = relatorio.dados;
+  
+  body.innerHTML = `
+    <div class="prescricao-section">
+      <div class="prescricao-label">Relatório Operacional</div>
+      <div class="nivel-risco normal">
+        <div class="nivel-risco-icon">📊</div>
+        <div class="nivel-risco-text">
+          <div class="nivel-risco-title">${relatorio.maquina_id}</div>
+          <div class="nivel-risco-desc">Últimos ${relatorio.periodo_dias} dias • ${relatorio.total_leituras} leituras</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div class="prescricao-label">Métricas Operacionais</div>
+      <div class="anomalias-list">
+        <div class="anomalia-item">
+          <div class="anomalia-icon">⏱️</div>
+          <div class="anomalia-text">Horas Operadas: <strong>${dados.horas_operadas}h</strong></div>
+        </div>
+        <div class="anomalia-item">
+          <div class="anomalia-icon">🌡️</div>
+          <div class="anomalia-text">Pico de Temperatura: <strong>${dados.pico_temperatura}°C</strong></div>
+        </div>
+        <div class="anomalia-item">
+          <div class="anomalia-icon">⚠️</div>
+          <div class="anomalia-text">Alertas Registrados: <strong>${dados.num_alertas}</strong></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div class="prescricao-label">Recomendação de Manutenção</div>
+      <div class="prescricao-text">
+        ${dados.recomendacao_manutencao}
+      </div>
+    </div>
+    
+    <div class="prescricao-section">
+      <div style="display: flex; gap: 12px;">
+        <button class="popup-btn" onclick="baixarRelatorio('${relatorio.maquina_id}', 'csv')" style="flex: 1; background: var(--green-dim); color: var(--green); border: 1px solid var(--green);">
+          📄 Baixar CSV
+        </button>
+        <button class="popup-btn" onclick="abrirPrescricao('${relatorio.maquina_id}')" style="flex: 1; background: var(--bg2); color: var(--text); border: 1px solid var(--border);">
+          ← Voltar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Redireciona função antiga para nova interface
+function abrirPopupMaquina(maquinaId) {
+  abrirPrescricao(maquinaId);
+}
+
+// THEME TOGGLE
+function toggleTheme() {
+  const root = document.documentElement;
+  const currentTheme = root.getAttribute('data-theme') || 'dark';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  
+  // Atualiza cores CSS
+  if (newTheme === 'light') {
+    root.style.setProperty('--bg', '#fafafa');
+    root.style.setProperty('--bg2', '#ffffff');
+    root.style.setProperty('--bg3', '#f0f0f0');
+    root.style.setProperty('--text', '#222222');
+    root.style.setProperty('--text2', '#666666');
+    root.style.setProperty('--text3', '#999999');
+    root.style.setProperty('--border', 'rgba(0,0,0,0.08)');
+    root.style.setProperty('--border2', 'rgba(0,0,0,0.15)');
+    root.style.setProperty('--green', '#059669');
+    root.style.setProperty('--green-dim', '#d1fae5');
+    root.style.setProperty('--amber', '#d97706');
+    root.style.setProperty('--amber-dim', '#fef3c7');
+    root.style.setProperty('--red', '#dc2626');
+    root.style.setProperty('--red-dim', '#fee2e2');
+  } else {
+    root.style.setProperty('--bg', '#0e1210');
+    root.style.setProperty('--bg2', '#151a17');
+    root.style.setProperty('--bg3', '#1c2420');
+    root.style.setProperty('--text', '#e8f0eb');
+    root.style.setProperty('--text2', '#7a9080');
+    root.style.setProperty('--text3', '#4a6055');
+    root.style.setProperty('--border', 'rgba(255,255,255,0.07)');
+    root.style.setProperty('--border2', 'rgba(255,255,255,0.13)');
+    root.style.setProperty('--green', '#4ade80');
+    root.style.setProperty('--green-dim', '#15803d33');
+    root.style.setProperty('--amber', '#fbbf24');
+    root.style.setProperty('--amber-dim', '#b45309');
+    root.style.setProperty('--red', '#f87171');
+    root.style.setProperty('--red-dim', '#7f1d1d');
+  }
+  
+  root.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  
+  // Atualiza emoji do botão
+  const themeBtn = document.querySelector('.theme-toggle');
+  if (themeBtn) {
+    themeBtn.textContent = newTheme === 'light' ? '🌙' : '☀️';
+  }
+  
+  // Atualiza gráficos com novas cores
+  if (temperatureChart && statusChart) {
+    const textColor = newTheme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+    const gridColor = newTheme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+    
+    // Atualiza temperatura
+    temperatureChart.options.scales.y.ticks.color = textColor;
+    temperatureChart.options.scales.y.grid.color = gridColor;
+    temperatureChart.options.scales.x.ticks.color = textColor;
+    temperatureChart.options.scales.x.grid.color = gridColor;
+    temperatureChart.update('none');
+    
+    // Atualiza status
+    statusChart.options.plugins.legend.labels.color = textColor;
+    statusChart.update('none');
+  }
+}
+
+// INICIALIZA NO LOAD
+window.addEventListener('DOMContentLoaded', () => {
+  // Carrega tema salvo
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const root = document.documentElement;
+  root.setAttribute('data-theme', savedTheme);
+  
+  // Aplica cores do tema salvo
+  if (savedTheme === 'light') {
+    root.style.setProperty('--bg', '#fafafa');
+    root.style.setProperty('--bg2', '#ffffff');
+    root.style.setProperty('--bg3', '#f0f0f0');
+    root.style.setProperty('--text', '#222222');
+    root.style.setProperty('--text2', '#666666');
+    root.style.setProperty('--text3', '#999999');
+    root.style.setProperty('--border', 'rgba(0,0,0,0.08)');
+    root.style.setProperty('--border2', 'rgba(0,0,0,0.15)');
+    root.style.setProperty('--green', '#059669');
+    root.style.setProperty('--green-dim', '#d1fae5');
+    root.style.setProperty('--amber', '#d97706');
+    root.style.setProperty('--amber-dim', '#fef3c7');
+    root.style.setProperty('--red', '#dc2626');
+    root.style.setProperty('--red-dim', '#fee2e2');
+  }
+  
+  // Atualiza emoji do botão de tema
+  const themeBtn = document.querySelector('.theme-toggle');
+  if (themeBtn) {
+    themeBtn.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+  }
+  
+  initializeCharts();
+  atualizarStatusMQTT(); // Uma vez imediatamente
+  pollMQTT();             // Depois a cada 5s
+  pollStatus();           // Polling do status das máquinas
+});
+</script>
+
+</body>
+</html>
