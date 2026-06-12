@@ -3,10 +3,14 @@ import {
   OperatorSchema,
   TelemetryInputSchema,
   TelemetrySchema,
+  PrescricaoSchema,
+  RelatorioSchema,
   type Machine,
   type Operator,
   type Telemetry,
   type TelemetryInput,
+  type Prescricao,
+  type Relatorio,
 } from '@/types/telemetry';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -88,5 +92,30 @@ export const telemetryService = {
     });
 
     return { status: 'queued' };
+  },
+
+  async getPrescricao(machineId: string): Promise<Prescricao> {
+    const headers = new Headers({ Accept: 'application/json' });
+    if (API_KEY) headers.set('X-API-Key', API_KEY);
+    const response = await withTimeout(fetch(`${API_URL}/prescricoes/?maquina_id=${encodeURIComponent(machineId)}`, { cache: 'no-store', headers }));
+    if (!response.ok) throw new Error(`Falha ao buscar prescrição: ${response.status}`);
+    const data = await response.json();
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('API retornou dados inválidos ou vazios');
+    }
+    
+    return PrescricaoSchema.parse(data[0]);
+  },
+
+  async getRelatorio(formato?: 'json' | 'csv'): Promise<Relatorio> {
+    const headers = new Headers({ Accept: 'application/json' });
+    if (API_KEY) headers.set('X-API-Key', API_KEY);
+    const url = formato ? `${API_URL}/relatorio/?formato=${formato}` : `${API_URL}/relatorio/?formato=json`;
+    const response = await withTimeout(fetch(url, { cache: 'no-store', headers }));
+    if (!response.ok) throw new Error(`Falha ao buscar relatório: ${response.status}`);
+    const data = await response.json();
+    
+    return RelatorioSchema.parse(data);
   },
 };

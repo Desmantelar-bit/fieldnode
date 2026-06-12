@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Telemetry } from '@/types/telemetry';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
+import { PrescricaoButton } from '@/components/PrescricaoButton';
 
 function metricTone(value: number, warning: number, critical: number, reverse = false) {
   if (reverse) return value < critical ? 'text-amber-200' : 'text-emerald-200';
@@ -18,10 +19,7 @@ function machineKind(id: string) {
 
 export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
   return (
-    <Link
-      href={`/detalhes?id=${encodeURIComponent(reading.maquina_id)}`}
-      className="glass-panel block rounded-lg p-5 transition hover:border-emerald-200/30 hover:bg-white/[0.055] min-h-[4rem]"
-    >
+    <div className="glass-panel block rounded-lg p-5 transition hover:border-emerald-200/30 hover:bg-white/[0.055] min-h-[4rem]">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -68,6 +66,16 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
           </dd>
         </div>
       </dl>
-    </Link>
+
+      <div className="mt-4 flex gap-2">
+        <Link
+          href={`/detalhes?id=${encodeURIComponent(reading.maquina_id)}`}
+          className="flex-1 rounded-md bg-emerald-900/30 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-900/50"
+        >
+          Ver Detalhes
+        </Link>
+        <PrescricaoButton machineId={reading.maquina_id} />
+      </div>
+    </div>
   );
 }

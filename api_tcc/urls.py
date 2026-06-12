@@ -11,6 +11,7 @@ from api_tcc.api.views_ingestao import (
     StatusMQTTView,
     PrescricaoView,
     PrescricaoListView,
+    PrescricaoTesteView,
     RelatorioView,
 )
 from api_tcc import views_gps
@@ -32,16 +33,17 @@ router.register(r'transbordo', viewsets.TransbordoViewSet, basename='transbordo'
 router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colheitadeira')
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('telemetria/', IngestaoTelemetriaView.as_view(), name='ingestao-telemetria'),
-    path('anomalias/', AnomaliaView.as_view(), name='anomalias'),
-    path('leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
-    path('manutencao/', ManutencaoView.as_view(), name='manutencao'),
-    path('metricas/', MetricasView.as_view(), name='metricas'),
-    path('health/', HealthView.as_view(), name='health'),
-    path('status-mqtt/', StatusMQTTView.as_view(), name='status-mqtt'),
-    path('prescricoes/', PrescricaoView.as_view(), name='prescricao'),
-    path('prescricoes/lista/', PrescricaoListView.as_view(), name='prescricao-lista'),
-    path('relatorio/', RelatorioView.as_view(), name='relatorio'),
-    path('maquinas/posicao/', views_gps.get_maquinas_posicao, name='maquinas-posicao'),
+    path("", include(router.urls)),
+    path("telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"),
+    path("anomalias/", AnomaliaView.as_view(), name="anomalias"),
+    path("leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
+    path("manutencao/", ManutencaoView.as_view(), name="manutencao"),
+    path("metricas/", MetricasView.as_view(), name="metricas"),
+    path("health/", HealthView.as_view(), name="health"),
+    path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
+    path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
+    path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
+    path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
+    path("relatorio/", RelatorioView.as_view(), name="relatorio"),
+    path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
 ]
