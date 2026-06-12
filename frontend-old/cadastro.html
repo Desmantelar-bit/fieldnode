@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FieldNode — Cadastro</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    :root {
+      --bg: #f5f5f5; --bg2: #ffffff; --bg3: #fafafa;
+      --text: #1a1a1a; --text2: #555555; --text3: #888888;
+      --border: #e0e0e0; --border2: #d0d0d0;
+      --green: #16a34a; --green-dim: #dcfce7;
+      --amber: #d97706; --amber-dim: #fef3c7;
+      --red: #dc2626; --red-dim: #fee2e2;
+      --radius: 8px; --radius-lg: 12px;
+      --mono: 'Courier New', monospace;
+    }
+    
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg2); border-right: 2px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--green-dim); border: 2px solid var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 16px; height: 16px; fill: var(--green); }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
+    .logo-sub  { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: .05em; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 3px solid transparent; transition: all .15s; text-decoration: none; font-weight: 500; }
+    .nav-item:hover { color: var(--text); background: var(--bg3); }
+    .nav-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dim); font-weight: 600; }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 2px solid var(--border); }
+    .api-status { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--text3); font-weight: 600; }
+    .api-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+    
+    .topbar { padding: 18px 28px; border-bottom: 2px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    
+    body { display: flex; background: #f5f5f5; }
+    .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; background: #f5f5f5; }
+    .content { padding: 24px 28px; flex: 1; overflow-y: auto; max-width: 1000px; margin: 0 auto; width: 100%; }
+    
+    .tabs { display: flex; gap: 4px; border-bottom: 3px solid #e0e0e0; margin-bottom: 24px; background: #fff; padding: 0 20px; border-radius: 12px 12px 0 0; }
+    .tab { padding: 12px 24px; background: transparent; border: none; color: #555; cursor: pointer; font-size: 14px; font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -3px; transition: all .15s; }
+    .tab:hover { color: #1a1a1a; background: #fafafa; }
+    .tab.active { color: #16a34a; border-bottom-color: #16a34a; background: #dcfce7; }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    .form-card { background: #fff; border: 2px solid #e0e0e0; border-radius: var(--radius-lg); padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .form-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #1a1a1a; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 13px; color: #555; font-weight: 600; }
+    .form-group input, .form-group select { background: #fafafa; border: 2px solid #e0e0e0; border-radius: var(--radius); padding: 10px 12px; color: #1a1a1a; font-size: 14px; outline: none; transition: border-color .15s; font-weight: 500; }
+    .form-group input:focus, .form-group select:focus { border-color: #16a34a; background: #fff; }
+    .form-group.full { grid-column: 1 / -1; }
+    
+    .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+    .btn { padding: 12px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+    .btn-primary { background: #16a34a; color: #fff; border: 2px solid #16a34a; }
+    .btn-primary:hover { background: #15803d; border-color: #15803d; }
+    .btn-secondary { background: #fff; color: #555; border: 2px solid #e0e0e0; }
+    .btn-secondary:hover { border-color: #d0d0d0; color: #1a1a1a; background: #fafafa; }
+    
+    .msg { padding: 14px 18px; border-radius: var(--radius); font-size: 14px; margin-bottom: 16px; display: none; font-weight: 600; }
+    .msg.success { background: #dcfce7; color: #16a34a; border: 2px solid #16a34a; display: block; }
+    .msg.error { background: #fee2e2; color: #dc2626; border: 2px solid #dc2626; display: block; }
+    
+    .list-card { background: #fff; border: 2px solid #e0e0e0; border-radius: var(--radius-lg); padding: 24px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .list-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #555; }
+    .list-item { padding: 14px; background: #fafafa; border: 2px solid #e0e0e0; border-radius: var(--radius); margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #1a1a1a; }
+    .list-item:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">FieldNode</div>
+      <div class="logo-sub">TELEMETRIA</div>
+    </div>
+  </div>
+  <nav>
+    <a class="nav-item" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="colheitadeiras.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Máquinas
+    </a>
+    <a class="nav-item" href="operarios.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Operários
+    </a>
+    <a class="nav-item active" href="cadastro.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Cadastro
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot"></div>
+      <span>API online</span>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title">Cadastro de Dados</div>
+  </div>
+
+  <div class="content">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('operarios')">Operários</button>
+      <button class="tab" onclick="switchTab('marcas')">Marcas</button>
+      <button class="tab" onclick="switchTab('modelos')">Modelos</button>
+      <button class="tab" onclick="switchTab('colheitadeiras')">Colheitadeiras</button>
+    </div>
+
+    <!-- TAB: OPERÁRIOS -->
+    <div id="tab-operarios" class="tab-content active">
+      <div class="form-card">
+        <div class="form-title">Cadastrar Operário</div>
+        <div id="msg-operario" class="msg"></div>
+        <form id="form-operario" onsubmit="cadastrarOperario(event)">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Nome Completo</label>
+              <input type="text" name="nome" required/>
+            </div>
+            <div class="form-group">
+              <label>Tempo de Serviço (anos)</label>
+              <input type="number" name="tempo_de_servico" min="0" required/>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select name="no_banco">
+                <option value="true">No Banco</option>
+                <option value="false">Fora do Banco</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Cadastrar</button>
+            <button type="reset" class="btn btn-secondary">Limpar</button>
+          </div>
+        </form>
+      </div>
+      <div class="list-card">
+        <div class="list-title">Operários Cadastrados</div>
+        <div id="list-operarios">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- TAB: MARCAS -->
+    <div id="tab-marcas" class="tab-content">
+      <div class="form-card">
+        <div class="form-title">Cadastrar Marca</div>
+        <div id="msg-marca" class="msg"></div>
+        <form id="form-marca" onsubmit="cadastrarMarca(event)">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Nome da Marca</label>
+              <input type="text" name="nome" required/>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Cadastrar</button>
+            <button type="reset" class="btn btn-secondary">Limpar</button>
+          </div>
+        </form>
+      </div>
+      <div class="list-card">
+        <div class="list-title">Marcas Cadastradas</div>
+        <div id="list-marcas">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- TAB: MODELOS -->
+    <div id="tab-modelos" class="tab-content">
+      <div class="form-card">
+        <div class="form-title">Cadastrar Modelo</div>
+        <div id="msg-modelo" class="msg"></div>
+        <form id="form-modelo" onsubmit="cadastrarModelo(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nome do Modelo</label>
+              <input type="text" name="nome" required/>
+            </div>
+            <div class="form-group">
+              <label>Marca</label>
+              <select name="marca" id="select-marca" required>
+                <option value="">Selecione uma marca</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Cadastrar</button>
+            <button type="reset" class="btn btn-secondary">Limpar</button>
+          </div>
+        </form>
+      </div>
+      <div class="list-card">
+        <div class="list-title">Modelos Cadastrados</div>
+        <div id="list-modelos">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- TAB: COLHEITADEIRAS -->
+    <div id="tab-colheitadeiras" class="tab-content">
+      <div class="form-card">
+        <div class="form-title">Cadastrar Colheitadeira</div>
+        <div id="msg-colheitadeira" class="msg"></div>
+        <p style="color: var(--text3); font-size: 12px; margin-bottom: 16px;">
+          Para cadastrar uma colheitadeira, é necessário ter cadastrado previamente: Modelo, Combustível, Operário e outros dados relacionados.
+        </p>
+        <form id="form-colheitadeira" onsubmit="cadastrarColheitadeira(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Modelo</label>
+              <select name="modelo" id="select-modelo-colh" required>
+                <option value="">Selecione um modelo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Operário</label>
+              <select name="operario" id="select-operario" required>
+                <option value="">Selecione um operário</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Cadastrar</button>
+            <button type="reset" class="btn btn-secondary">Limpar</button>
+          </div>
+        </form>
+      </div>
+      <div class="list-card">
+        <div class="list-title">Colheitadeiras Cadastradas</div>
+        <div id="list-colheitadeiras">Carregando...</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script>
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+  
+  if (tabName === 'modelos') carregarMarcasSelect();
+  if (tabName === 'colheitadeiras') {
+    carregarModelosSelect();
+    carregarOperariosSelect();
+  }
+}
+
+async function cadastrarOperario(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    nome: form.nome.value,
+    tempo_de_servico: parseInt(form.tempo_de_servico.value),
+    no_banco: form.no_banco.value === 'true'
+  };
+  
+  try {
+    const result = await apiFetch('/api/operario/', { method: 'POST', body: JSON.stringify(data) });
+    console.log('Operário cadastrado:', result);
+    showMsg('msg-operario', 'Operário cadastrado com sucesso!', 'success');
+    form.reset();
+    carregarOperarios();
+  } catch (e) {
+    console.error('Erro ao cadastrar operário:', e);
+    showMsg('msg-operario', 'Erro ao cadastrar: ' + e.message, 'error');
+  }
+}
+
+async function cadastrarMarca(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = { nome: form.nome.value };
+  
+  try {
+    await apiFetch('/api/marca/', { method: 'POST', body: JSON.stringify(data) });
+    showMsg('msg-marca', 'Marca cadastrada com sucesso!', 'success');
+    form.reset();
+    carregarMarcas();
+  } catch (e) {
+    showMsg('msg-marca', 'Erro ao cadastrar: ' + e.message, 'error');
+  }
+}
+
+async function cadastrarModelo(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    nome: form.nome.value,
+    marca: parseInt(form.marca.value)
+  };
+  
+  try {
+    await apiFetch('/api/modelo/', { method: 'POST', body: JSON.stringify(data) });
+    showMsg('msg-modelo', 'Modelo cadastrado com sucesso!', 'success');
+    form.reset();
+    carregarModelos();
+  } catch (e) {
+    showMsg('msg-modelo', 'Erro ao cadastrar: ' + e.message, 'error');
+  }
+}
+
+async function cadastrarColheitadeira(e) {
+  e.preventDefault();
+  showMsg('msg-colheitadeira', 'Funcionalidade em desenvolvimento. Requer cadastro completo de dependências.', 'error');
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = `msg ${type}`;
+  setTimeout(() => el.className = 'msg', 5000);
+}
+
+async function carregarOperarios() {
+  try {
+    const data = await apiFetch('/api/operario/');
+    const html = data.map(o => `
+      <div class="list-item">
+        <span>${o.nome} - ${o.tempo_de_servico} anos - ${o.no_banco ? 'No Banco' : 'Fora do Banco'}</span>
+      </div>
+    `).join('');
+    document.getElementById('list-operarios').innerHTML = html || '<p style="color: var(--text3);">Nenhum operário cadastrado</p>';
+  } catch (e) {
+    document.getElementById('list-operarios').innerHTML = '<p style="color: var(--red);">Erro ao carregar</p>';
+  }
+}
+
+async function carregarMarcas() {
+  try {
+    const data = await apiFetch('/api/marca/');
+    const html = data.map(m => `<div class="list-item"><span>${m.nome}</span></div>`).join('');
+    document.getElementById('list-marcas').innerHTML = html || '<p style="color: var(--text3);">Nenhuma marca cadastrada</p>';
+  } catch (e) {
+    document.getElementById('list-marcas').innerHTML = '<p style="color: var(--red);">Erro ao carregar</p>';
+  }
+}
+
+async function carregarModelos() {
+  try {
+    const data = await apiFetch('/api/modelo/');
+    const html = data.map(m => `<div class="list-item"><span>${m.nome}</span></div>`).join('');
+    document.getElementById('list-modelos').innerHTML = html || '<p style="color: var(--text3);">Nenhum modelo cadastrado</p>';
+  } catch (e) {
+    document.getElementById('list-modelos').innerHTML = '<p style="color: var(--red);">Erro ao carregar</p>';
+  }
+}
+
+async function carregarMarcasSelect() {
+  try {
+    const data = await apiFetch('/api/marca/');
+    const html = '<option value="">Selecione uma marca</option>' + 
+      data.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+    document.getElementById('select-marca').innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar marcas:', e);
+  }
+}
+
+async function carregarModelosSelect() {
+  try {
+    const data = await apiFetch('/api/modelo/');
+    const html = '<option value="">Selecione um modelo</option>' + 
+      data.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+    document.getElementById('select-modelo-colh').innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar modelos:', e);
+  }
+}
+
+async function carregarOperariosSelect() {
+  try {
+    const data = await apiFetch('/api/operario/');
+    const html = '<option value="">Selecione um operário</option>' + 
+      data.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+    document.getElementById('select-operario').innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar operários:', e);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  carregarOperarios();
+  carregarMarcas();
+  carregarModelos();
+});
+</script>
+
+</body>
+</html>

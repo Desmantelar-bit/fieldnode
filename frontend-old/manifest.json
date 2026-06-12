@@ -1,0 +1,17 @@
+{
+  "name": "FieldNode - Telemetria Agr\u00edcola",
+  "short_name": "FieldNode",
+  "description": "Sistema de telemetria offline-first para o agroneg\u00f3cio",
+  "start_url": "/frontend/dashboard.html",
+  "display": "standalone",
+  "background_color": "#0e1210",
+  "theme_color": "#0e1210",
+  "orientation": "portrait-primary",
+  "scope": "/frontend/",
+  "categories": [
+    "productivity",
+    "business"
+  ],
+  "lang": "pt-BR",
+  "dir": "ltr"
+}

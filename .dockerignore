@@ -1,0 +1,35 @@
+# Frontend e suas dependências
+frontend-next/
+frontend/
+frontend_antigo/
+node_modules/
+.next/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Arquivos do sistema
+.git/
+.gitignore
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db
+
+# Docker e IDE
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+.vscode/
+.idea/
+
+# Testes e scripts pesados (opcional, mas economiza espaço)
+scripts/
+tests/

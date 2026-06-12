@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #090d0b;
+  --foreground: #edf7f1;
+  --panel: #101714;
+  --panel-2: #17211d;
+  --muted: #7f9488;
+  --line: rgba(219, 255, 233, 0.1);
+  --green: #64d98c;
+  --amber: #f2c15f;
+  --red: #f07878;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Touch improvements */
+button, a {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  touch-action: manipulation;
+}
+
+/* Ensure content is not hidden behind mobile bottom nav when present */
+@media (max-width: 1023px) {
+  main > section {
+    padding-bottom: 5rem;
+  }
+}
+
+::selection {
+  background: rgba(100, 217, 140, 0.28);
+}
+
+.glass-panel {
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    var(--panel);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+}
+
+/* Marker SVG display fix for Leaflet data URLs */
+.leaflet-marker-icon img, .leaflet-marker-icon svg {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}

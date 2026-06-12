@@ -1,0 +1,46 @@
+# Ignorar arquivos compilados
+# Ignorar arquivos de compilação de frontend
+# Ignorar arquivos de configuração do editor
+# Ignorar arquivos de logs
+# Ignorar arquivos de media (uploads)
+# Ignorar arquivos do sistema operacional
+# Ignorar arquivos do staticfiles quando coletados
+# Ignorar arquivos e diretórios do Python
+# Ignorar bancos de dados locais
+# Ignorar configurações locais
+# Ignorar o virtualenv
+**/__pycache__/
+*.css.map
+*.log
+*.mo
+*.pot
+*.py[cod]
+*.pyc
+*.pyd
+*.pyo
+*.sass-cache
+*.swp
+.DS_Store
+.env
+.idea/
+.Python
+.venv/
+.vscode/
+__pycache__/
+db.sqlite3
+db.sqlite3-journal
+env.bak/
+env/
+local_settings.py
+media/
+node_modules/
+npm-debug.log
+staticfiles/
+Thumbs.db
+venv.bak/
+venv/
+yarn-debug.log
+yarn-error.log
+
+# IDE/Tooling Cache
+.kilo/
