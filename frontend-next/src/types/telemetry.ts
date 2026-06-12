@@ -82,7 +82,27 @@ export const MachineFleetSchema = z.object({
   estado_de_movimento: MovementStatusSchema,
 });
 
+export const PrescricaoSchema = z.object({
+  id: z.coerce.number().optional(),
+  maquina_id: z.string(),
+  titulo: z.string(),
+  descricao: z.string(),
+  status: z.enum(['pendente', 'concluida', 'cancelada']),
+  data_geracao: z.string(),
+});
+
+export const RelatorioSchema = z.object({
+  periodo: z.string(),
+  total_leituras: z.number(),
+  maquinas_ativas: z.number(),
+  alertas_gerados: z.number(),
+  eficiencia_operacional: z.number(),
+  dados: z.array(z.any()).optional(),
+});
+
 export type Telemetry = z.infer<typeof TelemetrySchema>;
 export type TelemetryInput = z.infer<typeof TelemetryInputSchema>;
 export type Machine = z.infer<typeof MachineFleetSchema>;
 export type Operator = z.infer<typeof OperatorSchema>;
+export type Prescricao = z.infer<typeof PrescricaoSchema>;
+export type Relatorio = z.infer<typeof RelatorioSchema>;

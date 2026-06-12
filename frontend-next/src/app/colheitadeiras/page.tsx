@@ -4,6 +4,9 @@ import { MetricCard } from '@/components/MetricCard';
 import { TelemetryMachineCard } from '@/components/TelemetryMachineCard';
 import { telemetryService } from '@/services/telemetryService';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function HarvestersPage() {
   let readings;
 

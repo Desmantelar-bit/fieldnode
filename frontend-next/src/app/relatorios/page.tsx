@@ -32,10 +32,7 @@ const PERIOD_OPTIONS = [
   { label: "Últimos 30 dias", value: 30 },
 ];
 
-function resolveApiUrl(): string {
-  if (typeof window !== "undefined") return "http://localhost:8000/api";
-  return process.env.NEXT_PUBLIC_API_URL || "http://web:8000/api";
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
 export default function RelatoriosPage() {
   const [machines, setMachines] = useState<MachineOption[]>([]);
@@ -46,8 +43,6 @@ export default function RelatoriosPage() {
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [report, setReport] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const apiUrl = useMemo(() => resolveApiUrl(), []);
 
   const filteredMachines = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -61,7 +56,7 @@ export default function RelatoriosPage() {
   useEffect(() => {
     const fetchMachines = async () => {
       try {
-        const res = await fetch(`${apiUrl}/colheitadeira/`, {
+        const res = await fetch(`${API_URL}/colheitadeira/`, {
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
@@ -78,13 +73,15 @@ export default function RelatoriosPage() {
         setMachines(options);
         if (options.length > 0) setSelectedMachine(options[0].maquina_id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar máquinas");
+        setError(
+          err instanceof Error ? err.message : "Erro ao carregar máquinas",
+        );
       } finally {
         setLoadingMachines(false);
       }
     };
     fetchMachines();
-  }, [apiUrl]);
+  }, []);
 
   const handleGenerate = async () => {
     if (!selectedMachine) return;
@@ -93,8 +90,8 @@ export default function RelatoriosPage() {
     setReport(null);
     try {
       const res = await fetch(
-        `${apiUrl}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=json`,
-        { cache: "no-store", headers: { Accept: "application/json" } }
+        `${API_URL}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=json`,
+        { cache: "no-store", headers: { Accept: "application/json" } },
       );
       if (!res.ok) throw new Error(`Falha ao gerar relatório (${res.status})`);
       const data: ReportData = await res.json();
@@ -112,7 +109,7 @@ export default function RelatoriosPage() {
   const downloadCsv = async () => {
     if (!selectedMachine) return;
     const res = await fetch(
-      `${apiUrl}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=csv`
+      `${API_URL}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=csv`,
     );
     if (!res.ok) return;
     const blob = await res.blob();
@@ -135,7 +132,9 @@ export default function RelatoriosPage() {
     <AppShell active="/relatorios" eyebrow="FieldNode" title="Relatórios">
       <div className="space-y-6">
         <section className="glass-panel rounded-lg p-5">
-          <h2 className="text-sm font-semibold text-slate-200">Configurar relatório</h2>
+          <h2 className="text-sm font-semibold text-slate-200">
+            Configurar relatório
+          </h2>
           <p className="mt-1 text-xs text-slate-500">
             Selecione a máquina e o período para gerar o relatório operacional.
           </p>
@@ -211,9 +210,7 @@ export default function RelatoriosPage() {
           </div>
         </section>
 
-        {error && (
-          <ErrorState title="Relatório indisponível" message={error} />
-        )}
+        {error && <ErrorState title="Relatório indisponível" message={error} />}
 
         {report && (
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -260,10 +257,15 @@ export default function RelatoriosPage() {
 
         {report && (
           <section className="glass-panel rounded-lg p-5">
-            <h2 className="text-sm font-semibold text-slate-200">Recomendação de manutenção</h2>
-            <p className="mt-3 text-sm text-slate-300">{report.dados.recomendacao_manutencao}</p>
+            <h2 className="text-sm font-semibold text-slate-200">
+              Recomendação de manutenção
+            </h2>
+            <p className="mt-3 text-sm text-slate-300">
+              {report.dados.recomendacao_manutencao}
+            </p>
             <p className="mt-4 text-[11px] text-slate-500">
-              Período: {new Date(report.data_inicio).toLocaleDateString("pt-BR")} até{" "}
+              Período:{" "}
+              {new Date(report.data_inicio).toLocaleDateString("pt-BR")} até{" "}
               {new Date(report.data_fim).toLocaleDateString("pt-BR")}
             </p>
           </section>

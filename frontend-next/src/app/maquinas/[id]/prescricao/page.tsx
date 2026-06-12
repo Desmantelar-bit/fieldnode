@@ -1,15 +1,27 @@
+import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
 
-// Definir o tipo para a resposta da API de prescrições
-type PrescricaoResponse = {
-  id: number;
-  colheitadeira: number;
-  titulo: string;
-  descricao: string;
-  data_geracao: string;
-  status: string;
-};
+const PrescricaoItemSchema = z.object({
+  id: z.coerce.number(),
+  maquina_id: z.string(),
+  titulo: z.string(),
+  descricao: z.string(),
+  data_geracao: z.string(),
+  status: z.enum(["pendente", "concluida", "cancelada"]),
+});
+
+const PrescricaoResponseSchema = z.array(PrescricaoItemSchema);
+
+type PrescricaoItem = z.infer<typeof PrescricaoItemSchema>;
+
+function resolveApiBase(): string {
+  const env =
+    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL ??
+    process.env.FIELDNODE_SERVER_API_URL ??
+    "http://127.0.0.1:8000";
+  return env.replace(/\/+$/, "");
+}
 
 export default async function PrescricaoPage({
   params,
@@ -17,33 +29,54 @@ export default async function PrescricaoPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: maquinaId } = await params;
+  const baseUrl = resolveApiBase();
+  const prescricoesUrl = `${baseUrl}/api/prescricoes/?maquina_id=${encodeURIComponent(maquinaId)}`;
 
-  const apiUrl =
-    process.env.FIELDNODE_SERVER_API_URL || "http://web:8000/api";
-
-  let prescricoes: PrescricaoResponse[] = [];
+  let prescricoes: PrescricaoItem[] = [];
 
   try {
-    const response = await fetch(
-      `${apiUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`,
-      {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      },
-    );
+    const response = await fetch(prescricoesUrl, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error("Falha ao buscar prescrições");
+      throw new Error(
+        `Falha ao buscar prescrições: ${response.status} ${response.statusText}`,
+      );
     }
 
-    prescricoes = await response.json();
+    const raw = await response.json();
+    prescricoes = PrescricaoResponseSchema.parse(raw);
   } catch (error) {
-    console.error("Erro ao buscar prescrições:", error);
+    const message =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Erro ao buscar prescrições:", message);
+
+    if (error instanceof z.ZodError) {
+      return (
+        <AppShell
+          active="/colheitadeiras"
+          eyebrow="Manutenção"
+          title="Prescrições"
+        >
+          <ErrorState
+            title="Resposta inesperada da API."
+            message="A API retornou dados em formato não esperado."
+          />
+        </AppShell>
+      );
+    }
+
     return (
-      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrições">
+      <AppShell
+        active="/colheitadeiras"
+        eyebrow="Manutenção"
+        title="Prescrições"
+      >
         <ErrorState
           title="Não consegui carregar as prescrições."
-          message="Confira se o backend está rodando e tente novamente."
+          message={`${message} — confira se o backend está rodando, se o CORS está liberado para esta origem e tente novamente.`}
         />
       </AppShell>
     );
