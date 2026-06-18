@@ -11,12 +11,6 @@ import { PrescricaoModal } from '@/components/PrescricaoModal';
 import { telemetryService } from '@/services/telemetryService';
 import type { Telemetry } from '@/types/telemetry';
 
-function classifyRisk(latest: { temperatura: number; vibracao: number }) {
-  if (latest.temperatura > 85 || latest.vibracao > 0.8) return 'CRITICO';
-  if (latest.temperatura > 75 || latest.vibracao > 0.5) return 'ATENCAO';
-  return 'NORMAL';
-}
-
 export default function DetailsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const [machineId, setMachineId] = useState<string | null>(null);
   const [readings, setReadings] = useState<Telemetry[] | null>(null);
@@ -74,8 +68,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   }
 
   const latest = readings[0];
-  const riscoObj = latest.status_risco || {};
-  const risk = riscoObj.rotuloRisco || classifyRisk(latest);
+  const risk = latest.status_risco?.rotuloRisco;
   const tempTone = latest.temperatura > 85 ? 'red' : latest.temperatura > 75 ? 'amber' : 'emerald';
   const vibTone = latest.vibracao > 0.8 ? 'red' : latest.vibracao > 0.5 ? 'amber' : 'emerald';
   const rpmTone = latest.rpm < 1300 ? 'amber' : 'emerald';
@@ -108,9 +101,9 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
             <article className="glass-panel rounded-lg p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p>
               <div className="mt-4">
-                <StatusBadge tone={riskTone(risk)}>{risk}</StatusBadge>
+                <StatusBadge tone={riskTone(risk)}>{risk ?? 'Indisponivel'}</StatusBadge>
               </div>
-              <p className="mt-4 text-sm text-slate-400">calculado por limites operacionais</p>
+              <p className="mt-4 text-sm text-slate-400">informado pela API</p>
             </article>
           </section>
 
