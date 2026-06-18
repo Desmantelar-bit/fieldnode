@@ -44,7 +44,6 @@ export function HistoryChart({
   const innerH = height - pad.top - pad.bottom;
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
-  const range = max - min || 1;
 
   const rangeConfig = thresholdRanges[field];
 

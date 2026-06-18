@@ -28,6 +28,7 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
     if (isOpen && machineId) {
       setLoading(true);
       setError(null);
+      setPrescricao(null);
       telemetryService.getPrescricao(machineId)
         .then(setPrescricao)
         .catch(() => setError('Falha ao carregar prescrição'))

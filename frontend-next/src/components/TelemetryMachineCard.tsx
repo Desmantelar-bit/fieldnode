@@ -17,7 +17,13 @@ function machineKind(id: string) {
   return 'Colheitadeira';
 }
 
+function riskLabel(reading: Telemetry) {
+  return reading.status_risco?.rotuloRisco || 'NORMAL';
+}
+
 export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
+  const risk = riskLabel(reading);
+
   return (
     <div className="glass-panel block rounded-lg p-5 transition hover:border-emerald-200/30 hover:bg-white/[0.055] min-h-[4rem]">
       <div className="flex items-start justify-between gap-4">
@@ -29,8 +35,8 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
             {reading.maquina_id}
           </h2>
         </div>
-        <StatusBadge tone={riskTone(reading.nivel_risco)}>
-          {reading.nivel_risco || "NORMAL"}
+        <StatusBadge tone={riskTone(risk)}>
+          {risk}
         </StatusBadge>
       </div>
 

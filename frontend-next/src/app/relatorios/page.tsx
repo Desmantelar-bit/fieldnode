@@ -12,24 +12,19 @@ type MachineOption = {
 };
 
 type ReportData = {
-  status: string;
-  maquina_id: string;
-  periodo_dias: number;
+  status?: string;
+  detalhe?: string;
+  periodo: string;
   total_leituras: number;
-  data_inicio: string;
-  data_fim: string;
-  dados: {
-    horas_operadas: number;
-    pico_temperatura: number;
-    num_alertas: number;
-    recomendacao_manutencao: string;
-  };
+  maquinas_ativas: number;
+  alertas_gerados: number;
+  eficiencia_operacional: number;
 };
 
 const PERIOD_OPTIONS = [
-  { label: "Últimos 7 dias", value: 7 },
-  { label: "Últimos 15 dias", value: 15 },
-  { label: "Últimos 30 dias", value: 30 },
+  { label: "Ultimos 7 dias", value: 7 },
+  { label: "Ultimos 15 dias", value: 15 },
+  { label: "Ultimos 30 dias", value: 30 },
 ];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -60,22 +55,24 @@ export default function RelatoriosPage() {
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
-        if (!res.ok) throw new Error("Falha ao buscar máquinas");
+        if (!res.ok) throw new Error("Falha ao buscar maquinas");
         const data = await res.json();
         const options: MachineOption[] = (data ?? [])
-          .filter((m: any) => m.maquina_id)
-          .map((m: any) => ({
+          .filter((m: { maquina_id?: string }) => m.maquina_id)
+          .map((m: {
+            id: number;
+            maquina_id: string;
+            modelo?: { nome?: string; marca?: { nome?: string } };
+          }) => ({
             id: m.id,
             maquina_id: m.maquina_id,
-            modelo: m.modelo?.nome ?? "Modelo não informado",
-            marca: m.modelo?.marca?.nome ?? "Marca não informada",
+            modelo: m.modelo?.nome ?? "Modelo nao informado",
+            marca: m.modelo?.marca?.nome ?? "Marca nao informada",
           }));
         setMachines(options);
         if (options.length > 0) setSelectedMachine(options[0].maquina_id);
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Erro ao carregar máquinas",
-        );
+        setError(err instanceof Error ? err.message : "Erro ao carregar maquinas");
       } finally {
         setLoadingMachines(false);
       }
@@ -93,14 +90,14 @@ export default function RelatoriosPage() {
         `${API_URL}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=json`,
         { cache: "no-store", headers: { Accept: "application/json" } },
       );
-      if (!res.ok) throw new Error(`Falha ao gerar relatório (${res.status})`);
+      if (!res.ok) throw new Error(`Falha ao gerar relatorio (${res.status})`);
       const data: ReportData = await res.json();
-      if (data.status !== "ok") {
-        throw new Error(data.detalhe || "Sem dados para o período selecionado");
+      if (data.status && data.status !== "ok") {
+        throw new Error(data.detalhe || "Sem dados para o periodo selecionado");
       }
       setReport(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao gerar relatório");
+      setError(err instanceof Error ? err.message : "Erro ao gerar relatorio");
     } finally {
       setLoading(false);
     }
@@ -129,20 +126,20 @@ export default function RelatoriosPage() {
         : "text-emerald-200";
 
   return (
-    <AppShell active="/relatorios" eyebrow="FieldNode" title="Relatórios">
+    <AppShell active="/relatorios" eyebrow="FieldNode" title="Relatorios">
       <div className="space-y-6">
         <section className="glass-panel rounded-lg p-5">
           <h2 className="text-sm font-semibold text-slate-200">
-            Configurar relatório
+            Configurar relatorio
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Selecione a máquina e o período para gerar o relatório operacional.
+            Selecione a maquina e o periodo para gerar o resumo operacional.
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Máquina
+                Maquina
               </label>
               <input
                 value={search}
@@ -162,11 +159,11 @@ export default function RelatoriosPage() {
                 {loadingMachines ? (
                   <option>Carregando...</option>
                 ) : filteredMachines.length === 0 ? (
-                  <option>Nenhuma máquina encontrada</option>
+                  <option>Nenhuma maquina encontrada</option>
                 ) : (
                   filteredMachines.map((m) => (
                     <option key={m.id} value={m.maquina_id}>
-                      {m.maquina_id} — {m.marca} {m.modelo}
+                      {m.maquina_id} - {m.marca} {m.modelo}
                     </option>
                   ))
                 )}
@@ -175,7 +172,7 @@ export default function RelatoriosPage() {
 
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Período
+                Periodo
               </label>
               <select
                 value={period}
@@ -196,7 +193,7 @@ export default function RelatoriosPage() {
                 disabled={loading || !selectedMachine}
                 className="h-10 flex-1 rounded-md bg-emerald-600/20 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-600/30 disabled:opacity-50"
               >
-                {loading ? "Gerando..." : "Gerar relatório"}
+                {loading ? "Gerando..." : "Gerar relatorio"}
               </button>
               {report && (
                 <button
@@ -210,7 +207,7 @@ export default function RelatoriosPage() {
           </div>
         </section>
 
-        {error && <ErrorState title="Relatório indisponível" message={error} />}
+        {error && <ErrorState title="Relatorio indisponivel" message={error} />}
 
         {report && (
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -219,37 +216,31 @@ export default function RelatoriosPage() {
                 Leituras analisadas
               </p>
               <p className="mt-3 text-2xl font-semibold text-slate-50">
-                {report.dados.total_leituras ?? report.total_leituras}
+                {report.total_leituras}
               </p>
             </div>
             <div className="glass-panel rounded-lg p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Horas operadas
+                Maquinas ativas
               </p>
-              <p
-                className={`mt-3 text-2xl font-semibold ${toneClass(report.dados.horas_operadas, [20, 50])}`}
-              >
-                {report.dados.horas_operadas.toFixed(1)}h
+              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.maquinas_ativas, [0, 3])}`}>
+                {report.maquinas_ativas}
               </p>
             </div>
             <div className="glass-panel rounded-lg p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Pico de temperatura
+                Alertas gerados
               </p>
-              <p
-                className={`mt-3 text-2xl font-semibold ${toneClass(report.dados.pico_temperatura, [85, 110])}`}
-              >
-                {report.dados.pico_temperatura.toFixed(1)}°C
+              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.alertas_gerados, [5, 20])}`}>
+                {report.alertas_gerados}
               </p>
             </div>
             <div className="glass-panel rounded-lg p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Alertas no período
+                Eficiencia
               </p>
-              <p
-                className={`mt-3 text-2xl font-semibold ${toneClass(report.dados.num_alertas, [5, 20])}`}
-              >
-                {report.dados.num_alertas}
+              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.eficiencia_operacional, [50, 80])}`}>
+                {report.eficiencia_operacional.toFixed(1)}%
               </p>
             </div>
           </section>
@@ -258,23 +249,21 @@ export default function RelatoriosPage() {
         {report && (
           <section className="glass-panel rounded-lg p-5">
             <h2 className="text-sm font-semibold text-slate-200">
-              Recomendação de manutenção
+              Resumo operacional
             </h2>
             <p className="mt-3 text-sm text-slate-300">
-              {report.dados.recomendacao_manutencao}
+              O sistema encontrou {report.total_leituras} leituras, {report.maquinas_ativas} maquinas ativas e {report.alertas_gerados} alertas no periodo analisado.
             </p>
             <p className="mt-4 text-[11px] text-slate-500">
-              Período:{" "}
-              {new Date(report.data_inicio).toLocaleDateString("pt-BR")} até{" "}
-              {new Date(report.data_fim).toLocaleDateString("pt-BR")}
+              Periodo: {report.periodo}
             </p>
           </section>
         )}
 
         {!report && !error && !loading && (
           <EmptyState
-            title="Nenhum relatório gerado."
-            message="Selecione a máquina e o período para visualizar as métricas operacionais."
+            title="Nenhum relatorio gerado."
+            message="Selecione a maquina e o periodo para visualizar as metricas operacionais."
           />
         )}
       </div>

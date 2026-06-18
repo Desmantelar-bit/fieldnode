@@ -20,8 +20,8 @@ export default async function HarvestersPage() {
     );
   }
 
-  const critical = readings.filter((reading) => reading.nivel_risco === 'CRITICO').length;
-  const warning = readings.filter((reading) => reading.nivel_risco === 'ATENCAO').length;
+  const critical = readings.filter((reading) => reading.status_risco?.rotuloRisco === 'CRITICO').length;
+  const warning = readings.filter((reading) => reading.status_risco?.rotuloRisco === 'ATENCAO').length;
   const averageTemp = readings.length ? readings.reduce((sum, reading) => sum + reading.temperatura, 0) / readings.length : 0;
 
   return (

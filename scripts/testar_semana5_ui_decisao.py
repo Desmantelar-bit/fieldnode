@@ -47,7 +47,7 @@ def test_prescricao_endpoint():
                 print("Resposta vazia ou formato inesperado")
                 return True
             
-            required_fields = ['maquina_id', 'recomendacao', 'prioridade', 'categoria', 'justificativa', 'timestamp']
+            required_fields = ['maquina_id', 'titulo', 'descricao', 'status', 'data_geracao']
             missing_fields = [field for field in required_fields if field not in prescricao]
             
             if missing_fields:
@@ -55,8 +55,8 @@ def test_prescricao_endpoint():
             else:
                 print("Estrutura da prescricao esta correta")
                 print(f"   Maquina: {prescricao['maquina_id']}")
-                print(f"   Prioridade: {prescricao['prioridade']}")
-                print(f"   Recomendacao: {prescricao['recomendacao'][:50]}...")
+                print(f"   Status: {prescricao['status']}")
+                print(f"   Descricao: {prescricao['descricao'][:50]}...")
         else:
             print(f"Endpoint falhou: {response.status_code}")
             if response.text:
@@ -129,9 +129,9 @@ def test_maquina_specific_prescricao():
                     
                     if isinstance(prescricao_data, list) and len(prescricao_data) > 0:
                         prescricao = prescricao_data[0]
-                        print(f"   Recomendacao: {prescricao['recomendacao'][:50]}...")
-                    elif isinstance(prescricao_data, dict) and 'recomendacao' in prescricao_data:
-                        print(f"   Recomendacao: {prescricao_data['recomendacao'][:50]}...")
+                        print(f"   Descricao: {prescricao['descricao'][:50]}...")
+                    elif isinstance(prescricao_data, dict) and 'descricao' in prescricao_data:
+                        print(f"   Descricao: {prescricao_data['descricao'][:50]}...")
                     else:
                         print("   Resposta vazia ou formato inesperado")
                 else:
