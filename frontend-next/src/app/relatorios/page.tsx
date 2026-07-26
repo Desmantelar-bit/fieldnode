@@ -105,17 +105,34 @@ export default function RelatoriosPage() {
 
   const downloadCsv = async () => {
     if (!selectedMachine) return;
-    const res = await fetch(
-      `${API_URL}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=csv`,
-    );
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio_${selectedMachine}_${period}d.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const fim = new Date();
+    const inicio = new Date(fim);
+    inicio.setDate(inicio.getDate() - period);
+    const formatarData = (data: Date) => {
+      const ano = data.getFullYear();
+      const mes = String(data.getMonth() + 1).padStart(2, "0");
+      const dia = String(data.getDate()).padStart(2, "0");
+      return `${ano}-${mes}-${dia}`;
+    };
+
+    try {
+      const res = await fetch(
+        `${API_URL}/relatorio/exportar/?maquina_id=${encodeURIComponent(selectedMachine)}&data_inicio=${formatarData(inicio)}&data_fim=${formatarData(fim)}`,
+        { headers: { Accept: "text/csv" } },
+      );
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio_${selectedMachine}_${period}d.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      setError(err instanceof Error ? "Falha ao exportar o CSV." : "Falha ao exportar o CSV.");
+    }
   };
 
   const toneClass = (value: number, thresholds: [number, number]) =>

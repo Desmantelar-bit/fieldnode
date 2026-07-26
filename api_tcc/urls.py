@@ -13,6 +13,7 @@ from api_tcc.api.views_ingestao import (
     PrescricaoListView,
     PrescricaoTesteView,
     RelatorioView,
+    RelatorioExportarView,
 )
 from api_tcc import views_gps
 
@@ -45,5 +46,7 @@ urlpatterns = [
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
     path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
     path("relatorio/", RelatorioView.as_view(), name="relatorio"),
+    path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
+    path("mapas/demo/", views_gps.gps_demo, name="mapas-demo"),
 ]

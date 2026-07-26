@@ -120,7 +120,7 @@ def gerar_prescricao(maquina_id, limite=10):
 
 
 def get_latest_values(df):
-    latest = df.iloc[0]
+    latest = df.iloc[-1]
     return {
         "temperatura": safe_float(latest.get("temperatura")),
         "vibracao": safe_float(latest.get("vibracao")),

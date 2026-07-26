@@ -27,7 +27,7 @@ def classificar_estado(maquina_id=None):
     mapa  = {cluster: ESTADOS[i] for i, cluster in enumerate(ordem)}
     df['estado'] = df['cluster'].map(mapa)
 
-    ultima = df.iloc[0]
+    ultima = df.iloc[-1]
     contagem = df['estado'].value_counts().to_dict()
 
     return {

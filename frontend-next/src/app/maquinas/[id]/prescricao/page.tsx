@@ -30,7 +30,7 @@ export default async function PrescricaoPage({
 }) {
   const { id: maquinaId } = await params;
   const baseUrl = resolveApiBase();
-  const prescricoesUrl = `${baseUrl}/api/prescricoes/?maquina_id=${encodeURIComponent(maquinaId)}`;
+  const prescricoesUrl = `${baseUrl}/api/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
 
   let prescricoes: PrescricaoItem[] = [];
 
