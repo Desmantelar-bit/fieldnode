@@ -49,6 +49,8 @@ export const TelemetryInputSchema = z.object({
   temperatura: z.coerce.number(),
   vibracao: z.coerce.number(),
   rpm: z.coerce.number().int(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
   timestamp: z.string().min(1),
 });
 
@@ -100,9 +102,24 @@ export const RelatorioSchema = z.object({
   dados: z.array(z.any()).optional(),
 });
 
+export const MachinePositionSchema = z.object({
+  id: z.coerce.number(),
+  maquina_id: z.string().optional(),
+  modelo: z.string(),
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+  status: z.string(),
+  telemetria: z.object({
+    temperatura: z.coerce.number(),
+    rpm: z.coerce.number(),
+    timestamp: z.string(),
+  }),
+});
+
 export type Telemetry = z.infer<typeof TelemetrySchema>;
 export type TelemetryInput = z.infer<typeof TelemetryInputSchema>;
 export type Machine = z.infer<typeof MachineFleetSchema>;
+export type MachinePosition = z.infer<typeof MachinePositionSchema>;
 export type Operator = z.infer<typeof OperatorSchema>;
 export type Prescricao = z.infer<typeof PrescricaoSchema>;
 export type Relatorio = z.infer<typeof RelatorioSchema>;

@@ -3,7 +3,9 @@ import { telemetryService } from '@/services/telemetryService';
 import { AppShell } from '@/components/AppShell';
 import { ErrorState } from '@/components/EmptyState';
 import { FleetGrid } from '@/components/FleetGrid';
+import { FleetMap } from '@/components/FleetMap';
 import { MetricCard } from '@/components/MetricCard';
+import { ReportButton } from '@/components/ReportButton';
 import { SkeletonGrid } from '@/components/SkeletonGrid';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,7 @@ async function FleetData() {
         <MetricCard label="Horas" value={`${totalHours.toFixed(1)}h`} helper="tempo total reportado" tone="amber" />
       </section>
       <FleetGrid machines={machines} />
+      <FleetMap />
     </div>
   );
 }
@@ -41,9 +44,12 @@ export default function DashboardPage() {
       eyebrow="FieldNode"
       title="Frota em campo"
       actions={
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 shadow-[0_0_18px_rgba(100,217,140,0.15)] animate-pulse">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_6px_rgba(100,217,140,0.7)]" />
-          Sync offline ativo
+        <div className="inline-flex items-center gap-2">
+          <ReportButton />
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 shadow-[0_0_18px_rgba(100,217,140,0.15)] animate-pulse">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_6px_rgba(100,217,140,0.7)]" />
+            Sync offline ativo
+          </div>
         </div>
       }
     >

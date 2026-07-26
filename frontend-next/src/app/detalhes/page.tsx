@@ -9,6 +9,7 @@ import { MetricCard } from '@/components/MetricCard';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
 import { PrescricaoModal } from '@/components/PrescricaoModal';
 import { telemetryService } from '@/services/telemetryService';
+import { ReportButton } from '@/components/ReportButton';
 import type { Telemetry } from '@/types/telemetry';
 
 export default function DetailsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
@@ -81,6 +82,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
         title={`Maquina ${machineId}`}
         actions={
           <div className="flex gap-2">
+            <ReportButton machineId={machineId} />
             <button
               onClick={() => setShowPrescricao(true)}
               className="rounded-md border border-blue-500/30 bg-blue-900/20 px-3 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-900/40"

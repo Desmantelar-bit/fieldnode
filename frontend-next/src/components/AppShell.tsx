@@ -9,6 +9,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+  { href: '/mapa', label: 'Mapa', icon: 'map' },
   { href: '/colheitadeiras', label: 'Máquinas', icon: 'machine' },
   { href: '/operarios', label: 'Operários', icon: 'users' },
   { href: '/relatorios', label: 'Relatórios', icon: 'report' },
@@ -21,6 +22,12 @@ const icons: Record<string, ReactNode> = {
       <rect x="14" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
       <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  ),
+  map: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z" />
+      <circle cx="12" cy="9" r="2.5" />
     </svg>
   ),
   machine: (

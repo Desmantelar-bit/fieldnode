@@ -87,7 +87,9 @@ def carregar_dados(maquina_id, limite=300, minimo=10):
             "atual": len(registros),
         }
 
-    df = pd.DataFrame(registros).dropna()
+    # A consulta acima limita às leituras mais recentes; os modelos recebem a
+    # mesma janela em ordem cronológica para rolling/diff terem sentido físico.
+    df = pd.DataFrame(registros).dropna().sort_values("timestamp").reset_index(drop=True)
 
     if len(df) < minimo:
         return {

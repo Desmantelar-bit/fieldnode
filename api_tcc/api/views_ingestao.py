@@ -87,7 +87,13 @@ class IngestaoTelemetriaView(APIView):
         resultado, detalhe = registrar_leitura(request.data)
 
         if resultado == "criado":
-            return Response({'status': 'ok', 'id': detalhe},
+            # A ingestão termina assim que a leitura é persistida. Os modelos
+            # analíticos seguem para a fila e não atrasam o firmware/ESP32.
+            agendamento = agendar_processamento_ia(
+                request.data.get("maquina_id"),
+                modelos=("anomalias", "estado", "manutencao"),
+            )
+            return Response({'status': 'ok', 'id': detalhe, 'ia': agendamento},
                             status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
@@ -168,13 +174,22 @@ class UltimaLeituraView(APIView):
 
             rows = cursor.fetchall()
 
+        # Soft delete é respeitado também nesta rota de leitura rápida. Assim,
+        # uma máquina inativada não reaparece no dashboard por ter histórico.
+        from api_tcc.models import Colheitadeira
+        maquinas_ativas = set(
+            Colheitadeira.objects.filter(ativo=True).values_list("maquina_id", flat=True)
+        )
+        rows = [row for row in rows if row[0] in maquinas_ativas]
+
         resultado = []
         for row in rows:
             mid, temp, vib, rpm, ts, total = row
 
             # Classificação de risco usando o serviço de telemetria (centralizado)
             status_dict = calcular_status_risco(temp, vib, rpm)
-            # Mapear o rótulo de risco do serviço para o formato esperado pela view
+            # Mantém o formato estruturado retornado pelos demais endpoints.
+            # nivel_risco continua por compatibilidade com consumidores antigos.
             nivel_risco_map = {
                 'Crítico': 'CRITICO',
                 'Alerta': 'ATENCAO',
@@ -188,6 +203,7 @@ class UltimaLeituraView(APIView):
                 'vibracao':      vib,
                 'rpm':           rpm,
                 'timestamp':     ts,
+                'status_risco':  status_dict,
                 'nivel_risco':   nivel,
                 'total_leituras': total,
             })
@@ -319,17 +335,18 @@ class RelatorioView(APIView):
         }
         
         if formato == 'csv':
-            return Response(
-                self._build_csv_geral(resultado),
-                content_type='text/csv',
+            resposta = Response(
+                "\ufeff" + self._build_csv_geral(resultado),
+                content_type='text/csv; charset=utf-8',
                 headers={'Content-Disposition': f'attachment; filename="relatorio_geral_{datetime.now().strftime("%Y%m%d")}.csv"'}
             )
+            return resposta
         
         return Response(resultado)
     
     def _build_csv_geral(self, dados):
         buf = io.StringIO()
-        w = csv.writer(buf)
+        w = csv.writer(buf, delimiter=';', lineterminator='\n')
         w.writerow(['Relatório Geral - FieldNode'])
         w.writerow(['Período', dados['periodo']])
         w.writerow(['Gerado em', datetime.now().strftime('%d/%m/%Y %H:%M')])
@@ -340,6 +357,54 @@ class RelatorioView(APIView):
         w.writerow(['Alertas Gerados', dados['alertas_gerados']])
         w.writerow(['Eficiência Operacional', f"{dados['eficiencia_operacional']}%"])
         return buf.getvalue()
+
+
+class RelatorioExportarView(APIView):
+    """
+    GET /api/relatorio/exportar/?maquina_id=COLH-01&data_inicio=2025-01-01&data_fim=2025-01-31
+
+    Exportação CSV séria com delimitador ;, filtros de máquina e período,
+    e colunas de resumo/recomendação.
+    """
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id')
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+
+        if not maquina_id:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
+
+        from api_tcc.services.relatorios import preparar_dados_relatorio, _gerar_relatorio_csv_exportar
+        from django.utils.dateparse import parse_date
+
+        if data_inicio and not parse_date(data_inicio):
+            return Response({"status": "erro", "detalhe": "data_inicio inválida; use AAAA-MM-DD"}, status=400)
+        if data_fim and not parse_date(data_fim):
+            return Response({"status": "erro", "detalhe": "data_fim inválida; use AAAA-MM-DD"}, status=400)
+
+        di = parse_date(data_inicio) if data_inicio else None
+        df = parse_date(data_fim) if data_fim else None
+
+        if di and df and df < di:
+            return Response({"status": "erro", "detalhe": "data_fim deve ser posterior a data_inicio"}, status=400)
+
+        dados, data_inicio_parsed, data_fim_parsed = preparar_dados_relatorio(
+            maquina_id, di, df
+        )
+
+        if not dados:
+            return Response(
+                {"status": "erro", "detalhe": "Sem dados para o período informado."},
+                status=404,
+            )
+
+        return _gerar_relatorio_csv_exportar(
+            maquina_id, data_inicio_parsed, data_fim_parsed,
+            dados['stats'], dados['leituras'], dados['prescricoes']
+        )
 
 
 class PrescricaoListView(APIView):

@@ -1,11 +1,13 @@
 import {
   MachineFleetSchema,
+  MachinePositionSchema,
   OperatorSchema,
   TelemetryInputSchema,
   TelemetrySchema,
   PrescricaoSchema,
   RelatorioSchema,
   type Machine,
+  type MachinePosition,
   type Operator,
   type Telemetry,
   type TelemetryInput,
@@ -36,6 +38,16 @@ export const telemetryService = {
     if (!response.ok) throw new Error('Falha ao buscar frota');
     const data = await response.json();
     return MachineFleetSchema.array().parse(data);
+  },
+
+  async getMachinePositions(maquinaId?: string): Promise<MachinePosition[]> {
+    const url = maquinaId
+      ? `${API_URL}/maquinas/posicao/?maquina_id=${encodeURIComponent(maquinaId)}`
+      : `${API_URL}/maquinas/posicao/`;
+    const response = await withTimeout(fetch(url, { cache: 'no-store', headers: new Headers({ Accept: 'application/json' }) }));
+    if (!response.ok) throw new Error('Falha ao buscar posicoes');
+    const data = await response.json();
+    return MachinePositionSchema.array().parse(data);
   },
 
   async getLatestReadings(): Promise<Telemetry[]> {
@@ -97,7 +109,7 @@ export const telemetryService = {
   async getPrescricao(machineId: string): Promise<Prescricao> {
     const headers = new Headers({ Accept: 'application/json' });
     if (API_KEY) headers.set('X-API-Key', API_KEY);
-    const response = await withTimeout(fetch(`${API_URL}/prescricoes/?maquina_id=${encodeURIComponent(machineId)}`, { cache: 'no-store', headers }));
+    const response = await withTimeout(fetch(`${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`, { cache: 'no-store', headers }));
     if (!response.ok) throw new Error(`Falha ao buscar prescrição: ${response.status}`);
     const data = await response.json();
     

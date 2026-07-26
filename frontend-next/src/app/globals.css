@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #090d0b;
-  --foreground: #edf7f1;
-  --panel: #101714;
-  --panel-2: #17211d;
-  --muted: #7f9488;
-  --line: rgba(219, 255, 233, 0.1);
-  --green: #64d98c;
-  --amber: #f2c15f;
-  --red: #f07878;
+  --background: #0a0d0b;
+  --foreground: #e6efe9;
+  --panel: #121715;
+  --panel-2: #1a201d;
+  --muted: #8a9189;
+  --line: rgba(200, 210, 205, 0.12);
+  --green: #5cb870;
+  --amber: #d49a3a;
+  --red: #b54d4d;
 }
 
 @theme inline {
@@ -30,15 +30,36 @@ body {
 }
 
 /* Touch improvements */
-button, a {
+button, a, input, select, textarea, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
   touch-action: manipulation;
+}
+
+/* Mobile command center — larger tap targets on small screens */
+@media (max-width: 1023px) {
+  button, a, input, select, textarea, [role="button"] {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* Map must not hijack page scroll on mobile */
+  .leaflet-container {
+    touch-action: pan-x pan-y;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Ensure bottom nav stays above map content and is tappable */
+  nav[class*="fixed"] {
+    z-index: 50;
+  }
 }
 
 /* Ensure content is not hidden behind mobile bottom nav when present */
 @media (max-width: 1023px) {
   main > section {
-    padding-bottom: 5rem;
+    padding-bottom: 5.5rem;
   }
 }
 
