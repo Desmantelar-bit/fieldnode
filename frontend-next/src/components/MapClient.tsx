@@ -6,10 +6,20 @@ import L from "leaflet";
 import React, { useEffect, useState } from "react";
 import { MachinePositionSchema, type MachinePosition } from "@/types/telemetry";
 
-const API_URL =
-  typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')
-    : 'http://localhost:8000/api';
+function resolveApiUrl(): string {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.FIELDNODE_SERVER_API_URL ||
+    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  return "http://127.0.0.1:8000/api";
+}
+
+const API_URL = resolveApiUrl();
 
 const DEMO_WAYPOINTS: Array<{ lat: number; lng: number }> = [
   { lat: -15.793889, lng: -47.882778 },

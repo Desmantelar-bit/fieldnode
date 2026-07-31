@@ -17,9 +17,10 @@ type PrescricaoItem = z.infer<typeof PrescricaoItemSchema>;
 
 function resolveApiBase(): string {
   const env =
+    process.env.NEXT_PUBLIC_API_URL ??
     process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL ??
     process.env.FIELDNODE_SERVER_API_URL ??
-    "http://127.0.0.1:8000";
+    "http://127.0.0.1:8000/api";
   return env.replace(/\/+$/, "");
 }
 
@@ -30,7 +31,7 @@ export default async function PrescricaoPage({
 }) {
   const { id: maquinaId } = await params;
   const baseUrl = resolveApiBase();
-  const prescricoesUrl = `${baseUrl}/api/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
+  const prescricoesUrl = `${baseUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
 
   let prescricoes: PrescricaoItem[] = [];
 
@@ -120,13 +121,19 @@ export default async function PrescricaoPage({
                       {prescricao.titulo}
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      <span className="font-medium text-slate-300">Status:</span>{" "}
+                      <span className="font-medium text-slate-300">
+                        Status:
+                      </span>{" "}
                       {prescricao.status.charAt(0).toUpperCase() +
                         prescricao.status.slice(1)}
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
-                      <span className="font-medium text-slate-300">Gerada em:</span>{" "}
-                      {new Date(prescricao.data_geracao).toLocaleString("pt-BR")}
+                      <span className="font-medium text-slate-300">
+                        Gerada em:
+                      </span>{" "}
+                      {new Date(prescricao.data_geracao).toLocaleString(
+                        "pt-BR",
+                      )}
                     </p>
                   </div>
                   <span

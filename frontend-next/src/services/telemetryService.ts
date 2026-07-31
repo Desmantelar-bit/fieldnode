@@ -17,10 +17,20 @@ import {
 
 declare const process: { env: Record<string, string | undefined> };
 
-const API_URL =
-  typeof window === 'undefined'
-    ? (process.env.FIELDNODE_SERVER_API_URL || 'http://web:8000/api')
-    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api');
+function resolveApiUrl(): string {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.FIELDNODE_SERVER_API_URL ||
+    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  return "http://127.0.0.1:8000/api";
+}
+
+const API_URL = resolveApiUrl();
 const API_KEY = process.env.NEXT_PUBLIC_FIELDNODE_API_KEY || '';
 const API_TIMEOUT_MS = 10000;
 
@@ -114,11 +124,11 @@ export const telemetryService = {
     const response = await withTimeout((signal) => fetch(`${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`, { cache: 'no-store', headers, signal }));
     if (!response.ok) throw new Error(`Falha ao buscar prescrição: ${response.status}`);
     const data = await response.json();
-    
+
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('API retornou dados inválidos ou vazios');
     }
-    
+
     return PrescricaoSchema.parse(data[0]);
   },
 
@@ -129,7 +139,7 @@ export const telemetryService = {
     const response = await withTimeout((signal) => fetch(url, { cache: 'no-store', headers, signal }));
     if (!response.ok) throw new Error(`Falha ao buscar relatório: ${response.status}`);
     const data = await response.json();
-    
+
     return RelatorioSchema.parse(data);
   },
 };
