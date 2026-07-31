@@ -5,12 +5,13 @@ services:
     environment:
       MYSQL_DATABASE: fieldnode_db
       MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_ROOT_HOST: "%"
     ports:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot_password"]
       interval: 10s
       timeout: 5s
       retries: 5

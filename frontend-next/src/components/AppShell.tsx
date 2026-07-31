@@ -68,7 +68,7 @@ export function AppShell({
           href="/dashboard"
           className="mb-6 flex items-center gap-3 border-b border-white/10 px-2 pb-5"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+          <span className="flex h-9 w-9 items-center justify-center border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
             <svg
               viewBox="0 0 24 24"
               className="h-4 w-4"
@@ -111,9 +111,9 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.03] p-3">
+        <div className="mt-auto border border-white/10 bg-white/[0.03] p-3">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.7)]" />
+            <span className="h-2 w-2 bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.7)]" />
             API online
           </div>
           <p className="mt-2 text-xs text-slate-500">127.0.0.1:8000/api</p>
@@ -150,7 +150,7 @@ export function AppShell({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex min-h-[4rem] w-full flex-col items-center justify-center rounded-2xl px-3 py-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 ${
+              className={`flex min-h-[4rem] w-full flex-col items-center justify-center px-3 py-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 ${
                 isActive
                   ? "text-emerald-200"
                   : "text-slate-300 hover:text-slate-100"

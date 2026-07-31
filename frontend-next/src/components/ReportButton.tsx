@@ -1,26 +1,41 @@
 'use client';
 
-import type { MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
+
+type ReportMachineOption = {
+  maquina_id?: string | null;
+  modelo?: {
+    nome?: string;
+  };
+};
 
 type ReportButtonProps = {
   machineId?: string;
+  machines?: ReportMachineOption[];
   label?: string;
   className?: string;
 };
 
-export function ReportButton({ machineId, label = 'Extrair relatorio', className = '' }: ReportButtonProps) {
+export function ReportButton({ machineId, machines = [], label = 'Extrair relatorio', className = '' }: ReportButtonProps) {
+  const machineOptions = useMemo(
+    () => machines.filter((machine) => machine.maquina_id),
+    [machines]
+  );
+  const [selectedMachineId, setSelectedMachineId] = useState(machineOptions[0]?.maquina_id ?? '');
+  const exportMachineId = machineId || selectedMachineId;
+
   const handleClick = async (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    if (!exportMachineId) {
+      alert('Selecione uma maquina para gerar o relatorio.');
+      return;
+    }
+
     const baseUrl = typeof window !== 'undefined'
       ? (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api')
       : '/api';
 
-    let url: string;
-    if (machineId) {
-      url = `${baseUrl}/relatorio/exportar/?maquina_id=${encodeURIComponent(machineId)}`;
-    } else {
-      url = `${baseUrl}/relatorio/?formato=csv`;
-    }
+    const url = `${baseUrl}/relatorio/exportar/?maquina_id=${encodeURIComponent(exportMachineId)}`;
 
     try {
       const res = await fetch(url, { headers: { Accept: 'text/csv' } });
@@ -30,9 +45,7 @@ export function ReportButton({ machineId, label = 'Extrair relatorio', className
       const blobUrl = window.URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = blobUrl;
-      anchor.download = machineId
-        ? `relatorio_${machineId}_${new Date().toISOString().slice(0, 10)}.csv`
-        : `relatorio_geral_${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.download = `relatorio_${exportMachineId}_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -42,11 +55,39 @@ export function ReportButton({ machineId, label = 'Extrair relatorio', className
     }
   };
 
+  if (!machineId && machineOptions.length > 0) {
+    return (
+      <div className="flex items-center gap-2">
+        <select
+          value={selectedMachineId}
+          onChange={(event) => setSelectedMachineId(event.target.value)}
+          className="border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 outline-none transition hover:bg-white/[0.08] focus:border-emerald-300/50"
+          aria-label="Maquina do relatorio"
+        >
+          {machineOptions.map((machine) => (
+            <option key={machine.maquina_id} value={machine.maquina_id ?? ''}>
+              {machine.maquina_id} {machine.modelo?.nome ? `- ${machine.modelo.nome}` : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleClick}
+          className={[
+            'border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]',
+            className,
+          ].join(' ')}
+        >
+          {label}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={handleClick}
       className={[
-        'rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]',
+        'border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]',
         className,
       ].join(' ')}
     >
