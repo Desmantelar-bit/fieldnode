@@ -18,16 +18,18 @@ import {
 declare const process: { env: Record<string, string | undefined> };
 
 function resolveApiUrl(): string {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.FIELDNODE_SERVER_API_URL ||
-    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/+$/, "");
+  // Prefer explicit public API URL in the browser. When running in the
+  // browser, prefer a same-origin relative URL when none is provided so
+  // requests are routed through the same host (useful for proxied setups).
+  if (typeof window !== 'undefined') {
+    const clientUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
+    return (clientUrl ? clientUrl.replace(/\/+$/, "") : '/api');
   }
 
-  return "http://127.0.0.1:8000/api";
+  // Server-side or build-time: use server-specific env var first, then
+  // NEXT_PUBLIC_API_URL as fallback, then a local default.
+  const configuredUrl = process.env.FIELDNODE_SERVER_API_URL || process.env.NEXT_PUBLIC_API_URL;
+  return (configuredUrl ? configuredUrl.replace(/\/+$/, "") : 'http://127.0.0.1:8000/api');
 }
 
 const API_URL = resolveApiUrl();
@@ -40,13 +42,30 @@ function withTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Promise<T
   return request(controller.signal).finally(() => clearTimeout(timer));
 }
 
+async function handleResponse<T = unknown>(response: Response, label = ''): Promise<T> {
+  if (!response.ok) {
+    let text = '';
+    try {
+      text = await response.text();
+    } catch {
+      text = response.statusText || '';
+    }
+    throw new Error(`${label} HTTP ${response.status} ${response.statusText} ${text}`.trim());
+  }
+
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new Error(`${label} Falha ao parsear JSON: ${(e as Error).message}`);
+  }
+}
+
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
     const headers = new Headers({ Accept: 'application/json' });
     if (API_KEY) headers.set('X-API-Key', API_KEY);
     const response = await withTimeout((signal) => fetch(`${API_URL}/colheitadeira/`, { cache: 'no-store', headers, signal }));
-    if (!response.ok) throw new Error('Falha ao buscar frota');
-    const data = await response.json();
+    const data = await handleResponse(response, 'getFleetStatus:');
     return MachineFleetSchema.array().parse(data);
   },
 
@@ -55,8 +74,7 @@ export const telemetryService = {
       ? `${API_URL}/maquinas/posicao/?maquina_id=${encodeURIComponent(maquinaId)}`
       : `${API_URL}/maquinas/posicao/`;
     const response = await withTimeout((signal) => fetch(url, { cache: 'no-store', headers: new Headers({ Accept: 'application/json' }), signal }));
-    if (!response.ok) throw new Error('Falha ao buscar posicoes');
-    const data = await response.json();
+    const data = await handleResponse(response, 'getMachinePositions:');
     return MachinePositionSchema.array().parse(data);
   },
 
@@ -65,8 +83,7 @@ export const telemetryService = {
       headers: new Headers({ Accept: 'application/json' }),
       signal,
     }));
-    if (!response.ok) throw new Error('Falha ao buscar telemetria');
-    const data = await response.json();
+    const data = await handleResponse(response, 'getLatestReadings:');
     return TelemetrySchema.array().parse(data);
   },
 
@@ -76,8 +93,7 @@ export const telemetryService = {
       headers: new Headers({ Accept: 'application/json' }),
       signal,
     }));
-    if (!response.ok) throw new Error('Falha ao buscar historico da maquina');
-    const data = await response.json();
+    const data = await handleResponse(response, 'getMachineReadings:');
     return TelemetrySchema.array().parse(data);
   },
 
@@ -85,8 +101,7 @@ export const telemetryService = {
     const headers = new Headers({ Accept: 'application/json' });
     if (API_KEY) headers.set('X-API-Key', API_KEY);
     const response = await withTimeout((signal) => fetch(`${API_URL}/operario/`, { cache: 'no-store', headers, signal }));
-    if (!response.ok) throw new Error('Falha ao buscar operarios');
-    const data = await response.json();
+    const data = await handleResponse(response, 'getOperators:');
     return OperatorSchema.array().parse(data);
   },
 
@@ -98,8 +113,8 @@ export const telemetryService = {
       ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
     });
     const response = await withTimeout((signal) => fetch(`${API_URL}/telemetria/`, { method: 'POST', headers, body: JSON.stringify(payload), signal }));
-    if (!response.ok) throw new Error(`Falha ao enviar telemetria: ${response.status}`);
-    return response.json();
+    const data = await handleResponse(response, 'sendTelemetry:');
+    return data;
   },
 
   async queueTelemetry(reading: TelemetryInput) {
@@ -122,8 +137,7 @@ export const telemetryService = {
     const headers = new Headers({ Accept: 'application/json' });
     if (API_KEY) headers.set('X-API-Key', API_KEY);
     const response = await withTimeout((signal) => fetch(`${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`, { cache: 'no-store', headers, signal }));
-    if (!response.ok) throw new Error(`Falha ao buscar prescrição: ${response.status}`);
-    const data = await response.json();
+    const data = await handleResponse<unknown[]>(response, 'getPrescricao:');
 
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('API retornou dados inválidos ou vazios');
@@ -137,8 +151,7 @@ export const telemetryService = {
     if (API_KEY) headers.set('X-API-Key', API_KEY);
     const url = formato ? `${API_URL}/relatorio/?formato=${formato}` : `${API_URL}/relatorio/?formato=json`;
     const response = await withTimeout((signal) => fetch(url, { cache: 'no-store', headers, signal }));
-    if (!response.ok) throw new Error(`Falha ao buscar relatório: ${response.status}`);
-    const data = await response.json();
+    const data = await handleResponse(response, 'getRelatorio:');
 
     return RelatorioSchema.parse(data);
   },
