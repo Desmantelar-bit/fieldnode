@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { resolveApiUrl } from "@/services/telemetryService";
 import { MachinePositionSchema, type MachinePosition } from "@/types/telemetry";
 
 type LeafletModule = typeof import("leaflet");
@@ -10,19 +11,6 @@ type LeafletFeatureGroup = import("leaflet").FeatureGroup;
 const MAP_CSS_ID = "leaflet-css";
 const MAP_CSS_HREF = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const DEFAULT_CENTER: [number, number] = [-15.793889, -47.882778];
-
-function resolveApiUrl(): string {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.FIELDNODE_SERVER_API_URL ||
-    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/+$/, "");
-  }
-
-  return "http://127.0.0.1:8000/api";
-}
 
 const API_URL = resolveApiUrl();
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { resolveApiUrl } from "@/services/telemetryService";
 
 type NavItem = {
   href: string;
@@ -8,16 +9,23 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
-  { href: '/mapa', label: 'Mapa', icon: 'map' },
-  { href: '/colheitadeiras', label: 'Máquinas', icon: 'machine' },
-  { href: '/operarios', label: 'Operários', icon: 'users' },
-  { href: '/relatorios', label: 'Relatórios', icon: 'report' },
+  { href: "/dashboard", label: "Dashboard", icon: "grid" },
+  { href: "/mapa", label: "Mapa", icon: "map" },
+  { href: "/colheitadeiras", label: "Máquinas", icon: "machine" },
+  { href: "/operarios", label: "Operários", icon: "users" },
+  { href: "/relatorios", label: "Relatórios", icon: "report" },
 ];
+
+const API_URL = resolveApiUrl();
 
 const icons: Record<string, ReactNode> = {
   grid: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
@@ -25,13 +33,23 @@ const icons: Record<string, ReactNode> = {
     </svg>
   ),
   map: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z" />
       <circle cx="12" cy="9" r="2.5" />
     </svg>
   ),
   machine: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M4 15h11l2-5h3v5" />
       <path d="M5 15v-4h5l2 4" />
       <circle cx="7" cy="17" r="2" />
@@ -39,7 +57,12 @@ const icons: Record<string, ReactNode> = {
     </svg>
   ),
   users: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
       <circle cx="9.5" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -116,7 +139,7 @@ export function AppShell({
             <span className="h-2 w-2 bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.7)]" />
             API online
           </div>
-          <p className="mt-2 text-xs text-slate-500">127.0.0.1:8000/api</p>
+          <p className="mt-2 text-xs text-slate-500">{API_URL}</p>
         </div>
       </aside>
 

@@ -22,9 +22,19 @@ def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
         # A data final é inclusiva: exportar 22/07 inclui todo o dia 22.
         data_fim = timezone.make_aware(datetime.combine(data_fim, time.max))
 
-    if not data_fim:
+    if not data_inicio and not data_fim:
+        limites = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by("timestamp")
+        primeira = limites.first()
+        ultima = limites.last()
+        if not primeira or not ultima:
+            data_fim = timezone.now()
+            data_inicio = data_fim - timedelta(days=7)
+        else:
+            data_inicio = primeira.timestamp
+            data_fim = ultima.timestamp
+    elif not data_fim:
         data_fim = timezone.now()
-    if not data_inicio:
+    elif not data_inicio:
         data_inicio = data_fim - timedelta(days=7)
 
     queryset = LeituraTelemetria.objects.filter(

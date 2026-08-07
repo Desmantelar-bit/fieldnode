@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type MouseEvent } from 'react';
+import { resolveApiUrl } from '@/services/telemetryService';
 
 type ReportMachineOption = {
   maquina_id?: string | null;
@@ -31,14 +32,10 @@ export function ReportButton({ machineId, machines = [], label = 'Extrair relato
       return;
     }
 
-    const baseUrl = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api')
-      : '/api';
-
-    const url = `${baseUrl}/relatorio/exportar/?maquina_id=${encodeURIComponent(exportMachineId)}`;
+    const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(exportMachineId)}`;
 
     try {
-      const res = await fetch(url, { headers: { Accept: 'text/csv' } });
+      const res = await fetch(url, { headers: { Accept: '*/*' } });
       if (!res.ok) throw new Error(String(res.status));
 
       const blob = await res.blob();
