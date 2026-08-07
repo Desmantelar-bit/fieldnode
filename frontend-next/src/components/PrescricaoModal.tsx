@@ -23,14 +23,19 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
   const [prescricao, setPrescricao] = useState<Prescricao | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [empty, setEmpty] = useState(false);
 
   useEffect(() => {
     if (isOpen && machineId) {
       setLoading(true);
       setError(null);
+      setEmpty(false);
       setPrescricao(null);
-      telemetryService.getPrescricao(machineId)
-        .then(setPrescricao)
+      telemetryService.getPrescricoes(machineId)
+        .then((items) => {
+          setPrescricao(items[0] ?? null);
+          setEmpty(items.length === 0);
+        })
         .catch(() => setError('Falha ao carregar prescrição'))
         .finally(() => setLoading(false));
     }
@@ -60,6 +65,12 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
         {error && (
           <div className="text-center py-8 text-red-400">
             {error}
+          </div>
+        )}
+
+        {empty && !loading && !error && (
+          <div className="text-center py-8 text-slate-400">
+            Nenhuma prescrição encontrada para esta máquina.
           </div>
         )}
 

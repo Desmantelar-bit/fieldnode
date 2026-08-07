@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
+import { resolveApiUrl } from "@/services/telemetryService";
 
 const PrescricaoItemSchema = z.object({
   id: z.coerce.number(),
@@ -15,22 +16,13 @@ const PrescricaoResponseSchema = z.array(PrescricaoItemSchema);
 
 type PrescricaoItem = z.infer<typeof PrescricaoItemSchema>;
 
-function resolveApiBase(): string {
-  const env =
-    process.env.NEXT_PUBLIC_API_URL ??
-    process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL ??
-    process.env.FIELDNODE_SERVER_API_URL ??
-    "http://127.0.0.1:8000/api";
-  return env.replace(/\/+$/, "");
-}
-
 export default async function PrescricaoPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: maquinaId } = await params;
-  const baseUrl = resolveApiBase();
+  const baseUrl = resolveApiUrl();
   const prescricoesUrl = `${baseUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
 
   let prescricoes: PrescricaoItem[] = [];

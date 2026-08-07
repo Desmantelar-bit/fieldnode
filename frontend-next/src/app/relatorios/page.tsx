@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
+import { resolveApiUrl } from "@/services/telemetryService";
 
 type MachineOption = {
   id: number;
@@ -27,7 +28,7 @@ const PERIOD_OPTIONS = [
   { label: "Ultimos 30 dias", value: 30 },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const API_URL = resolveApiUrl();
 
 export default function RelatoriosPage() {
   const [machines, setMachines] = useState<MachineOption[]>([]);
@@ -118,7 +119,7 @@ export default function RelatoriosPage() {
     try {
       const res = await fetch(
         `${API_URL}/relatorio/exportar/?maquina_id=${encodeURIComponent(selectedMachine)}&data_inicio=${formatarData(inicio)}&data_fim=${formatarData(fim)}`,
-        { headers: { Accept: "text/csv" } },
+        { headers: { Accept: "*/*" } },
       );
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();

@@ -16,6 +16,7 @@ import logging
 
 from django.conf import settings
 from django.db import connection
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -396,10 +397,15 @@ class RelatorioExportarView(APIView):
         )
 
         if not dados:
-            return Response(
-                {"status": "erro", "detalhe": "Sem dados para o período informado."},
-                status=404,
-            )
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="relatorio_sem_dados_{maquina_id}.csv"'
+            response.write('\ufeff')
+            writer = csv.writer(response, delimiter=';', lineterminator='\n')
+            writer.writerow(['Relatório FieldNode'])
+            writer.writerow(['Máquina', maquina_id])
+            writer.writerow(['Status', 'Sem dados para o período informado'])
+            writer.writerow(['Orientação', 'Selecione outro período ou aguarde novas leituras de telemetria.'])
+            return response
 
         return _gerar_relatorio_csv_exportar(
             maquina_id, data_inicio_parsed, data_fim_parsed,
