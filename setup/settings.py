@@ -38,8 +38,21 @@ ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split
 CORS_ALLOWED_ORIGINS = env_config(
     "CORS_ALLOWED_ORIGINS",
     default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3005,http://127.0.0.1:3005",
-).split(",")
-CORS_ALLOW_CREDENTIALS = True
+    cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
+)
+CORS_ALLOW_CREDENTIALS = env_config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
