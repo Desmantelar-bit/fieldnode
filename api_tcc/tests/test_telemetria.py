@@ -74,7 +74,7 @@ class IngestaoTelemetriaTest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.headers = {"HTTP_X_API_KEY": getattr(settings, "FIELDNODE_API_KEY", "fieldnode-demo-2024")}
+        self.headers = {"HTTP_X_API_KEY": getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")}
 
     def test_ingestao_valida_retorna_201(self):
         response = self.client.post("/api/telemetria/", _payload(), format="json", **self.headers)

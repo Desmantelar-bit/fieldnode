@@ -9,7 +9,7 @@ import json
 import time
 
 API_URL = "http://127.0.0.1:8000/api"
-API_KEY = "fieldnode-demo-2024"
+API_KEY = "00000000-0000-4000-8000-000000000000"
 
 def test_prescricao_endpoint():
     """Testa se o endpoint de prescrição responde corretamente"""

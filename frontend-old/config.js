@@ -5,4 +5,4 @@ const API = 'http://127.0.0.1:8000';
 
 // API Key para autenticação em endpoints protegidos
 // Deve corresponder ao FIELDNODE_API_KEY definido em settings.py
-const API_KEY = 'fieldnode-demo-2024';
+const API_KEY = '00000000-0000-4000-8000-000000000000';
