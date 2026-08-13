@@ -88,7 +88,7 @@ python manage.py mqtt_listen
 # Via API
 curl -X POST http://localhost:8000/api/telemetria/ \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: fieldnode-demo-2024" \
+  -H "X-API-Key: 00000000-0000-4000-8000-000000000000" \
   -d '{
     "id": "uuid-aqui",
     "maquina_id": "TEST-01",

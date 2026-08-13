@@ -36,7 +36,8 @@ ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split
 
 # Configurações de CORS para permitir que o Dashboard acesse a API
 CORS_ALLOWED_ORIGINS = env_config(
-    "CORS_ALLOWED_ORIGINS", default="http://localhost:3000,http://127.0.0.1:3000"
+    "CORS_ALLOWED_ORIGINS",
+    default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3005,http://127.0.0.1:3005",
 ).split(",")
 CORS_ALLOW_CREDENTIALS = True
 

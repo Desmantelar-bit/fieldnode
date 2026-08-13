@@ -20,7 +20,7 @@ import requests
 API_HOST = os.environ.get("FIELDNODE_API_HOST", "http://127.0.0.1:8000")
 API_BASE = os.environ.get("FIELDNODE_API_URL", f"{API_HOST}/api")
 FRONTEND_URL = os.environ.get("FIELDNODE_FRONTEND_URL", "http://127.0.0.1:3000")
-API_KEY = os.environ.get("FIELDNODE_API_KEY", "fieldnode-demo-2024")
+API_KEY = os.environ.get("FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")
 TIMEOUT = 5
 
 def print_status(msg, status="INFO"):

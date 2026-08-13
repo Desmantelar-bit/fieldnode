@@ -22,7 +22,7 @@ def mon():
     while True:
         try:
             s=time.time()
-            requests.get('http://127.0.0.1:8000/api/status-maquinas/',headers={'X-API-Key':'fieldnode-demo-2024'},timeout=3)
+            requests.get('http://127.0.0.1:8000/api/status-maquinas/',headers={'X-API-Key':'00000000-0000-4000-8000-000000000000'},timeout=3)
             lat.append((time.time()-s)*1000)
         except:errors+=1
         time.sleep(30)

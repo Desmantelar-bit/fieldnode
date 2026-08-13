@@ -65,7 +65,7 @@ def verificar_prescricao(maquina_id):
     try:
         r = requests.get(
             f"http://127.0.0.1:8000/api/prescricoes/?maquina_id={maquina_id}",
-            headers={"X-API-Key": "fieldnode-demo-2024"},
+            headers={"X-API-Key": "00000000-0000-4000-8000-000000000000"},
             timeout=3,
         )
         return r.json() if r.status_code == 200 else None
