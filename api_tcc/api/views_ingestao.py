@@ -28,6 +28,7 @@ import io
 
 from api_tcc.models import LeituraTelemetria, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
+from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import agendar_processamento_ia
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
@@ -71,6 +72,12 @@ class IngestaoTelemetriaView(APIView):
     Idempotência: UUID duplicado retorna 200 sem reprocessar.
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """
+    throttle_classes = [IngestaoThrottle]
+
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            return super().get_throttles()
+        return []
 
     def _verificar_api_key(self, request) -> bool:
         api_key = request.headers.get('X-API-Key')
