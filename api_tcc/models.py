@@ -158,6 +158,8 @@ class TemperaturaMaquina(models.Model):
 
 
 class Colheitadeira(models.Model):
+    # Relações de catálogo/configuração: não podem remover uma máquina nem seu
+    # histórico operacional quando um cadastro de referência for excluído.
     modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
     maquina_id         = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name='ID da Máquina (Telemetria)')
     ativo              = models.BooleanField(default=True, db_index=True, verbose_name='Ativa')
@@ -168,6 +170,8 @@ class Colheitadeira(models.Model):
     temp_umi_ambiente  = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.PROTECT, verbose_name='Temp./Umidade Ambiente')
     temperatura_maquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.PROTECT, verbose_name='Temperatura da Máquina')
     operario           = models.ForeignKey(Operario,          on_delete=models.PROTECT, verbose_name='Operário')
+    # Embora representem estado operacional, estes registros são referenciados
+    # pela máquina; PROTECT evita apagar a máquina por exclusão do snapshot.
     status_de_operacao  = models.ForeignKey(StatusdeOperacao,  on_delete=models.PROTECT, verbose_name='Status de Operação')
     estado_de_movimento = models.ForeignKey(EstadodeMovimento, on_delete=models.PROTECT, verbose_name='Estado de Movimento')
 
