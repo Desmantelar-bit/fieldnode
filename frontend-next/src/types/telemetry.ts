@@ -62,7 +62,6 @@ export const StatusRiscoSchema = z.object({
 
 export const TelemetrySchema = TelemetryInputSchema.extend({
   id: z.string().optional(),
-  seq_id: z.coerce.number().optional(),
   status_risco: StatusRiscoSchema.optional(),
   total_leituras: z.coerce.number().optional(),
   recebido_em: z.string().optional(),

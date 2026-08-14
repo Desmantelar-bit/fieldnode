@@ -268,7 +268,6 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
         model = LeituraTelemetria
         fields = [
             "id",
-            "seq_id",
             "maquina_id",
             "temperatura",
             "vibracao",
@@ -281,7 +280,6 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {
             'id':          {'read_only': True},
-            'seq_id':      {'read_only': True},
             'recebido_em': {'read_only': True},
         }
 

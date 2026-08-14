@@ -128,13 +128,12 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             timestamp=timestamp,
         )
         leitura.save()
-        logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
-                    leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
+        logger.info("Leitura registrada com sucesso. UUID: %s | maquina: %s | temp: %.1f°C",
+                    leitura.id, leitura.maquina_id, leitura.temperatura)
         return "criado", str(leitura.id)
 
     except IntegrityError:
-        # Um IntegrityError também pode ser causado pelo seq_id em uma gravação
-        # concorrente. Só tratamos como duplicata quando o UUID realmente existe;
+        # Só tratamos o conflito como duplicata quando o UUID realmente existe;
         # caso contrário, não escondemos perda de telemetria como idempotência.
         if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
             logger.info("UUID ignorado (race condition): %s | maquina: %s",

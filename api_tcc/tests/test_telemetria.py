@@ -4,6 +4,8 @@ from django.conf import settings
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from api_tcc.api.serializers import LeituraTelemetriaSerializer
+
 from api_tcc.models import (
     AlturadoCorte,
     Colheitadeira,
@@ -81,6 +83,8 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["status"], "ok")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
+        leitura = LeituraTelemetria.objects.get()
+        self.assertNotIn("seq_id", LeituraTelemetriaSerializer(leitura).data)
 
     def test_ingestao_invalida_retorna_400(self):
         response = self.client.post(
