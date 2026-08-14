@@ -13,6 +13,7 @@ consome ~30% da memória flash disponível. API key simples via header
 é o equilíbrio correto entre segurança e limitação de hardware.
 """
 import logging
+import math
 
 from django.conf import settings
 from django.db import connection
@@ -29,10 +30,24 @@ import io
 from api_tcc.models import LeituraTelemetria, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.api.throttles import IngestaoThrottle
-from api_tcc.ia.pipeline import agendar_processamento_ia
+from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
+
+
+def _serializar_analise(analise):
+    """Converte NaN das métricas estatísticas em null válido para JSON."""
+    def normalizar(valor):
+        if isinstance(valor, float) and not math.isfinite(valor):
+            return None
+        if isinstance(valor, dict):
+            return {chave: normalizar(item) for chave, item in valor.items()}
+        if isinstance(valor, list):
+            return [normalizar(item) for item in valor]
+        return valor
+
+    return normalizar(analise.__dict__)
 
 
 class HealthView(APIView):
@@ -59,8 +74,8 @@ class AnomaliaView(APIView):
             )
 
         logger.debug("Requisição de anomalias. maquina_id=%s", maquina)
-        resultado = agendar_processamento_ia(maquina, modelos=("anomalias",))
-        return Response(resultado)
+        analise = analisar_maquina(maquina)
+        return Response(_serializar_analise(analise))
 
 
 class IngestaoTelemetriaView(APIView):
@@ -95,13 +110,8 @@ class IngestaoTelemetriaView(APIView):
         resultado, detalhe = registrar_leitura(request.data)
 
         if resultado == "criado":
-            # A ingestão termina assim que a leitura é persistida. Os modelos
-            # analíticos seguem para a fila e não atrasam o firmware/ESP32.
-            agendamento = agendar_processamento_ia(
-                request.data.get("maquina_id"),
-                modelos=("anomalias", "estado", "manutencao"),
-            )
-            return Response({'status': 'ok', 'id': detalhe, 'ia': agendamento},
+            analise = analisar_maquina(request.data.get("maquina_id"))
+            return Response({'status': 'ok', 'id': detalhe, 'ia': _serializar_analise(analise)},
                             status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
@@ -234,8 +244,8 @@ class ManutencaoView(APIView):
                 status=400
             )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
-        resultado = agendar_processamento_ia(maquina, modelos=("manutencao",))
-        return Response(resultado)
+        analise = analisar_maquina(maquina)
+        return Response(_serializar_analise(analise))
 
 
 class MetricasView(APIView):
@@ -496,5 +506,5 @@ class PrescricaoView(APIView):
                 status=400,
             )
 
-        resultado = agendar_processamento_ia(maquina_id, modelos=("prescricao",))
-        return Response(resultado)
+        analise = analisar_maquina(maquina_id)
+        return Response(_serializar_analise(analise))

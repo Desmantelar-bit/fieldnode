@@ -4,9 +4,6 @@ from datetime import datetime, time, timedelta
 from django.http import HttpResponse
 from django.utils import timezone
 from api_tcc.models import LeituraTelemetria, Prescricao, Colheitadeira
-from api_tcc.ia.anomalias import detectar_anomalias
-from api_tcc.ia.manutencao import prever_manutencao
-from api_tcc.ia.prescricoes import gerar_prescricao
 
 def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
     """

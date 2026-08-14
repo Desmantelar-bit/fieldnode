@@ -21,35 +21,11 @@ Um nó ESP32 com sensor de temperatura, vibração e GPS custa menos de R$ 150. 
 
 ## 2. O que acontece quando a IA falha ou não tem dados suficientes?
 
-O pipeline foi projetado para degradar sem quebrar. Há dois cenários distintos:
+O pipeline determinístico não exige um mínimo de leituras. `analisar_maquina()` carrega uma janela de até 500 registros e, quando não há telemetria, `calcular_features()` retorna `{}`. Como as regras usam valores padrão com `dict.get()`, o resultado é `NORMAL`, sem recomendação e sem exceção.
 
-**Dados insuficientes (caso mais comum no início da implantação).**
-A função `carregar_dados()` em `api_tcc/ia/pipeline.py` exige mínimo de 10 leituras antes de alimentar qualquer modelo:
+Com somente uma leitura, métricas que não podem ser calculadas, como a tendência e o desvio padrão, são representadas como `null` na resposta HTTP. A ingestão da telemetria já persistida não é desfeita se a análise falhar; a exceção é tratada pela infraestrutura HTTP padrão e pode ser investigada nos logs.
 
-```python
-if len(registros) < minimo:
-    return {
-        "status": "dados_insuficientes",
-        "minimo": minimo,
-        "atual": len(registros),
-    }
-```
-
-Quando isso ocorre, `gerar_prescricao()` em `api_tcc/ia/prescricoes.py` retorna `{"status": "dados_insuficientes", "detalhe": "Requer mínimo de 10 leituras, atual: N"}` — sem exceção, sem HTTP 500, sem prescrição inventada. O frontend trata esse estado com `ErrorState` de variante `insufficient`.
-
-**Falha de modelo (exceção inesperada).**
-O worker de IA roda em thread daemon separada (`_ia_worker` em `pipeline.py`). Se um modelo lançar exceção, o `try/except` do worker captura, loga via `logger.exception()` e continua processando a fila. A ingestão de telemetria não é afetada — o ESP32 já recebeu `201` antes do worker sequer começar a processar.
-
-```python
-try:
-    rodar_modelos(maquina_id, modelos=modelos)
-except Exception:
-    logger.exception("Falha no processamento de IA agendado para %s", maquina_id)
-finally:
-    _ia_work_queue.task_done()
-```
-
-O dado entra no banco independentemente do resultado da IA. A prescrição simplesmente não é gerada naquele ciclo — na próxima leitura, o worker tenta novamente.
+Não há modelo estatístico, fila em memória nem worker de IA neste estágio. As regras de temperatura, tendência e vibração estão centralizadas em `api_tcc/ia/pipeline.py` e documentadas em `docs/limiares.md`.
 
 ---
 

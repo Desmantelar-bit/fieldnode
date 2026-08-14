@@ -1,141 +1,89 @@
 """
-api_tcc/ia/pipeline.py
-
-Pipeline centralizado de leitura e execucao dos modelos de IA.
-
-Views e futuros workers devem chamar este modulo em vez de montar queries e
-orquestrar modelos por conta propria. Menos duplicacao, menos surpresa, menos
-API esperando cada pedaco do sistema bancar o chef e o garcom ao mesmo tempo.
+Pipeline único de análise de telemetria.
+Fluxo: leituras -> validação -> normalização -> features -> anomalia -> risco -> prescrição
+Nenhum outro módulo de IA deve consultar o banco diretamente. Tudo passa por aqui.
 """
-import logging
-from queue import Empty, Queue
-from threading import Event, Thread
-
+from dataclasses import dataclass
+from typing import Optional
 import pandas as pd
-
-from api_tcc.models import LeituraTelemetria
-
-logger = logging.getLogger(__name__)
-_ia_work_queue = Queue()
-_stop_ia_worker = Event()
+from django.db.models import QuerySet
 
 
-def _ia_worker():
-    logger.info("Worker de IA em background iniciado")
-    while not _stop_ia_worker.is_set():
-        try:
-            maquina_id, modelos = _ia_work_queue.get(timeout=1.0)
-        except Empty:
-            continue
-
-        try:
-            logger.debug(
-                "Processando IA em background para %s, modelos=%s",
-                maquina_id,
-                modelos,
-            )
-            rodar_modelos(maquina_id, modelos=modelos)
-        except Exception:
-            logger.exception(
-                "Falha no processamento de IA agendado para %s", maquina_id
-            )
-        finally:
-            _ia_work_queue.task_done()
+@dataclass
+class ResultadoAnalise:
+    maquina_id: str
+    status: str          # 'NORMAL' | 'ATENCAO' | 'CRITICO'
+    motivos: list[str]
+    metricas: dict
+    recomendacao: Optional[str]
 
 
-def agendar_processamento_ia(maquina_id, modelos=None):
-    """Enfileira o processamento de IA e retorna imediatamente."""
-    if not maquina_id:
-        return {
-            "status": "erro",
-            "detalhe": "maquina_id e obrigatorio",
-        }
+def carregar_janela(maquina_id: str, limite: int = 500) -> pd.DataFrame:
+    """Única função autorizada a consultar LeituraTelemetria para fins de IA."""
+    from api_tcc.models import LeituraTelemetria
+    qs: QuerySet = (
+        LeituraTelemetria.objects
+        .filter(maquina_id=maquina_id)
+        .order_by('-timestamp')
+        .values('timestamp', 'temperatura', 'vibracao', 'rpm')[:limite]
+    )
+    return pd.DataFrame.from_records(qs)
 
-    modelos = tuple(modelos) if modelos else ("anomalias", "estado", "manutencao")
-    _ia_work_queue.put((maquina_id, modelos))
 
+def calcular_features(df: pd.DataFrame) -> dict:
+    """Média móvel, delta entre leituras, tempo contínuo acima de limiar — tudo centralizado aqui."""
+    if df.empty:
+        return {}
     return {
-        "status": "agendado",
-        "maquina_id": maquina_id,
-        "modelos": list(modelos),
+        'temp_media': df['temperatura'].mean(),
+        'temp_max': df['temperatura'].max(),
+        'temp_tendencia': df['temperatura'].diff().mean(),
+        'vib_media': df['vibracao'].mean(),
+        'rpm_std': df['rpm'].std(),
     }
 
 
-def carregar_dados(maquina_id, limite=300, minimo=10):
-    """
-    Carrega as ultimas leituras validas de uma maquina como DataFrame.
+def detectar_anomalia(features: dict) -> tuple[bool, list[str]]:
+    """Regras determinísticas documentadas — nada de threshold chutado sem justificativa."""
+    motivos = []
+    # LIMIARES DEFINIDOS PARA FINS DE PROTOTIPAÇÃO — documentar a origem
+    # (dataset simulado de bancada, ver docs/limiares.md)
+    if features.get('temp_max', 0) > 85:
+        motivos.append('temperatura acima de 85°C')
+    if features.get('temp_tendencia', 0) > 0.5:
+        motivos.append('tendência de aumento sustentado de temperatura')
+    if features.get('vib_media', 0) > 5:
+        motivos.append('vibração média acima do padrão esperado')
+    return (len(motivos) > 0, motivos)
 
-    Retorna um dict de erro quando nao ha maquina_id ou quando nao existe volume
-    minimo de dados para os modelos.
-    """
-    if not maquina_id:
-        return {
-            "status": "erro",
-            "detalhe": "maquina_id e obrigatorio",
-        }
 
-    registros = list(
-        LeituraTelemetria.objects.filter(maquina_id=maquina_id)
-        .order_by("-timestamp")
-        .values("id", "maquina_id", "temperatura", "vibracao", "rpm", "timestamp")[:limite]
+def classificar_risco(motivos: list[str]) -> str:
+    if len(motivos) >= 2:
+        return 'CRITICO'
+    if len(motivos) == 1:
+        return 'ATENCAO'
+    return 'NORMAL'
+
+
+def gerar_recomendacao(status: str, motivos: list[str]) -> Optional[str]:
+    if status == 'NORMAL':
+        return None
+    if status == 'ATENCAO':
+        return f"Recomenda-se inspeção preventiva. Motivo: {'; '.join(motivos)}."
+    return f"Inspeção imediata recomendada antes da próxima operação. Motivos: {'; '.join(motivos)}."
+
+
+def analisar_maquina(maquina_id: str) -> ResultadoAnalise:
+    """Ponto de entrada único. Qualquer view ou management command chama SÓ isso."""
+    df = carregar_janela(maquina_id)
+    features = calcular_features(df)
+    tem_anomalia, motivos = detectar_anomalia(features)
+    status = classificar_risco(motivos)
+    recomendacao = gerar_recomendacao(status, motivos)
+    return ResultadoAnalise(
+        maquina_id=maquina_id,
+        status=status,
+        motivos=motivos,
+        metricas=features,
+        recomendacao=recomendacao,
     )
-
-    if len(registros) < minimo:
-        return {
-            "status": "dados_insuficientes",
-            "minimo": minimo,
-            "atual": len(registros),
-        }
-
-    # A consulta acima limita às leituras mais recentes; os modelos recebem a
-    # mesma janela em ordem cronológica para rolling/diff terem sentido físico.
-    df = pd.DataFrame(registros).dropna().sort_values("timestamp").reset_index(drop=True)
-
-    if len(df) < minimo:
-        return {
-            "status": "dados_insuficientes",
-            "minimo": minimo,
-            "atual": len(df),
-        }
-
-    return df
-
-
-def rodar_modelos(maquina_id, modelos=None):
-    """
-    Executa modelos por um ponto unico de entrada.
-
-    Imports locais evitam ciclo entre modulos. Esse contrato tambem permite
-    plugar um worker de background depois sem reescrever as views.
-    """
-    if not maquina_id:
-        return {"status": "erro", "detalhe": "maquina_id e obrigatorio"}
-
-    modelos = set(modelos or ("anomalias", "estado", "manutencao"))
-    resultado = {"status": "ok", "maquina_id": maquina_id}
-
-    if "anomalias" in modelos:
-        from api_tcc.ia.anomalias import detectar_anomalias
-
-        resultado["anomalias"] = detectar_anomalias(maquina_id=maquina_id)
-
-    if "estado" in modelos:
-        from api_tcc.ia.estado import classificar_estado
-
-        resultado["estado"] = classificar_estado(maquina_id=maquina_id)
-
-    if "manutencao" in modelos:
-        from api_tcc.ia.manutencao import prever_manutencao
-
-        resultado["manutencao"] = prever_manutencao(maquina_id=maquina_id)
-
-    if "prescricao" in modelos:
-        from api_tcc.ia.prescricoes import gerar_prescricao
-
-        resultado["prescricao"] = gerar_prescricao(maquina_id=maquina_id)
-
-    return resultado
-
-
-_thread = Thread(target=_ia_worker, daemon=True, name="FieldNodeIAWorker")
-_thread.start()

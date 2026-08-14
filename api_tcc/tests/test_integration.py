@@ -280,8 +280,8 @@ class EndpointIngestaoTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(LeituraTelemetria.objects.count(), 0)
 
-    def test_prescricao_gera_e_persiste_historico(self):
-        """Testa que a prescrição é enfileirada e o endpoint retorna status correto."""
+    def test_prescricao_retorna_analise_deterministica(self):
+        """O endpoint de prescrição usa o resultado único do pipeline."""
         maquina_id = "COLH-TEST-01"
         _criar_maquina_teste(maquina_id)
 
@@ -294,16 +294,14 @@ class EndpointIngestaoTest(TestCase):
                 )
             )
 
-        # GET para gerar prescrição (enfileira em background)
+        # GET retorna a análise determinística; não cria uma prescrição automática.
         response = self.client.get(f"/api/prescricoes/?maquina_id={maquina_id}")
         self.assertEqual(response.status_code, 200)
-        # Retorna "agendado" pois processamento é assíncrono
-        self.assertEqual(response.data["status"], "agendado")
+        self.assertEqual(response.data["status"], "NORMAL")
         self.assertEqual(response.data["maquina_id"], maquina_id)
-        self.assertIn("modelos", response.data)
-        self.assertIn("prescricao", response.data["modelos"])
-
-        # Nota: Validação de persistência ocorre em integração com worker real (vide scripts/)
+        self.assertIn("metricas", response.data)
+        self.assertIn("recomendacao", response.data)
+        self.assertIsNone(response.data["recomendacao"])
 
     def test_lista_prescricoes_retorna_historico(self):
         maquina_id = "COLH-TEST-01"
@@ -335,20 +333,19 @@ class EndpointIngestaoTest(TestCase):
 # ──────────────────────────────────────────────────────────────
 class IAResilienciaTest(TestCase):
     """
-    A IA exige mínimo de leituras para funcionar.
-    Garantir que ela retorna status claro em vez de erro 500
-    quando há poucos dados — situação comum no início da implantação.
+    A IA não deve quebrar quando não há leituras — situação comum no início
+    da implantação.
     """
 
     def setUp(self):
         self.client = APIClient()
 
-    def test_anomalias_sem_dados_retorna_dados_insuficientes(self):
-        # Agora a view apenas agenda o processamento; o worker decide se há dados
+    def test_anomalias_sem_dados_retorna_normal_sem_metricas(self):
         response = self.client.get("/api/anomalias/?maquina_id=MAQUINA-INEXISTENTE")
         self.assertEqual(response.status_code, 200)
-        # Resposta imediata: processamento foi enfileirado
-        self.assertEqual(response.data["status"], "agendado")
+        self.assertEqual(response.data["status"], "NORMAL")
+        self.assertEqual(response.data["metricas"], {})
+        self.assertIsNone(response.data["recomendacao"])
 
     def test_manutencao_sem_maquina_id_retorna_400(self):
         response = self.client.get("/api/manutencao/")
