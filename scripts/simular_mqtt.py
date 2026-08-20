@@ -12,7 +12,11 @@ Cenários simulados:
     - CASE-TC5000-01: Operação normal
     - CASE-TC5070-01: Atenção (temperatura elevada)
     - NH-CR9000-01: Crítico (superaquecimento)
-    - JD-S780-01: Normal com variação
+    - NH-CR8090-02: Operação normal
+    - NH-CR7090-03: Atenção (temperatura elevada)
+    - VALTRA-BC8800-01: Operação normal
+    - VALTRA-BC6800-02: Operação normal
+    - VALTRA-BC5800-03: Atenção (temperatura elevada)
 """
 
 import paho.mqtt.client as mqtt
@@ -20,7 +24,7 @@ import json
 import uuid
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 BROKER = 'localhost'
 PORT = 1883
@@ -36,8 +40,20 @@ CENARIOS = {
     "NH-CR9000-01": {
         "temp": (85, 93), "vib": (0.75, 0.95), "rpm": (1100, 1300)
     },
-    "JD-S780-01": {
-        "temp": (68, 78), "vib": (0.30, 0.54), "rpm": (1700, 1940)
+    "NH-CR8090-02": {
+        "temp": (70, 78), "vib": (0.30, 0.50), "rpm": (1650, 1850)
+    },
+    "NH-CR7090-03": {
+        "temp": (76, 84), "vib": (0.45, 0.65), "rpm": (1550, 1750)
+    },
+    "VALTRA-BC8800-01": {
+        "temp": (72, 80), "vib": (0.35, 0.55), "rpm": (1700, 1900)
+    },
+    "VALTRA-BC6800-02": {
+        "temp": (69, 77), "vib": (0.28, 0.48), "rpm": (1750, 1950)
+    },
+    "VALTRA-BC5800-03": {
+        "temp": (78, 86), "vib": (0.50, 0.75), "rpm": (1500, 1700)
     },
 }
 
@@ -48,7 +64,7 @@ def gerar_leitura(maquina_id, cenario):
         "temperatura": round(random.uniform(*cenario["temp"]), 1),
         "vibracao": round(random.uniform(*cenario["vib"]), 2),
         "rpm": int(random.uniform(*cenario["rpm"])),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 def main():

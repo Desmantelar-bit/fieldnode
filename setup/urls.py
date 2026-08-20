@@ -22,7 +22,7 @@ from django.conf import settings
 import os
 from rest_framework import routers
 from api_tcc.api import viewsets
-from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView
+from api_tcc.api.views_ingestao import AnomaliaView, IngestaoTelemetriaView, UltimaLeituraView, ManutencaoView, MetricasView, StatusMQTTView, PrescricaoView, RelatorioView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -49,24 +49,25 @@ schema_view = get_schema_view(
 )
 
 router = routers.DefaultRouter()
-router.register(r'Unidadedemedida', viewsets.UnidadedeMedidaViewSet, basename='unidadedemedida')
-router.register(r'Marca', viewsets.MarcaViewSet, basename='marca')
-router.register(r'Modelo', viewsets.ModeloViewSet, basename='modelo')
-router.register(r'Combustivel', viewsets.CombustivelViewSet, basename='combustivel')
-router.register(r'Operario', viewsets.OperarioViewSet, basename='operario')
-router.register(r'Pressaopneus', viewsets.PressaoPneusViewSet, basename='pressaopneus')
-router.register(r'Alturadocorte', viewsets.AlturadoCorteViewSet, basename='alturadocorte')
-router.register(r'Pressaodocorte', viewsets.PressaodoCorteViewSet, basename='pressaodocorte')
-router.register(r'Tempumi_ambiente', viewsets.TempUmi_AmbienteViewSet, basename='tempumi_ambiente')
-router.register(r'Temperaturamaquina', viewsets.TemperaturaMaquinaViewSet, basename='temperaturamaquina')
-router.register(r'Statusdeoperacao', viewsets.StatusdeOperacaoViewSet, basename='statusdeoperacao')
-router.register(r'Estadodemovimento', viewsets.EstadodeMovimentoViewSet, basename='estadodemovimento')
-router.register(r'Transbordo', viewsets.TransbordoViewSet, basename='transbordo')
-router.register(r'Colheitadeira', viewsets.ColheitadeiraViewSet, basename='colheitadeira')
+router.register(r'unidadedemedida', viewsets.UnidadedeMedidaViewSet, basename='unidadedemedida')
+router.register(r'marca', viewsets.MarcaViewSet, basename='marca')
+router.register(r'modelo', viewsets.ModeloViewSet, basename='modelo')
+router.register(r'combustivel', viewsets.CombustivelViewSet, basename='combustivel')
+router.register(r'operario', viewsets.OperarioViewSet, basename='operario')
+router.register(r'pressaopneus', viewsets.PressaoPneusViewSet, basename='pressaopneus')
+router.register(r'alturadocorte', viewsets.AlturadoCorteViewSet, basename='alturadocorte')
+router.register(r'pressaodocorte', viewsets.PressaodoCorteViewSet, basename='pressaodocorte')
+router.register(r'tempumi_ambiente', viewsets.TempUmi_AmbienteViewSet, basename='tempumi_ambiente')
+router.register(r'temperaturamaquina', viewsets.TemperaturaMaquinaViewSet, basename='temperaturamaquina')
+router.register(r'statusdeoperacao', viewsets.StatusdeOperacaoViewSet, basename='statusdeoperacao')
+router.register(r'estadodemovimento', viewsets.EstadodeMovimentoViewSet, basename='estadodemovimento')
+router.register(r'transbordo', viewsets.TransbordoViewSet, basename='transbordo')
+router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colheitadeira')
 
 urlpatterns = [ # Rota para o admin e para as APIs geradas pelos viewsets
+    path('', include(router.urls)),  # API Root na raiz
     path('admin/', admin.site.urls),
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
     path('api/telemetria/', IngestaoTelemetriaView.as_view(), name='ingestao-telemetria'),
 ]
 
@@ -80,4 +81,17 @@ urlpatterns += [ # Rota para detecção de anomalias
     path('api/anomalias/', AnomaliaView.as_view(), name='anomalias'),
     path('api/leituras/ultimas/', UltimaLeituraView.as_view(), name='ultimas-leituras'),
     path('api/manutencao/', ManutencaoView.as_view(), name='manutencao'),
+    path('api/metricas/', MetricasView.as_view(), name='metricas'),
+    path('api/status-mqtt/', StatusMQTTView.as_view(), name='status-mqtt'),
+    path('api/prescricoes/', PrescricaoView.as_view(), name='prescricao'),
+    path('api/relatorio/', RelatorioView.as_view(), name='relatorio'),
+]
+
+# Rotas para o frontend
+# IMPORTANTE: Não usar path('', ...) aqui pois conflita com DefaultRouter
+# Acesse o dashboard em: http://127.0.0.1:8000/frontend/dashboard.html
+# Acesse a landing page em: http://127.0.0.1:8000/frontend/
+urlpatterns += [
+    path('frontend/<path:filename>', serve_frontend, name='frontend-file'),
+    path('frontend/', serve_frontend, name='frontend-index'),
 ]

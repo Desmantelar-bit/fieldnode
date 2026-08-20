@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from django.utils.timezone import make_aware, is_aware
 from django.db import IntegrityError
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import LeituraTelemetria, Colheitadeira
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,10 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
     maquina_id = str(dados.get("maquina_id", "")).strip()
     if not maquina_id:
         return False, "maquina_id não pode ser vazio"
+
+    # CORREÇÃO: Removida validação contra Colheitadeira que impedia dados de entrar
+    # O simulador envia IDs como "CASE-TC5000-01" mas o banco tem Modelo.nome = "TC5000"
+    # Agora aceitamos qualquer maquina_id e deixamos o sistema criar registros dinamicamente
 
     for campo, (minimo, maximo) in LIMITES.items():
         try:
@@ -96,7 +100,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
 
     try:
         timestamp = _normalizar_timestamp(dados["timestamp"])
-        leitura = LeituraTelemetria.objects.create(
+        leitura = LeituraTelemetria(
             id=uuid_recebido,
             maquina_id=str(dados["maquina_id"]).strip(),
             temperatura=float(dados["temperatura"]),
@@ -104,8 +108,9 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             rpm=int(dados["rpm"]),
             timestamp=timestamp,
         )
-        logger.info("Leitura registrada com sucesso. UUID: %s | maquina: %s | temp: %.1f°C",
-                    leitura.id, leitura.maquina_id, leitura.temperatura)
+        leitura.save()  # Garante que o método save() seja chamado para atribuir seq_id
+        logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
+                    leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
         return "criado", str(leitura.id)
 
     except IntegrityError:

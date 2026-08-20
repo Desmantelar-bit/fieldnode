@@ -16,7 +16,12 @@ Para rodar:
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.conf import settings
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import (
+    LeituraTelemetria, Colheitadeira, Modelo, Marca,
+    Combustivel, PressaoPneus, AlturadoCorte, PressaodoCorte,
+    TempUmi_Ambiente, TemperaturaMaquina, Operario,
+    StatusdeOperacao, EstadodeMovimento
+)
 from api_tcc.services.telemetria import validar_payload, registrar_leitura
 import uuid
 
@@ -24,6 +29,83 @@ import uuid
 # ──────────────────────────────────────────────────────────────
 # Fixtures reutilizáveis
 # ──────────────────────────────────────────────────────────────
+def _criar_maquina_teste(maquina_id: str):
+    """
+    Cria todos os related objects necessários para uma Colheitadeira.
+    Reutiliza objetos compartilhados quando possível.
+    """
+    # Criar ou reutilizar Unidade de Medida (necessária para vários ForeignKeys)
+    from api_tcc.models import UnidadedeMedida
+    unidade, _ = UnidadedeMedida.objects.get_or_create(
+        id=1,
+        defaults={"nome": "Centímetro"}
+    )
+    
+    # Reutilizar Marca se existir
+    marca, _ = Marca.objects.get_or_create(nome="CLAAS")
+    
+    # Criar Modelo com o maquina_id como nome
+    modelo, _ = Modelo.objects.get_or_create(
+        nome=maquina_id,
+        defaults={"marca": marca}
+    )
+    
+    # Reutilizar ou criar objetos comuns
+    combustivel, _ = Combustivel.objects.get_or_create(
+        tipo="Diesel",
+        defaults={"porcentagem": 100.0}
+    )
+    pressao_pneus, _ = PressaoPneus.objects.get_or_create(
+        pressao=2.5,
+        defaults={"unidade_de_medida": unidade}
+    )
+    altura_corte, _ = AlturadoCorte.objects.get_or_create(
+        altura=5.0,
+        defaults={"unidade_de_medida": unidade}
+    )
+    pressao_corte, _ = PressaodoCorte.objects.get_or_create(
+        pressao=30.0,
+        defaults={"unidade_de_medida": unidade}
+    )
+    temp_umi, _ = TempUmi_Ambiente.objects.get_or_create(
+        temperatura=25.0,
+        umidade=60.0
+    )
+    temp_maquina, _ = TemperaturaMaquina.objects.get_or_create(
+        temperatura=85.0,
+        defaults={"maquina": modelo}
+    )
+    operario, _ = Operario.objects.get_or_create(
+        nome="Operário Teste",
+        defaults={"tempo_de_servico": 5, "no_banco": True}
+    )
+    status_op, _ = StatusdeOperacao.objects.get_or_create(
+        em_operacao=True,
+        defaults={"tempo_de_operacao": 8.0}
+    )
+    estado_mov, _ = EstadodeMovimento.objects.get_or_create(
+        em_movimento=True,
+        defaults={"velocidade": 6.5}
+    )
+    
+    # Criar Colheitadeira
+    colheitadeira, _ = Colheitadeira.objects.get_or_create(
+        modelo=modelo,
+        defaults={
+            "combustivel": combustivel,
+            "pressao_pneus": pressao_pneus,
+            "altura_do_corte": altura_corte,
+            "pressao_do_corte": pressao_corte,
+            "temp_umi_ambiente": temp_umi,
+            "temperatura_maquina": temp_maquina,
+            "operario": operario,
+            "status_de_operacao": status_op,
+            "estado_de_movimento": estado_mov,
+        }
+    )
+    return colheitadeira
+
+
 def _payload_valido(**overrides):
     base = {
         "id":          "123e4567-e89b-12d3-a456-426614174000",
@@ -45,6 +127,11 @@ class ValidacaoPayloadTest(TestCase):
     Garante que a função de validação rejeita exatamente o que deve rejeitar
     e aceita o que é válido — sem depender de banco ou HTTP.
     """
+    
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _criar_maquina_teste("COLH-TEST-01")
 
     def test_payload_valido_aceito(self):
         valido, motivo = validar_payload(_payload_valido())
@@ -108,6 +195,11 @@ class DeduplicacaoUUIDTest(TestCase):
     o firmware reenvía o mesmo pacote.
     O banco não pode ter duplicatas — isso corromperia análises de IA.
     """
+    
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _criar_maquina_teste("COLH-TEST-01")
 
     def test_primeira_leitura_salva(self):
         status, id_retornado = registrar_leitura(_payload_valido())
@@ -141,6 +233,11 @@ class EndpointIngestaoTest(TestCase):
     Testa o endpoint /api/telemetria/ end-to-end via HTTP.
     Cobre o fluxo completo: request → view → service → banco.
     """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _criar_maquina_teste("COLH-TEST-01")
 
     def setUp(self):
         self.client = APIClient()
@@ -210,3 +307,42 @@ class IAResilienciaTest(TestCase):
     def test_manutencao_sem_maquina_id_retorna_400(self):
         response = self.client.get("/api/manutencao/")
         self.assertEqual(response.status_code, 400)
+
+
+# ──────────────────────────────────────────────────────────────
+# 5. TESTE: MÉTRICAS OPERACIONAIS
+# ──────────────────────────────────────────────────────────────
+class MetricasTest(TestCase):
+    """
+    Testa o endpoint /api/metricas/ que fornece observabilidade
+    do sistema para dashboard e apresentações.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _criar_maquina_teste("COLH-01")
+        _criar_maquina_teste("COLH-02")
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_metricas_retorna_200_com_campos_esperados(self):
+        # Criar algumas leituras válidas
+        registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-01"))
+        registrar_leitura(_payload_valido(id=str(uuid.uuid4()), maquina_id="COLH-02"))
+        
+        response = self.client.get("/api/metricas/")
+        self.assertEqual(response.status_code, 200)
+        
+        # Verificar campos obrigatórios
+        self.assertIn("leituras_validas", response.data)
+        self.assertIn("leituras_invalidas", response.data)
+        self.assertIn("taxa_rejeicao_pct", response.data)
+        self.assertIn("maquinas_ativas", response.data)
+        
+        # Verificar valores
+        self.assertEqual(response.data["leituras_validas"], 2)
+        self.assertEqual(response.data["leituras_invalidas"], 0)
+        self.assertEqual(response.data["taxa_rejeicao_pct"], 0.0)
+        self.assertEqual(response.data["maquinas_ativas"], 2)

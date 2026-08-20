@@ -1,14 +1,14 @@
 /**
  * frontend/js/status.js
- * 
+ *
  * Gerencia a tabela de status em tempo real e o carrossel de máquinas.
- * 
+ *
  * Estado centralizado em um único objeto `tabelaState` em vez de
  * variáveis globais espalhadas — isso foi a causa raiz de vários bugs:
  * - Carrossel voltando ao início no polling (currentTableIndex não sobrevivia)
  * - Filtro de busca interferindo com o índice do carrossel
  * - Total de máquinas ficando desatualizado após reconexão da API
- * 
+ *
  * Contrato de atualização:
  * - Fonte de dados: GET /api/leituras/ultimas/
  * - Intervalo: 3 segundos
@@ -164,4 +164,121 @@ function buscarMaquina() {
   } else {
     alert(`Máquina "${termo}" não encontrada`);
   }
+}
+
+/**
+ * Abre popup com detalhes da máquina.
+ * Mostra loading imediatamente, depois carrega IA em paralelo.
+ */
+async function abrirPopupMaquina(maquinaId) {
+  const popup = document.getElementById('machine-details-popup');
+  if (!popup) return;
+
+  // Mostra popup imediatamente com loading na seção de IA
+  document.getElementById('popup-title').textContent = `Detalhes — ${maquinaId}`;
+  document.getElementById('popup-id').textContent = maquinaId;
+  document.getElementById('popup-modelo').textContent = '—';
+  document.getElementById('popup-temp').textContent = '—';
+  document.getElementById('popup-fuel').textContent = '—';
+  document.getElementById('popup-status').textContent = '—';
+  const iaBody = document.getElementById('popup-ia-body');
+  if (iaBody) iaBody.innerHTML = '<div class="popup-ia-loading">⌛ Consultando IA...</div>';
+  popup.classList.add('active');
+
+  try {
+    const [telemetrias, anomalias, manutencao] = await Promise.all([
+      apiFetch(`/api/telemetria/?maquina_id=${maquinaId}`).catch(() => []),
+      apiFetch(`/api/anomalias/?maquina_id=${maquinaId}`).catch(() => ({})),
+      apiFetch(`/api/manutencao/?maquina_id=${maquinaId}`).catch(() => ({}))
+    ]);
+
+    const ultimaTel = telemetrias.length ? telemetrias[telemetrias.length - 1] : {};
+    const maquinaInfo = tabelaState.dados.find(m => m.maquina_id === maquinaId) || ultimaTel;
+
+    document.getElementById('popup-modelo').textContent = '—';
+    document.getElementById('popup-temp').textContent = maquinaInfo.temperatura ? `${maquinaInfo.temperatura}°C` : '—';
+    document.getElementById('popup-fuel').textContent = '—';
+    document.getElementById('popup-status').textContent = maquinaInfo.nivel_risco ? rotuloRisco(maquinaInfo.nivel_risco) : '—';
+
+    _renderIaCard(anomalias, manutencao);
+
+    const detailsLink = document.getElementById('popup-details-link');
+    if (detailsLink) {
+      detailsLink.href = `detalhes.html?id=${encodeURIComponent(maquinaId)}`;
+    }
+
+  } catch (err) {
+    console.error('[popup] Erro ao carregar detalhes:', err);
+    if (iaBody) iaBody.innerHTML = '<div class="popup-ia-loading" style="color:var(--red)">⚠ Erro ao carregar análise</div>';
+  }
+}
+
+/**
+ * Renderiza o card de IA no popup com barra de risco e cores por nível.
+ */
+function _renderIaCard(anomalias, manutencao) {
+  const body = document.getElementById('popup-ia-body');
+  if (!body) return;
+
+  // Anomalia
+  let anomTxt, anomClass;
+  if (anomalias.status === 'ok') {
+    if (anomalias.total > 0) {
+      anomTxt = `⚠ ${anomalias.total} detectada${anomalias.total !== 1 ? 's' : ''}`;
+      anomClass = 'crit';
+    } else {
+      anomTxt = '✓ Nenhuma anomalia';
+      anomClass = 'ok';
+    }
+  } else if (anomalias.status === 'dados_insuficientes') {
+    anomTxt = `⌛ ${anomalias.atual}/${anomalias.minimo} leituras`;
+    anomClass = 'muted';
+  } else {
+    anomTxt = '— Indisponível';
+    anomClass = 'muted';
+  }
+
+  // Manutenção
+  let manTxt, manClass, probPct = 0, barColor = '#4ade80';
+  if (manutencao.status === 'ok') {
+    probPct = Math.round((manutencao.prob_risco || 0) * 100);
+    const nivel = (manutencao.nivel || '').toUpperCase();
+    if (nivel === 'ALTO' || nivel === 'CRITICO' || nivel === 'CRÍTICO') {
+      manClass = 'crit'; barColor = '#f87171';
+    } else if (nivel === 'MEDIO' || nivel === 'MÉDIO') {
+      manClass = 'warn'; barColor = '#fbbf24';
+    } else {
+      manClass = 'ok'; barColor = '#4ade80';
+    }
+    manTxt = `${manutencao.nivel} — ${probPct}% de risco`;
+  } else if (manutencao.status === 'dados_insuficientes') {
+    manTxt = `⌛ ${manutencao.atual}/${manutencao.minimo} leituras`;
+    manClass = 'muted';
+  } else {
+    manTxt = '— Indisponível';
+    manClass = 'muted';
+  }
+
+  const barHtml = manutencao.status === 'ok' ? `
+    <div class="popup-ia-bar-wrap">
+      <div class="popup-ia-bar-label">
+        <span>Probabilidade de falha</span>
+        <span>${probPct}%</span>
+      </div>
+      <div class="popup-ia-bar-track">
+        <div class="popup-ia-bar-fill" style="width:${probPct}%; background:${barColor};"></div>
+      </div>
+    </div>` : '';
+
+  body.innerHTML = `
+    <div class="popup-ia-row">
+      <span class="popup-ia-key">Anomalias</span>
+      <span class="popup-ia-val ${anomClass}">${anomTxt}</span>
+    </div>
+    <div class="popup-ia-row">
+      <span class="popup-ia-key">Risco de Manutenção</span>
+      <span class="popup-ia-val ${manClass}">${manTxt}</span>
+    </div>
+    ${barHtml}
+  `;
 }

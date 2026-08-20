@@ -16,9 +16,13 @@ import logging
 
 from django.conf import settings
 from django.db import connection
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from datetime import datetime
+import csv
+import io
 
 from api_tcc.models import LeituraTelemetria
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
@@ -200,4 +204,148 @@ class ManutencaoView(APIView):
             )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
         resultado = prever_manutencao(maquina_id=maquina)
+        return Response(resultado)
+
+
+class MetricasView(APIView):
+    """
+    GET /api/metricas/
+
+    Métricas operacionais do sistema em tempo real.
+    Retorna:
+    - leituras_validas: total de leituras aceitas
+    - leituras_invalidas: total de leituras rejeitadas (TelemetriaInvalida)
+    - taxa_rejeicao_pct: percentual de rejeição
+    - maquinas_ativas: número de máquinas com pelo menos uma leitura
+
+    Uso: Dashboard / apresentações para demonstrar observabilidade e
+    resiliência do sistema em campo.
+    """
+    def get(self, request):
+        from api_tcc.models import TelemetriaInvalida
+
+        total_validas = LeituraTelemetria.objects.count()
+        total_invalidas = TelemetriaInvalida.objects.count()
+        total_geral = total_validas + total_invalidas
+
+        return Response({
+            'leituras_validas': total_validas,
+            'leituras_invalidas': total_invalidas,
+            'taxa_rejeicao_pct': round(
+                (total_invalidas / max(total_geral, 1)) * 100, 1
+            ),
+            'maquinas_ativas': LeituraTelemetria.objects.values(
+                'maquina_id'
+            ).distinct().count(),
+        })
+
+
+class StatusMQTTView(APIView):
+    """
+    GET /api/status-mqtt/
+
+    Retorna status de conectividade MQTT e última leitura recebida.
+
+    Usado pelo dashboard para mostrar indicador de conexão:
+    - mqtt_conectado: bool (true se última leitura foi há < 10s)
+    - ultima_leitura_segundos_atras: int (tempo em segundos)
+    - status: str ("online" ou "offline")
+
+    Lógica: considera sistema online se recebeu alguma leitura nos últimos 10 segundos.
+    10s é escolhido conservadoramente — deixa espaço para atrasos de rede
+    mantendo responsividade de detecção de desconexão.
+    """
+    def get(self, request):
+        ultima_leitura = LeituraTelemetria.objects.order_by('-recebido_em').first()
+
+        if not ultima_leitura:
+            return Response({
+                'mqtt_conectado': False,
+                'ultima_leitura_segundos_atras': None,
+                'status': 'offline',
+                'detalhes': 'Nenhuma leitura recebida ainda'
+            })
+
+        delta = timezone.now() - ultima_leitura.recebido_em
+        segundos_atras = int(delta.total_seconds())
+        conectado = segundos_atras < 10
+
+        return Response({
+            'mqtt_conectado': conectado,
+            'ultima_leitura_segundos_atras': segundos_atras,
+            'status': 'online' if conectado else 'offline',
+        })
+
+
+class RelatorioView(APIView):
+    """
+    GET /api/relatorio/?maquina_id=COLH-01&periodo=7
+    
+    Gera relatório operacional com:
+    - Horas operadas no período
+    - Picos de temperatura registrados
+    - Número de alertas/anomalias
+    - Recomendação de manutenção
+    
+    Parâmetros:
+    - maquina_id: obrigatório
+    - periodo: dias (padrão: 7)
+    - formato: 'json' ou 'csv' (padrão: 'json')
+    """
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id')
+        if not maquina_id:
+            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
+
+        periodo_dias = int(request.query_params.get('periodo', 7))
+        formato = request.query_params.get('formato', 'json')
+
+        from api_tcc.ia.relatorio import gerar_relatorio
+        resultado = gerar_relatorio(maquina_id=maquina_id, periodo_dias=periodo_dias)
+
+        if resultado['status'] != 'ok':
+            return Response(resultado, status=400)
+
+        if formato == 'csv':
+            return Response(
+                self._build_csv(resultado['dados'], maquina_id, periodo_dias),
+                content_type='text/csv',
+                headers={'Content-Disposition':
+                         f'attachment; filename="relatorio_{maquina_id}_{periodo_dias}d_{datetime.now().strftime("%Y%m%d")}.csv"'}
+            )
+
+        return Response(resultado)
+
+    def _build_csv(self, dados, maquina_id, periodo_dias):
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(['Relatório Operacional - FieldNode'])
+        w.writerow(['Máquina', maquina_id])
+        w.writerow(['Período', f'{periodo_dias} dias'])
+        w.writerow(['Gerado em', datetime.now().strftime('%d/%m/%Y %H:%M')])
+        w.writerow([])
+        w.writerow(['Métrica', 'Valor'])
+        w.writerow(['Horas Operadas', f"{dados['horas_operadas']:.1f}h"])
+        w.writerow(['Pico de Temperatura', f"{dados['pico_temperatura']}°C"])
+        w.writerow(['Número de Alertas', dados['num_alertas']])
+        w.writerow(['Recomendação', dados['recomendacao_manutencao']])
+        return buf.getvalue()
+
+
+class PrescricaoView(APIView):
+    """
+    GET /api/prescricoes/?maquina_id=COLH-01
+
+    Gera prescrições de manutenção baseadas em análise de IA.
+    Requer mínimo de leituras históricas para gerar recomendações.
+
+    Parâmetro obrigatório: maquina_id
+    Retorna lista de prescrições com ações recomendadas e prioridade.
+    """
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id')
+        if not maquina_id:
+            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
+        from api_tcc.ia.prescricoes import gerar_prescricao
+        resultado = gerar_prescricao(maquina_id=maquina_id, limite=10)
         return Response(resultado)
