@@ -62,6 +62,23 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
                 f"Possível falha de sensor."
             )
 
+    # Validação opcional de latitude e longitude
+    if "latitude" in dados and dados["latitude"] is not None:
+        try:
+            lat = float(dados["latitude"])
+            if not (-90 <= lat <= 90):
+                return False, f"latitude={lat} fora do range [-90, 90]"
+        except (TypeError, ValueError):
+            return False, f"latitude não é numérica: {dados['latitude']!r}"
+
+    if "longitude" in dados and dados["longitude"] is not None:
+        try:
+            lng = float(dados["longitude"])
+            if not (-180 <= lng <= 180):
+                return False, f"longitude={lng} fora do range [-180, 180]"
+        except (TypeError, ValueError):
+            return False, f"longitude não é numérica: {dados['longitude']!r}"
+
     return True, ""
 
 
@@ -94,8 +111,8 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     # Deduplicação: evita gravar o mesmo pacote duas vezes
     # (o ESP32 pode reenviar após timeout mesmo que o servidor já recebeu)
     if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
-        logger.debug("Duplicata ignorada. UUID: %s | maquina: %s",
-                     uuid_recebido, dados.get("maquina_id"))
+        logger.info("UUID ignorado (duplicata): %s | maquina: %s",
+                    uuid_recebido, dados.get("maquina_id"))
         return "duplicata", str(uuid_recebido)
 
     try:
@@ -106,17 +123,25 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             temperatura=float(dados["temperatura"]),
             vibracao=float(dados["vibracao"]),
             rpm=int(dados["rpm"]),
+            latitude=float(dados["latitude"]) if "latitude" in dados and dados["latitude"] is not None else None,
+            longitude=float(dados["longitude"]) if "longitude" in dados and dados["longitude"] is not None else None,
             timestamp=timestamp,
         )
-        leitura.save()  # Garante que o método save() seja chamado para atribuir seq_id
-        logger.info("Leitura registrada com sucesso. UUID: %s | seq_id: %s | maquina: %s | temp: %.1f°C",
-                    leitura.id, leitura.seq_id, leitura.maquina_id, leitura.temperatura)
+        leitura.save()
+        logger.info("Leitura registrada com sucesso. UUID: %s | maquina: %s | temp: %.1f°C",
+                    leitura.id, leitura.maquina_id, leitura.temperatura)
         return "criado", str(leitura.id)
 
     except IntegrityError:
-        # Race condition: dois workers receberam o mesmo UUID ao mesmo tempo
-        logger.debug("IntegrityError — duplicata por race condition. UUID: %s", uuid_recebido)
-        return "duplicata", str(uuid_recebido)
+        # Só tratamos o conflito como duplicata quando o UUID realmente existe;
+        # caso contrário, não escondemos perda de telemetria como idempotência.
+        if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
+            logger.info("UUID ignorado (race condition): %s | maquina: %s",
+                        uuid_recebido, dados.get("maquina_id"))
+            return "duplicata", str(uuid_recebido)
+        logger.exception("Conflito de integridade ao salvar leitura da maquina %s",
+                         dados.get("maquina_id"))
+        return "erro", "conflito de integridade ao salvar a leitura"
 
     except Exception as exc:
         logger.error("Falha inesperada ao salvar leitura. maquina: %s | erro: %s",
@@ -169,3 +194,32 @@ def _registrar_leitura_invalida(dados: dict, motivo: str) -> None:
     except Exception as exc:
         # Não deixa falha de auditoria derrubar o fluxo principal
         logger.error("Falha ao registrar leitura inválida (auditoria): %s", str(exc))
+
+
+def calcular_status_risco(temperatura: float, vibracao: float, rpm: int) -> dict:
+    """
+    Centraliza a lógica de classificação de risco da máquina.
+    Define cores e rótulos baseados nos thresholds operacionais.
+    """
+    # Thresholds Críticos
+    if temperatura > 110.0 or vibracao > 8.0:
+        return {
+            "nivelCor": "#FFFFFF",
+            "nivelBg": "#FF5252",  # Vermelho
+            "rotuloRisco": "Crítico",
+        }
+
+    # Thresholds de Alerta
+    elif temperatura > 95.0 or vibracao > 5.0:
+        return {
+            "nivelCor": "#000000",
+            "nivelBg": "#FFD740",  # Amarelo/Âmbar
+            "rotuloRisco": "Alerta",
+        }
+
+    # Operação Normal
+    return {
+        "nivelCor": "#FFFFFF",
+        "nivelBg": "#4CAF50",  # Verde
+        "rotuloRisco": "Normal",
+    }

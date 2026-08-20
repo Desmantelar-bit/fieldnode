@@ -110,7 +110,7 @@ class TempUmi_Ambiente(models.Model):
 
 
 class Transbordo(models.Model):
-    modelo     = models.ForeignKey(Modelo, on_delete=models.CASCADE, verbose_name='Modelo')
+    modelo = models.ForeignKey(Modelo, on_delete=models.PROTECT, verbose_name="Modelo")
     capacidade = models.FloatField(verbose_name='Capacidade')
 
     class Meta:
@@ -158,7 +158,11 @@ class TemperaturaMaquina(models.Model):
 
 
 class Colheitadeira(models.Model):
+    # Relações de catálogo/configuração: não podem remover uma máquina nem seu
+    # histórico operacional quando um cadastro de referência for excluído.
     modelo             = models.ForeignKey(Modelo,            on_delete=models.PROTECT, verbose_name='Modelo')
+    maquina_id         = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name='ID da Máquina (Telemetria)')
+    ativo              = models.BooleanField(default=True, db_index=True, verbose_name='Ativa')
     combustivel        = models.ForeignKey(Combustivel,       on_delete=models.PROTECT, verbose_name='Combustível')
     pressao_pneus      = models.ForeignKey(PressaoPneus,      on_delete=models.PROTECT, verbose_name='Pressão dos Pneus')
     altura_do_corte    = models.ForeignKey(AlturadoCorte,     on_delete=models.PROTECT, verbose_name='Altura de Corte')
@@ -166,6 +170,8 @@ class Colheitadeira(models.Model):
     temp_umi_ambiente  = models.ForeignKey(TempUmi_Ambiente,  on_delete=models.PROTECT, verbose_name='Temp./Umidade Ambiente')
     temperatura_maquina = models.ForeignKey(TemperaturaMaquina,on_delete=models.PROTECT, verbose_name='Temperatura da Máquina')
     operario           = models.ForeignKey(Operario,          on_delete=models.PROTECT, verbose_name='Operário')
+    # Embora representem estado operacional, estes registros são referenciados
+    # pela máquina; PROTECT evita apagar a máquina por exclusão do snapshot.
     status_de_operacao  = models.ForeignKey(StatusdeOperacao,  on_delete=models.PROTECT, verbose_name='Status de Operação')
     estado_de_movimento = models.ForeignKey(EstadodeMovimento, on_delete=models.PROTECT, verbose_name='Estado de Movimento')
 
@@ -179,48 +185,81 @@ class Colheitadeira(models.Model):
 
 class LeituraTelemetria(models.Model):
     id          = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
-    seq_id      = models.BigIntegerField(unique=True, editable=False, verbose_name='ID Sequencial', null=True)
     maquina_id  = models.CharField(max_length=50, verbose_name='ID da Máquina')
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
     rpm         = models.IntegerField(verbose_name='RPM')
+    latitude = models.FloatField(verbose_name="Latitude", null=True, blank=True)
+    longitude = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor', db_index=True)
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em', db_index=True)
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['maquina_id', '-timestamp']),
+        ]
         verbose_name = 'Leitura de Telemetria'
         verbose_name_plural = 'Leituras de Telemetria'
 
-    def save(self, *args, **kwargs):
-        if self.seq_id is None:
-            ultimo = LeituraTelemetria.objects.order_by('-seq_id').first()
-            self.seq_id = (ultimo.seq_id + 1) if ultimo and ultimo.seq_id else 1
-        super().save(*args, **kwargs)
-
     def __str__(self):
-        return f'#{self.seq_id} — {self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
+        return f'#{self.id} — {self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
 
 class TelemetriaInvalida(models.Model):
     """
     Dead-letter para payloads rejeitados na ingestão.
- 
+
     Payload é preservado para auditoria e diagnóstico de sensor.
     Não usamos tabela compartilhada com LeituraTelemetria porque
     dados inválidos frequentemente chegam sem os campos obrigatórios.
     """
-    payload_raw      = models.TextField(verbose_name='Payload Bruto',
-                                        help_text='JSON original, truncado em 2000 chars')
-    motivo_rejeicao  = models.CharField(max_length=500, verbose_name='Motivo da Rejeição')
-    maquina_id       = models.CharField(max_length=50, verbose_name='ID da Máquina',
-                                        default='desconhecida', db_index=True)
-    recebido_em      = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em',
-                                            db_index=True)
- 
+
+    payload_raw = models.TextField(
+        verbose_name="Payload Bruto", help_text="JSON original, truncado em 2000 chars"
+    )
+    motivo_rejeicao = models.CharField(
+        max_length=500, verbose_name="Motivo da Rejeição"
+    )
+    maquina_id = models.CharField(
+        max_length=50,
+        verbose_name="ID da Máquina",
+        default="desconhecida",
+        db_index=True,
+    )
+    recebido_em = models.DateTimeField(
+        auto_now_add=True, verbose_name="Recebido em", db_index=True
+    )
+
     class Meta:
         ordering = ['-recebido_em']
         verbose_name = 'Telemetria Inválida'
         verbose_name_plural = 'Telemetrias Inválidas'
- 
+
     def __str__(self):
         return f'{self.maquina_id} — {self.motivo_rejeicao[:60]} — {self.recebido_em}'
+
+
+class Prescricao(models.Model):
+    STATUS_CHOICES = (
+        ("pendente", "Pendente"),
+        ("concluida", "Concluída"),
+        ("cancelada", "Cancelada"),
+    )
+    colheitadeira = models.ForeignKey(
+        Colheitadeira, on_delete=models.PROTECT, verbose_name="Colheitadeira"
+    )
+    titulo = models.CharField(max_length=200, verbose_name="Título")
+    descricao = models.TextField(verbose_name="Descrição")
+    data_geracao = models.DateTimeField(
+        auto_now_add=True, verbose_name="Data de Geração"
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pendente", verbose_name="Status"
+    )
+
+    class Meta:
+        verbose_name = "Prescrição"
+        verbose_name_plural = "Prescrições"
+
+    def __str__(self):
+        return f"{self.titulo} - {self.colheitadeira.modelo.nome}"

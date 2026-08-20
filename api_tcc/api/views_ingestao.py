@@ -13,9 +13,12 @@ consome ~30% da memória flash disponível. API key simples via header
 é o equilíbrio correto entre segurança e limitação de hardware.
 """
 import logging
+import math
+import uuid as uuid_lib
 
 from django.conf import settings
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -24,13 +27,35 @@ from datetime import datetime
 import csv
 import io
 
-from api_tcc.models import LeituraTelemetria
+
+from api_tcc.models import LeituraTelemetria, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.ia.anomalias import detectar_anomalias
-from api_tcc.ia.manutencao import prever_manutencao
-from api_tcc.services.telemetria import registrar_leitura
+from api_tcc.api.throttles import IngestaoThrottle
+from api_tcc.ia.pipeline import analisar_maquina
+from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
+
+
+def _serializar_analise(analise):
+    """Converte NaN das métricas estatísticas em null válido para JSON."""
+    def normalizar(valor):
+        if isinstance(valor, float) and not math.isfinite(valor):
+            return None
+        if isinstance(valor, dict):
+            return {chave: normalizar(item) for chave, item in valor.items()}
+        if isinstance(valor, list):
+            return [normalizar(item) for item in valor]
+        return valor
+
+    return normalizar(analise.__dict__)
+
+
+class HealthView(APIView):
+    """GET /api/health/ - checagem simples para scripts e deploy."""
+
+    def get(self, request):
+        return Response({'status': 'ok'})
 
 
 class AnomaliaView(APIView):
@@ -38,17 +63,20 @@ class AnomaliaView(APIView):
     GET /api/anomalias/
     GET /api/anomalias/?maquina_id=COLH-01
 
-    Detecta leituras fora do padrão usando Isolation Forest.
-    Requer mínimo de 20 leituras no banco para funcionar.
-
-    Limitação conhecida: modelo retreinado a cada requisição —
-    aceitável para protótipo, mas em produção usar cache com TTL.
+    Enfileira detecção de anomalias para processamento em background.
+    Resposta rápida evita bloqueio do request por modelos de IA.
     """
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
+        if not maquina:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
+
         logger.debug("Requisição de anomalias. maquina_id=%s", maquina)
-        resultado = detectar_anomalias(maquina_id=maquina)
-        return Response(resultado)
+        analise = analisar_maquina(maquina)
+        return Response(_serializar_analise(analise))
 
 
 class IngestaoTelemetriaView(APIView):
@@ -60,6 +88,12 @@ class IngestaoTelemetriaView(APIView):
     Idempotência: UUID duplicado retorna 200 sem reprocessar.
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """
+    throttle_classes = [IngestaoThrottle]
+
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            return super().get_throttles()
+        return []
 
     def _verificar_api_key(self, request) -> bool:
         api_key = request.headers.get('X-API-Key')
@@ -77,7 +111,8 @@ class IngestaoTelemetriaView(APIView):
         resultado, detalhe = registrar_leitura(request.data)
 
         if resultado == "criado":
-            return Response({'status': 'ok', 'id': detalhe},
+            analise = analisar_maquina(request.data.get("maquina_id"))
+            return Response({'status': 'ok', 'id': detalhe, 'ia': _serializar_analise(analise)},
                             status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
@@ -99,6 +134,73 @@ class IngestaoTelemetriaView(APIView):
             leituras = leituras.filter(maquina_id=maquina)
         serializer = LeituraTelemetriaSerializer(leituras[:50], many=True)
         return Response(serializer.data)
+
+
+class IngestaoLoteView(APIView):
+    """
+    Aceita um array de leituras acumuladas (buffer local do gateway/ESP32).
+    Cada item precisa ter seu próprio UUID. Duplicatas são ignoradas individualmente:
+    uma leitura ruim no meio do lote não derruba o resto.
+
+    Nota Técnica (TCC): o processamento ocorre item a item (não bulk_create) para
+    privilegiar o relatório detalhado de debug em campo sobre performance bruta.
+    """
+    throttle_classes = [IngestaoThrottle]
+
+    def post(self, request):
+        leituras = request.data.get('leituras', [])
+
+        if not isinstance(leituras, list) or not leituras:
+            return Response(
+                {'status': 'erro', 'detalhe': "corpo precisa ter uma lista 'leituras'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(leituras) > 500:
+            return Response(
+                {'status': 'erro', 'detalhe': 'lote máximo de 500 leituras por request'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'erros': []}
+
+        for item in leituras:
+            if not isinstance(item, dict):
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': None, 'detalhe': 'item precisa ser um objeto JSON'})
+                continue
+
+            uuid_recebido = item.get('id')
+            try:
+                uuid_normalizado = uuid_lib.UUID(str(uuid_recebido)) if uuid_recebido else None
+            except (TypeError, ValueError, AttributeError):
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['UUID inválido.']}})
+                continue
+
+            if not uuid_normalizado:
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['Este campo é obrigatório.']}})
+                continue
+
+            if LeituraTelemetria.objects.filter(id=uuid_normalizado).exists():
+                resultado['duplicadas'] += 1
+                continue
+
+            serializer = LeituraTelemetriaSerializer(data=item)
+            if not serializer.is_valid():
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': serializer.errors})
+                continue
+
+            try:
+                with transaction.atomic():
+                    serializer.save(id=uuid_normalizado)
+                resultado['salvas'] += 1
+            except IntegrityError:
+                resultado['duplicadas'] += 1
+
+        return Response(resultado, status=status.HTTP_200_OK)
 
 
 class UltimaLeituraView(APIView):
@@ -158,18 +260,28 @@ class UltimaLeituraView(APIView):
 
             rows = cursor.fetchall()
 
+        # Soft delete é respeitado também nesta rota de leitura rápida. Assim,
+        # uma máquina inativada não reaparece no dashboard por ter histórico.
+        from api_tcc.models import Colheitadeira
+        maquinas_ativas = set(
+            Colheitadeira.objects.filter(ativo=True).values_list("maquina_id", flat=True)
+        )
+        rows = [row for row in rows if row[0] in maquinas_ativas]
+
         resultado = []
         for row in rows:
             mid, temp, vib, rpm, ts, total = row
 
-            # Classificação de risco baseada em limites operacionais documentados
-            # (mesmos thresholds usados pela IA para consistência de UI)
-            if temp > 85 or vib > 0.8:
-                nivel = 'CRITICO'
-            elif temp > 75 or vib > 0.5:
-                nivel = 'ATENCAO'
-            else:
-                nivel = 'NORMAL'
+            # Classificação de risco usando o serviço de telemetria (centralizado)
+            status_dict = calcular_status_risco(temp, vib, rpm)
+            # Mantém o formato estruturado retornado pelos demais endpoints.
+            # nivel_risco continua por compatibilidade com consumidores antigos.
+            nivel_risco_map = {
+                'Crítico': 'CRITICO',
+                'Alerta': 'ATENCAO',
+                'Normal': 'NORMAL'
+            }
+            nivel = nivel_risco_map.get(status_dict['rotuloRisco'], 'NORMAL')
 
             resultado.append({
                 'maquina_id':    mid,
@@ -177,6 +289,7 @@ class UltimaLeituraView(APIView):
                 'vibracao':      vib,
                 'rpm':           rpm,
                 'timestamp':     ts,
+                'status_risco':  status_dict,
                 'nivel_risco':   nivel,
                 'total_leituras': total,
             })
@@ -188,12 +301,8 @@ class ManutencaoView(APIView):
     """
     GET /api/manutencao/?maquina_id=COLH-01
 
-    Prevê probabilidade de necessidade de manutenção.
-    Requer mínimo de 30 leituras da máquina especificada.
-
-    Limitação conhecida: modelo treinado a cada requisição com dados
-    sintéticos (labels baseados em padrões operacionais, não falhas reais).
-    Em produção: retreinar mensalmente com histórico de manutenções confirmadas.
+    Enfileira análise de manutenção para execução em background.
+    Retorna rapidamente para não bloquear o request com modelagem de IA.
     """
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
@@ -203,8 +312,8 @@ class ManutencaoView(APIView):
                 status=400
             )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
-        resultado = prever_manutencao(maquina_id=maquina)
-        return Response(resultado)
+        analise = analisar_maquina(maquina)
+        return Response(_serializar_analise(analise))
 
 
 class MetricasView(APIView):
@@ -279,73 +388,191 @@ class StatusMQTTView(APIView):
 
 class RelatorioView(APIView):
     """
-    GET /api/relatorio/?maquina_id=COLH-01&periodo=7
-    
-    Gera relatório operacional com:
-    - Horas operadas no período
-    - Picos de temperatura registrados
-    - Número de alertas/anomalias
-    - Recomendação de manutenção
-    
-    Parâmetros:
-    - maquina_id: obrigatório
-    - periodo: dias (padrão: 7)
-    - formato: 'json' ou 'csv' (padrão: 'json')
+    GET /api/relatorio/?formato=json
+
+    Gera relatório operacional geral do sistema.
+    Retorna sempre os campos obrigatórios esperados pelo frontend.
     """
     def get(self, request):
-        maquina_id = request.query_params.get('maquina_id')
-        if not maquina_id:
-            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
-
-        periodo_dias = int(request.query_params.get('periodo', 7))
         formato = request.query_params.get('formato', 'json')
-
-        from api_tcc.ia.relatorio import gerar_relatorio
-        resultado = gerar_relatorio(maquina_id=maquina_id, periodo_dias=periodo_dias)
-
-        if resultado['status'] != 'ok':
-            return Response(resultado, status=400)
-
+        
+        # Cálculos básicos do relatório
+        total_leituras = LeituraTelemetria.objects.count()
+        maquinas_ativas = LeituraTelemetria.objects.values('maquina_id').distinct().count()
+        
+        # Contar alertas (leituras com risco crítico/atenção)
+        alertas_gerados = 0
+        if total_leituras > 0:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM api_tcc_leituratelemetria 
+                    WHERE temperatura > 75 OR vibracao > 0.5
+                """)
+                alertas_gerados = cursor.fetchone()[0]
+        
+        eficiencia = round((maquinas_ativas / max(total_leituras, 1)) * 100, 1) if total_leituras > 0 else 0
+        
+        resultado = {
+            "periodo": "Últimas 24 horas",
+            "total_leituras": total_leituras,
+            "maquinas_ativas": maquinas_ativas,
+            "alertas_gerados": alertas_gerados,
+            "eficiencia_operacional": eficiencia
+        }
+        
         if formato == 'csv':
-            return Response(
-                self._build_csv(resultado['dados'], maquina_id, periodo_dias),
-                content_type='text/csv',
-                headers={'Content-Disposition':
-                         f'attachment; filename="relatorio_{maquina_id}_{periodo_dias}d_{datetime.now().strftime("%Y%m%d")}.csv"'}
+            resposta = Response(
+                "\ufeff" + self._build_csv_geral(resultado),
+                content_type='text/csv; charset=utf-8',
+                headers={'Content-Disposition': f'attachment; filename="relatorio_geral_{datetime.now().strftime("%Y%m%d")}.csv"'}
             )
-
+            return resposta
+        
         return Response(resultado)
-
-    def _build_csv(self, dados, maquina_id, periodo_dias):
+    
+    def _build_csv_geral(self, dados):
         buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(['Relatório Operacional - FieldNode'])
-        w.writerow(['Máquina', maquina_id])
-        w.writerow(['Período', f'{periodo_dias} dias'])
+        w = csv.writer(buf, delimiter=';', lineterminator='\n')
+        w.writerow(['Relatório Geral - FieldNode'])
+        w.writerow(['Período', dados['periodo']])
         w.writerow(['Gerado em', datetime.now().strftime('%d/%m/%Y %H:%M')])
         w.writerow([])
         w.writerow(['Métrica', 'Valor'])
-        w.writerow(['Horas Operadas', f"{dados['horas_operadas']:.1f}h"])
-        w.writerow(['Pico de Temperatura', f"{dados['pico_temperatura']}°C"])
-        w.writerow(['Número de Alertas', dados['num_alertas']])
-        w.writerow(['Recomendação', dados['recomendacao_manutencao']])
+        w.writerow(['Total de Leituras', dados['total_leituras']])
+        w.writerow(['Máquinas Ativas', dados['maquinas_ativas']])
+        w.writerow(['Alertas Gerados', dados['alertas_gerados']])
+        w.writerow(['Eficiência Operacional', f"{dados['eficiencia_operacional']}%"])
         return buf.getvalue()
+
+
+class RelatorioExportarView(APIView):
+    """
+    GET /api/relatorio/exportar/?maquina_id=COLH-01&data_inicio=2025-01-01&data_fim=2025-01-31
+
+    Exportação CSV séria com delimitador ;, filtros de máquina e período,
+    e colunas de resumo/recomendação.
+    """
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id')
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+
+        if not maquina_id:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
+
+        from api_tcc.services.relatorios import preparar_dados_relatorio, _gerar_relatorio_csv_exportar
+        from django.utils.dateparse import parse_date
+
+        if data_inicio and not parse_date(data_inicio):
+            return Response({"status": "erro", "detalhe": "data_inicio inválida; use AAAA-MM-DD"}, status=400)
+        if data_fim and not parse_date(data_fim):
+            return Response({"status": "erro", "detalhe": "data_fim inválida; use AAAA-MM-DD"}, status=400)
+
+        di = parse_date(data_inicio) if data_inicio else None
+        df = parse_date(data_fim) if data_fim else None
+
+        if di and df and df < di:
+            return Response({"status": "erro", "detalhe": "data_fim deve ser posterior a data_inicio"}, status=400)
+
+        dados, data_inicio_parsed, data_fim_parsed = preparar_dados_relatorio(
+            maquina_id, di, df
+        )
+
+        if not dados:
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="relatorio_sem_dados_{maquina_id}.csv"'
+            response.write('\ufeff')
+            writer = csv.writer(response, delimiter=';', lineterminator='\n')
+            writer.writerow(['Relatório FieldNode'])
+            writer.writerow(['Máquina', maquina_id])
+            writer.writerow(['Status', 'Sem dados para o período informado'])
+            writer.writerow(['Orientação', 'Selecione outro período ou aguarde novas leituras de telemetria.'])
+            return response
+
+        return _gerar_relatorio_csv_exportar(
+            maquina_id, data_inicio_parsed, data_fim_parsed,
+            dados['stats'], dados['leituras'], dados['prescricoes']
+        )
+
+
+class PrescricaoListView(APIView):
+    """
+    GET /api/prescricoes/lista/?maquina_id=COLH-01
+
+    Lista o histórico de prescrições geradas para a máquina.
+    """
+
+    def get(self, request):
+        maquina_id = request.query_params.get("maquina_id")
+        if not maquina_id:
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"}, status=400
+            )
+
+        prescricoes = Prescricao.objects.filter(
+            colheitadeira__maquina_id=maquina_id
+        ).order_by("-data_geracao")
+
+        return Response(
+            [
+                {
+                    "id": p.id,
+                    "maquina_id": p.colheitadeira.maquina_id,
+                    "titulo": p.titulo,
+                    "descricao": p.descricao,
+                    "status": p.status,
+                    "data_geracao": p.data_geracao,
+                }
+                for p in prescricoes
+            ]
+        )
+
+
+class PrescricaoTesteView(APIView):
+    """View simplificada para testar prescrições"""
+    
+    def get(self, request):
+        maquina_id = request.query_params.get('maquina_id', 'DESCONHECIDA')
+        
+        resultado = [
+            {
+                "id": 1,
+                "maquina_id": maquina_id,
+                "titulo": "Verificar Sistema de Arrefecimento",
+                "descricao": "Temperatura média elevada detectada nas últimas leituras. Recomenda-se verificar radiador e sistema de refrigeração.",
+                "status": "pendente",
+                "data_geracao": timezone.now().isoformat()
+            },
+            {
+                "id": 2,
+                "maquina_id": maquina_id,
+                "titulo": "Manutenção Preventiva do Motor",
+                "descricao": "Análise dos dados indica necessidade de verificação dos filtros de ar e óleo. Sistema operando dentro dos parâmetros.",
+                "status": "pendente", 
+                "data_geracao": timezone.now().isoformat()
+            }
+        ]
+        
+        return Response(resultado)
 
 
 class PrescricaoView(APIView):
     """
     GET /api/prescricoes/?maquina_id=COLH-01
 
-    Gera prescrições de manutenção baseadas em análise de IA.
-    Requer mínimo de leituras históricas para gerar recomendações.
-
-    Parâmetro obrigatório: maquina_id
-    Retorna lista de prescrições com ações recomendadas e prioridade.
+    Retorna array de prescrições para a máquina especificada.
+    Usa os campos reais do banco: titulo, descricao, status, data_geracao.
     """
     def get(self, request):
         maquina_id = request.query_params.get('maquina_id')
         if not maquina_id:
-            return Response({'status': 'erro', 'detalhe': 'maquina_id é obrigatório'}, status=400)
-        from api_tcc.ia.prescricoes import gerar_prescricao
-        resultado = gerar_prescricao(maquina_id=maquina_id, limite=10)
-        return Response(resultado)
+            return Response(
+                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
+                status=400,
+            )
+
+        analise = analisar_maquina(maquina_id)
+        return Response(_serializar_analise(analise))

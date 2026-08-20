@@ -1,57 +1,117 @@
-# FAQ para a Banca - FieldNode
+# FAQ Técnico — Banca FieldNode
 
-Este documento contém respostas preparadas para perguntas difíceis que podem surgir durante a banca do projeto FieldNode.
+Respostas ancoradas no código real do projeto. Cada resposta cita o arquivo e a lógica exata que sustenta o argumento.
 
-## Validação dos Alertas
+---
 
-**Pergunta:** Como o FieldNode valida seus alertas para garantir que não sejam falsos positivos ou que realmente indicam um problema iminente?
+## 1. Qual o diferencial do FieldNode frente à Solinftec, John Deere Operations Center e similares?
 
-**Resposta:** O FieldNode utiliza uma abordagem em camadas para validação de alertas:
-1. **Detecção de Anomalias (Isolation Forest):** Identifica leituras que se desviam significativamente do padrão histórico da máquina específica, reduzindo falsos positivos causados por variações normais de operação.
-2. **Modelo de Risco de Manutenção (Random Forest):** Combina múltiplas variáveis (temperatura, vibração, RPM, tendências) para prever a probabilidade de necessidade de manutenção, treinado com regras baseadas em conhecimento de domínio agrícola.
-3. **Regras Manuais de Threshold:** Limites operacionais definidos por especialistas (ex: temperatura >85°C ou vibração >0.8) são aplicados como validação final, garantindo que alertas críticos sejam acionados mesmo que os modelos de ML não os capturem em casos extremos.
-4. **Correlação Temporal:** Alertas só são considerados válidos se persistirem por múltiplas leituras consecutivas (configurável), evitando gatilhos por ruído momentâneo.
+Três diferenças estruturais, não de marketing:
 
-Além disso, o sistema registra todas as leituras (válidas e inválidas) para análise posterior, permitindo ajustes finos nos modelos conforme mais dados são coletados no campo.
+**Offline-first real, não "tolerante a falhas".**
+Soluções como Solinftec e JD Operations Center dependem de conectividade celular contínua ou Wi-Fi na sede. O FieldNode foi projetado para o cenário inverso: a rede é a exceção, não a regra. O Service Worker (`frontend-next/public/sw.js`) intercepta chamadas de telemetria quando o browser perde conexão e enfileira via `QUEUE_TELEMETRY`. Quando a rede volta, a fila drena automaticamente para `/api/telemetria/`. No lado do simulador de campo, `scripts/simular_mqtt.py` detecta `Connection refused` no broker MQTT e entra em modo fallback HTTP sem intervenção humana — demonstrado com `MQTT_PORT=1884 DEMO_CYCLES=1`.
 
-## Diferenciais em Relação a Soluções de Mercado
+**Hardware agnóstico e sem lock-in.**
+Soluções de grandes fabricantes são proprietárias: o sensor só funciona com o software deles, o software só funciona com o hardware deles. O FieldNode usa ESP32 (~R$ 50 por nó) e protocolo MQTT padrão. Qualquer máquina com porta serial ou CAN-bus pode ser instrumentada. O backend aceita qualquer `maquina_id` — a validação em `api_tcc/services/telemetria.py` não exige que a máquina esteja pré-cadastrada no banco para aceitar telemetria.
 
-**Pergunta:** Quais são os diferenciais do FieldNode em relação a soluções comerciais de telemetria agrícola disponíveis no mercado?
+**Custo de implantação.**
+Um nó ESP32 com sensor de temperatura, vibração e GPS custa menos de R$ 150. Módulos telemétricos proprietários de fabricantes como John Deere custam entre R$ 2.000 e R$ 8.000 por máquina, com contrato de assinatura anual. Para frotas de pequenos e médios produtores, isso é a diferença entre implantar ou não implantar.
 
-**Resposta:** O FieldNode se destaca em três pilares principais:
+---
 
-1. **Resiliência de Conectividade (Offline-First):**
-   - Enquanto soluções comerciais dependem de conexão constante com a nuvem (4G/Wi-Fi), o FieldNode opera totalmente offline no campo usando ESP-NOW entre nós e gateway.
-   - Os dados são armazenados localmente e sincronizados apenas quando há conectividade disponível, usando deduplicação por UUID v4 para evitar perda ou duplicação.
-   - Isso é crítico considerando que 40% das operações de colheita ocorrem em áreas sem conectividade.
+## 2. O que acontece quando a IA falha ou não tem dados suficientes?
 
-2. **Arquitetura Edge para Baixa Latência:**
-   - O processamento de IA (detecção de anomalias, prescrições) ocorre no backend local (gateway ou servidor na sede), não dependendo de nuvem externa.
-   - Isso permite alertas em tempo real no dashboard local, essencial para intervenções imediatas que evitam quebras coûteiras.
+O pipeline determinístico não exige um mínimo de leituras. `analisar_maquina()` carrega uma janela de até 500 registros e, quando não há telemetria, `calcular_features()` retorna `{}`. Como as regras usam valores padrão com `dict.get()`, o resultado é `NORMAL`, sem recomendação e sem exceção.
 
-3. **Custo e Acessibilidade:**
-   - Utiliza hardware de baixo custo (ESP32 ~$10 por nó) em vez de módulos proprietários caros.
-   - Software de código aberto (Django, Python, Arduino/C++) sem taxas de licenciamento.
-   - Focado em pequenos e médios produtores que não podem pagar por soluções de alta complexidade e custo.
+Com somente uma leitura, métricas que não podem ser calculadas, como a tendência e o desvio padrão, são representadas como `null` na resposta HTTP. A ingestão da telemetria já persistida não é desfeita se a análise falhar; a exceção é tratada pela infraestrutura HTTP padrão e pode ser investigada nos logs.
 
-4. **Especificidade para Colheitadeiras:**
-   - Enquanto muitas soluções genéricas de telemetria veicular monitoram apenas localização e basicamente RPM/temperatura, o FieldNode inclui sensores de vibração (indicativo de desgaste mecânico) e modelos de IA adaptados aos padrões de falha específicos de colheitadeiras (ex: superaquecimento do motor, desgaste de rolamentos).
+Não há modelo estatístico, fila em memória nem worker de IA neste estágio. As regras de temperatura, tendência e vibração estão centralizadas em `api_tcc/ia/pipeline.py` e documentadas em `docs/limiares.md`.
 
-## Prevenção de Excesso de Alertas (Alert Fatigue)
+---
 
-**Pergunta:** Como o FieldNode evita o excesso de alertas que pode levar à desatenção do operador ("alert fatigue")?
+## 3. O sistema realmente funciona sem internet? Como garante que dados não se perdem?
 
-**Resposta:** Para evitar alert fatigue, o FieldNode implementa várias estratégias:
+Sim. A resiliência offline tem três camadas independentes:
 
-1. **Hierarquia de Severidade:** Alertas são classificados em NORMAL, ATENCAO e CRITICO, com recomendações de ação proporcionais à gravidade. Apenas alertas de ATENCAO e CRITICO exigem ação imediata.
-2. **Supressão de Alertas Recorrentes:** Se uma máquina já estiver em estado de alerta (ex: temperatura elevada persistente), novos alertas do mesmo tipo não são gerados até que o estado retorne ao normal por um período configurável.
-3. **Limite de Frequência:** Alertas do mesmo tipo para a mesma máquina não são repetidos em menos de 30 minutos (configurável), mesmo que as condições persistem.
-4. **Contexto na Notificação:** Cada alerta inclui:
-   - Valor atual vs limite (ex: "Temperatura 87.2°C (limite 85°C)")
-   - Ação recomendada específica e prática
-   - Nível de confiança do modelo (quando aplicável)
-   Isso ajuda o operador a priorizar e entender a urgência sem precisar interpretar dados brutos.
-5. **Modo de Silêncio Temporário:** Durante operações conhecidas que causam leituras fora do padrão (ex: operação em terreno muito acidentado), o operador pode colocar a máquina em modo de observação aumentada sem alertas sonoros por um período definido.
-6. **Feedback do Operador:** O sistema permite que o operador marque um alerta como "falso positivo" ou "reconhecido", alimentando um mecanismo de aprendizado que ajusta os thresholds pessoais para aquela máquina específica ao longo do tempo.
+**Camada 1 — Service Worker no browser.**
+`frontend-next/public/sw.js` intercepta requisições para `/api/telemetria/` quando o dispositivo está offline e enfileira via mensagem `QUEUE_TELEMETRY`. Quando a conexão é restaurada, o worker drena a fila automaticamente. O operador no campo não precisa fazer nada.
 
-Essas medidas garantem que os alertas sejam ação, relevantes e respeitem o limite cognitivo do operador, aumentando a aderência ao sistema.
+**Camada 2 — Fallback HTTP no simulador de campo.**
+`scripts/simular_mqtt.py` tenta conectar ao broker MQTT. Se receber `Connection refused`, entra em `loop_fallback_api()` e envia diretamente para `/api/telemetria/` via HTTP com coordenadas GPS reais. O sistema não para — degrada para o protocolo mais simples disponível.
+
+**Camada 3 — Deduplicação UUID no backend.**
+O UUID é gerado no dispositivo antes do envio (`str(uuid.uuid4())` no simulador, equivalente no firmware ESP32). Se a rede cair após o servidor receber mas antes de confirmar, o dispositivo reenvia o mesmo pacote. O backend detecta a duplicata em `registrar_leitura()` de `api_tcc/services/telemetria.py`:
+
+```python
+if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
+    return "duplicata", str(uuid_recebido)
+```
+
+Retorna `200` sem gravar novamente. O banco nunca tem duplicatas, independente de quantas vezes o pacote foi reenviado. Isso foi validado nos testes em `api_tcc/tests/test_telemetria.py` — `test_ingestao_duplicada_retorna_200_sem_duplicar`.
+
+---
+
+## 4. Como o GPS é validado? O que acontece quando a máquina não tem GPS?
+
+**Validação do dado GPS.**
+`latitude` e `longitude` são campos opcionais no modelo `LeituraTelemetria`. A função `validar_payload()` em `api_tcc/services/telemetria.py` só valida GPS se o campo estiver presente no payload:
+
+```python
+if "latitude" in dados and dados["latitude"] is not None:
+    lat = float(dados["latitude"])
+    if not (-90 <= lat <= 90):
+        return False, f"latitude={lat} fora do range [-90, 90]"
+
+if "longitude" in dados and dados["longitude"] is not None:
+    lng = float(dados["longitude"])
+    if not (-180 <= lng <= 180):
+        return False, f"longitude={lng} fora do range [-180, 180]"
+```
+
+Um payload sem GPS é aceito normalmente. Um payload com GPS inválido (ex: `latitude: 999`) é rejeitado com `400` e arquivado em `TelemetriaInvalida` para auditoria.
+
+**Comportamento do mapa sem GPS.**
+`frontend-next/src/components/MapClient.tsx` tenta buscar posições reais em `/api/maquinas/posicao/`. Se a API falhar ou retornar vazio, o componente entra automaticamente em modo demo:
+
+```typescript
+} catch {
+    const fallback = buildDemoPositions(new Date().toISOString());
+    setPositions(fallback);
+    setDemo(true);
+}
+```
+
+O mapa exibe um banner "Modo Demo - Rota Simulada" com rota pré-definida sobre coordenadas reais do Cerrado brasileiro. O operador sabe que está vendo dados simulados — não há ilusão de precisão.
+
+---
+
+## 5. Por que UUID no sensor e não ID sequencial gerado pelo banco?
+
+O `seq_id` existe e é visível na API — mas é gerado pelo banco após a gravação, não pelo sensor.
+
+O problema com ID sequencial para deduplicação: se o ESP32 envia o pacote, a rede cai antes da confirmação chegar, e o firmware reenvia — o banco não tem como saber que é o mesmo pacote. Geraria dois registros com IDs diferentes para a mesma leitura física.
+
+O UUID é gerado no dispositivo antes do envio. O banco usa o UUID como chave primária (`UUIDField(primary_key=True)`). Reenvios do mesmo pacote são detectados por `filter(id=uuid_recebido).exists()` antes de qualquer `INSERT`. O `seq_id` é gerado sequencialmente no `save()` do modelo e serve para consultas ordenadas por humanos e para o frontend exibir histórico em ordem.
+
+---
+
+## 6. Como a segurança foi tratada?
+
+Três decisões conscientes, proporcionais ao contexto de protótipo acadêmico:
+
+**API Key no header.** Todo `POST /api/telemetria/` exige `X-API-Key` validado em `views_ingestao.py`. O ESP32 não suporta JWT nativamente sem biblioteca que consome ~30% da memória flash disponível. API key simples é o equilíbrio correto entre segurança e limitação de hardware.
+
+**Segredos fora do repositório.** `.env` está no `.gitignore`. O repositório contém apenas `.env.example` com placeholders. `SECRET_KEY` e `FIELDNODE_API_KEY` nunca foram commitados.
+
+**CORS configurado.** `CORS_ALLOWED_ORIGINS` em `.env` restringe quais origens podem chamar a API. Em produção, apenas o domínio do frontend é permitido.
+
+---
+
+## 7. Por que Django e não FastAPI, Node.js ou outra stack mais "moderna"?
+
+Quatro razões técnicas, não de preferência:
+
+- **ORM + migrations prontos.** O modelo de dados do FieldNode tem 12 tabelas relacionadas. Django ORM e `makemigrations` eliminam SQL manual e versionam o schema junto com o código.
+- **Admin gratuito.** O Django Admin gerou a interface de cadastro de colheitadeiras, operários e modelos sem uma linha de frontend extra — útil para demo e para o orientador explorar o banco.
+- **Ecossistema Python para IA.** scikit-learn, pandas e numpy rodam no mesmo processo que o Django. Com FastAPI seria o mesmo, mas com Node seria necessário um microserviço Python separado — complexidade desnecessária para o escopo do projeto.
+- **TestCase integrado.** `python manage.py test` roda os testes com banco em memória SQLite sem configuração adicional. Os 3 casos de `api_tcc/tests/test_telemetria.py` rodam em 0.111s.

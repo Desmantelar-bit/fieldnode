@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0d0b;
+  --foreground: #e6efe9;
+  --panel: #121715;
+  --panel-2: #1a201d;
+  --muted: #8a9189;
+  --line: rgba(200, 210, 205, 0.12);
+  --green: #5cb870;
+  --amber: #d49a3a;
+  --red: #b54d4d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Touch improvements */
+button, a, input, select, textarea, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  touch-action: manipulation;
+}
+
+/* Mobile command center — larger tap targets on small screens */
+@media (max-width: 1023px) {
+  button, a, input, select, textarea, [role="button"] {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* Map must not hijack page scroll on mobile */
+  .leaflet-container {
+    touch-action: pan-x pan-y;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Ensure bottom nav stays above map content and is tappable */
+  nav[class*="fixed"] {
+    z-index: 50;
+  }
+}
+
+/* Ensure content is not hidden behind mobile bottom nav when present */
+@media (max-width: 1023px) {
+  main > section {
+    padding-bottom: 5.5rem;
+  }
+}
+
+::selection {
+  background: rgba(100, 217, 140, 0.28);
+}
+
+.glass-panel {
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    var(--panel);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+}
+
+/* Marker SVG display fix for Leaflet data URLs */
+.leaflet-marker-icon img, .leaflet-marker-icon svg {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}

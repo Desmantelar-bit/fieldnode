@@ -21,19 +21,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env_config(
-    "SECRET_KEY", default="django-insecure-fieldnode-default-key-for-dev"
-)
+SECRET_KEY = env_config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_config("DEBUG", default=True, cast=bool)
-FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY", default="fieldnode-demo-2024")
+# Solução para problema de variável de ambiente DEBUG=release do sistema
+import os
+if os.environ.get("DEBUG") == "release":
+    os.environ.pop("DEBUG", None)
 
-ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="*").split(",")
+DEBUG = env_config("DEBUG", default=False, cast=bool)
+FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
+
+ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split(",")
 
 # Configurações de CORS para permitir que o Dashboard acesse a API
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = env_config(
+    "CORS_ALLOWED_ORIGINS",
+    default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3005,http://127.0.0.1:3005",
+    cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
+)
+CORS_ALLOW_CREDENTIALS = env_config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
@@ -149,4 +168,47 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-au
+# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {
+        'ingestao': '120/minute',
+    },
+}
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
+
+# Configuração de logging para deduplicação
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'fieldnode.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'api_tcc': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

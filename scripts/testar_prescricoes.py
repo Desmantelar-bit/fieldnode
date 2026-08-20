@@ -2,16 +2,14 @@
 import os
 import sys
 import django
-import requests
-import json
 
 # Configurar Django
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings')
 django.setup()
 
-def testar_prescricoes():
-    print("Testando endpoint /api/prescricoes/")
+def testar_analises():
+    print("Testando análise determinística de telemetria")
     
     # Testar com máquina existente
     maquinas = ["CASE-TC5000-01", "JOHN-DEERE-02", "NEW-HOLLAND-03"]
@@ -19,24 +17,19 @@ def testar_prescricoes():
     for maquina_id in maquinas:
         print(f"\n--- Testando {maquina_id} ---")
         
-        # Importar e testar diretamente a função
-        from api_tcc.ia.prescricoes import gerar_prescricao
-        resultado = gerar_prescricao(maquina_id, limite=10)
-        
-        print(f"Status: {resultado.get('status')}")
-        if resultado.get('status') == 'ok':
-            print(f"Severidade: {resultado.get('severidade')}")
-            print(f"Confiança: {resultado.get('confianca')}")
-            print(f"Ação: {resultado.get('acao_recomendada')}")
-            print(f"Prescrição: {resultado.get('prescricao')[:100]}...")
-        else:
-            print(f"Erro: {resultado}")
+        from api_tcc.ia.pipeline import analisar_maquina
+        resultado = analisar_maquina(maquina_id)
+
+        print(f"Status: {resultado.status}")
+        print(f"Motivos: {resultado.motivos}")
+        print(f"Métricas: {resultado.metricas}")
+        print(f"Recomendação: {resultado.recomendacao}")
     
     # Testar com máquina inexistente
     print(f"\n--- Testando máquina inexistente ---")
-    resultado = gerar_prescricao("INEXISTENTE", limite=10)
-    print(f"Status: {resultado.get('status')}")
-    print(f"Detalhe: {resultado.get('detalhe', 'N/A')}")
+    resultado = analisar_maquina("INEXISTENTE")
+    print(f"Status: {resultado.status}")
+    print(f"Recomendação: {resultado.recomendacao}")
 
 if __name__ == "__main__":
-    testar_prescricoes()
+    testar_analises()
