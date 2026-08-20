@@ -147,7 +147,19 @@ class IngestaoLoteView(APIView):
     """
     throttle_classes = [IngestaoThrottle]
 
+    def _verificar_api_key(self, request) -> bool:
+        api_key = request.headers.get('X-API-Key')
+        return bool(api_key and api_key == settings.FIELDNODE_API_KEY)
+
     def post(self, request):
+        if not self._verificar_api_key(request):
+            logger.warning("Tentativa de ingestão em lote com API key inválida. IP: %s",
+                           request.META.get('REMOTE_ADDR'))
+            return Response(
+                {'status': 'erro', 'detalhes': 'API key inválida ou ausente'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
         leituras = request.data.get('leituras', [])
 
         if not isinstance(leituras, list) or not leituras:
