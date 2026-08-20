@@ -14,9 +14,10 @@ consome ~30% da memória flash disponível. API key simples via header
 """
 import logging
 import math
+import uuid as uuid_lib
 
 from django.conf import settings
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -133,6 +134,73 @@ class IngestaoTelemetriaView(APIView):
             leituras = leituras.filter(maquina_id=maquina)
         serializer = LeituraTelemetriaSerializer(leituras[:50], many=True)
         return Response(serializer.data)
+
+
+class IngestaoLoteView(APIView):
+    """
+    Aceita um array de leituras acumuladas (buffer local do gateway/ESP32).
+    Cada item precisa ter seu próprio UUID. Duplicatas são ignoradas individualmente:
+    uma leitura ruim no meio do lote não derruba o resto.
+
+    Nota Técnica (TCC): o processamento ocorre item a item (não bulk_create) para
+    privilegiar o relatório detalhado de debug em campo sobre performance bruta.
+    """
+    throttle_classes = [IngestaoThrottle]
+
+    def post(self, request):
+        leituras = request.data.get('leituras', [])
+
+        if not isinstance(leituras, list) or not leituras:
+            return Response(
+                {'status': 'erro', 'detalhe': "corpo precisa ter uma lista 'leituras'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(leituras) > 500:
+            return Response(
+                {'status': 'erro', 'detalhe': 'lote máximo de 500 leituras por request'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'erros': []}
+
+        for item in leituras:
+            if not isinstance(item, dict):
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': None, 'detalhe': 'item precisa ser um objeto JSON'})
+                continue
+
+            uuid_recebido = item.get('id')
+            try:
+                uuid_normalizado = uuid_lib.UUID(str(uuid_recebido)) if uuid_recebido else None
+            except (TypeError, ValueError, AttributeError):
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['UUID inválido.']}})
+                continue
+
+            if not uuid_normalizado:
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['Este campo é obrigatório.']}})
+                continue
+
+            if LeituraTelemetria.objects.filter(id=uuid_normalizado).exists():
+                resultado['duplicadas'] += 1
+                continue
+
+            serializer = LeituraTelemetriaSerializer(data=item)
+            if not serializer.is_valid():
+                resultado['invalidas'] += 1
+                resultado['erros'].append({'id': uuid_recebido, 'detalhe': serializer.errors})
+                continue
+
+            try:
+                with transaction.atomic():
+                    serializer.save(id=uuid_normalizado)
+                resultado['salvas'] += 1
+            except IntegrityError:
+                resultado['duplicadas'] += 1
+
+        return Response(resultado, status=status.HTTP_200_OK)
 
 
 class UltimaLeituraView(APIView):

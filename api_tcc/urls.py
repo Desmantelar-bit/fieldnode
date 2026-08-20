@@ -4,6 +4,7 @@ from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import (
     AnomaliaView,
     HealthView,
+    IngestaoLoteView,
     IngestaoTelemetriaView,
     UltimaLeituraView,
     ManutencaoView,
@@ -36,6 +37,7 @@ router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colhe
 urlpatterns = [
     path("", include(router.urls)),
     path("telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"),
+    path("telemetria/lote/", IngestaoLoteView.as_view(), name="ingestao-telemetria-lote"),
     path("anomalias/", AnomaliaView.as_view(), name="anomalias"),
     path("leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
     path("manutencao/", ManutencaoView.as_view(), name="manutencao"),
