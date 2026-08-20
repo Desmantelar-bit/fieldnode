@@ -67,7 +67,7 @@ services:
       sh -c "if [ ! -d node_modules ] || [ ! -f node_modules/.bin/next ]; then
                npm install --legacy-peer-deps;
              fi &&
-             mkdir -p /app/.next/dev/logs && rm -rf /app/.next/dev/cache/* || true &&
+             rm -rf /app/.next &&
              npm run dev"
     depends_on:
       - web

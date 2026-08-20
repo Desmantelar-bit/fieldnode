@@ -510,11 +510,88 @@ class RelatorioExportarView(APIView):
         )
 
 
+def _recomendacao_da_analise(analise):
+    """Converte o resultado do pipeline em (titulo, descricao, status)."""
+    if analise.status == 'NORMAL':
+        return (
+            'Operação Normal',
+            'Todos os parâmetros dentro dos limites esperados. Nenhuma ação necessária.',
+            'concluida',
+        )
+    if analise.status == 'ATENCAO':
+        return (
+            'Atenção — Inspeção Preventiva',
+            analise.recomendacao or 'Recomenda-se inspeção preventiva em breve.',
+            'pendente',
+        )
+    return (
+        'Crítico — Intervenção Imediata',
+        analise.recomendacao or 'Intervenção imediata recomendada antes da próxima operação.',
+        'pendente',
+    )
+
+
+def _gerar_prescricoes(maquina_id: str) -> list:
+    """
+    Garante ao menos uma recomendação para exibir.
+
+    Se a máquina tem cadastro (Colheitadeira ativa), persiste a prescrição no
+    banco — get_or_create evita duplicar a mesma recomendação. Se não tem
+    cadastro mas possui telemetria, devolve uma recomendação virtual para não
+    deixar a tela de 'Sem dados'.
+    """
+    from api_tcc.models import Colheitadeira
+
+    try:
+        analise = analisar_maquina(maquina_id)
+    except Exception:
+        logger.exception("Falha ao analisar %s para prescrição", maquina_id)
+        return []
+
+    titulo, descricao, status = _recomendacao_da_analise(analise)
+    colheitadeira = Colheitadeira.objects.filter(maquina_id=maquina_id, ativo=True).first()
+
+    if colheitadeira is not None:
+        prescricao, _criada = Prescricao.objects.get_or_create(
+            colheitadeira=colheitadeira,
+            titulo=titulo,
+            status=status,
+            defaults={'descricao': descricao},
+        )
+        if not prescricao.descricao:
+            prescricao.descricao = descricao
+            prescricao.save(update_fields=['descricao'])
+        return [prescricao]
+
+    return [{
+        'id': 0,
+        'maquina_id': maquina_id,
+        'titulo': titulo,
+        'descricao': descricao,
+        'status': status,
+        'data_geracao': timezone.now(),
+    }]
+
+
+def _serializar_prescricao(p) -> dict:
+    if isinstance(p, dict):
+        return p
+    return {
+        'id': p.id,
+        'maquina_id': p.colheitadeira.maquina_id,
+        'titulo': p.titulo,
+        'descricao': p.descricao,
+        'status': p.status,
+        'data_geracao': p.data_geracao,
+    }
+
+
 class PrescricaoListView(APIView):
     """
     GET /api/prescricoes/lista/?maquina_id=COLH-01
 
     Lista o histórico de prescrições geradas para a máquina.
+    Se não houver nenhuma, gera uma na hora via pipeline e retorna.
     """
 
     def get(self, request):
@@ -524,23 +601,14 @@ class PrescricaoListView(APIView):
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"}, status=400
             )
 
-        prescricoes = Prescricao.objects.filter(
-            colheitadeira__maquina_id=maquina_id
-        ).order_by("-data_geracao")
-
-        return Response(
-            [
-                {
-                    "id": p.id,
-                    "maquina_id": p.colheitadeira.maquina_id,
-                    "titulo": p.titulo,
-                    "descricao": p.descricao,
-                    "status": p.status,
-                    "data_geracao": p.data_geracao,
-                }
-                for p in prescricoes
-            ]
+        prescricoes = list(
+            Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id).order_by("-data_geracao")
         )
+
+        if not prescricoes:
+            prescricoes = _gerar_prescricoes(maquina_id)
+
+        return Response([_serializar_prescricao(p) for p in prescricoes])
 
 
 class PrescricaoTesteView(APIView):

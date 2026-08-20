@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import "leaflet/dist/leaflet.css";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { resolveApiUrl } from "@/services/telemetryService";
 import { MachinePositionSchema, type MachinePosition } from "@/types/telemetry";
 
@@ -8,8 +11,6 @@ type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
 type LeafletFeatureGroup = import("leaflet").FeatureGroup;
 
-const MAP_CSS_ID = "leaflet-css";
-const MAP_CSS_HREF = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const DEFAULT_CENTER: [number, number] = [-15.793889, -47.882778];
 
 const API_URL = resolveApiUrl();
@@ -59,6 +60,26 @@ function normalizeApiPositions(data: UnknownRecord[]): UnknownRecord[] {
   }));
 }
 
+function hasUsableCoordinates(data: UnknownRecord) {
+  if (data.lat == null || data.lng == null || data.lat === "" || data.lng === "") {
+    return false;
+  }
+
+  const lat = Number(data.lat);
+  const lng = Number(data.lng);
+
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180
+  );
+}
+
+function parsePositions(data: UnknownRecord[]) {
+  return MachinePositionSchema.array().parse(data.filter(hasUsableCoordinates));
+}
+
 function getPopupHtml(machine: MachinePosition) {
   const statusLabel =
     machine.status === 'operando'
@@ -97,6 +118,27 @@ function createMarkerIcon(L: LeafletModule, status: string) {
   });
 }
 
+function getStaticImageSrc(image: { src?: string } | string) {
+  return typeof image === "string" ? image : image.src;
+}
+
+function configureDefaultLeafletIcons(L: LeafletModule) {
+  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconUrl: getStaticImageSrc(markerIcon),
+    shadowUrl: getStaticImageSrc(markerShadow),
+  });
+}
+
+function isValidPosition(machine: MachinePosition) {
+  return (
+    Number.isFinite(machine.lat) &&
+    Number.isFinite(machine.lng) &&
+    Math.abs(machine.lat) <= 90 &&
+    Math.abs(machine.lng) <= 180
+  );
+}
+
 function cleanupLeafletContainer(container: HTMLElement | null) {
   if (!container) return;
   const typedContainer = container as HTMLElement & { _leaflet_id?: unknown };
@@ -121,10 +163,13 @@ export default function MapClient({
   const [demo, setDemo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const leafletRef = useRef<LeafletModule | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LeafletFeatureGroup | null>(null);
+  const visiblePositionCount = positions.filter(isValidPosition).length;
+  const shouldRenderMap = !loading && !error && (demo || visiblePositionCount > 0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -136,17 +181,6 @@ export default function MapClient({
   }, []);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    if (!document.getElementById(MAP_CSS_ID)) {
-      const link = document.createElement('link');
-      link.id = MAP_CSS_ID;
-      link.rel = 'stylesheet';
-      link.href = MAP_CSS_HREF;
-      document.head.appendChild(link);
-    }
-  }, []);
-
-  useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
@@ -155,6 +189,7 @@ export default function MapClient({
     let active = true;
 
     async function createMap() {
+      if (!shouldRenderMap) return;
       if (typeof window === 'undefined') return;
       if (mapRef.current) return;
       const container = containerRef.current;
@@ -163,6 +198,7 @@ export default function MapClient({
       const imported = await import('leaflet');
       const leafletImport = imported as { default?: LeafletModule };
       const L = leafletImport.default ?? imported;
+      configureDefaultLeafletIcons(L);
       leafletRef.current = L;
 
       cleanupLeafletContainer(container);
@@ -179,11 +215,15 @@ export default function MapClient({
       const layerGroup = L.featureGroup().addTo(map);
       markersRef.current = layerGroup;
       mapRef.current = map;
+      setMapReady(true);
       map.invalidateSize();
+      window.requestAnimationFrame(() => map.invalidateSize());
+      window.setTimeout(() => map.invalidateSize(), 250);
 
       if (!active) {
         map.remove();
         mapRef.current = null;
+        setMapReady(false);
       }
     }
 
@@ -200,9 +240,10 @@ export default function MapClient({
         }
         cleanupLeafletContainer(container);
         mapRef.current = null;
+        setMapReady(false);
       }
     };
-  }, []);
+  }, [shouldRenderMap]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -223,7 +264,7 @@ export default function MapClient({
     async function loadPositions() {
       if (externalPositions?.length) {
         try {
-          const parsed = MachinePositionSchema.array().parse(externalPositions);
+          const parsed = parsePositions(externalPositions as unknown as UnknownRecord[]);
           if (!cancelled) {
             setPositions(parsed);
             setDemo(false);
@@ -248,7 +289,7 @@ export default function MapClient({
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const normalized = Array.isArray(data) ? normalizeApiPositions(data) : [];
-        const parsed = MachinePositionSchema.array().parse(normalized);
+        const parsed = parsePositions(normalized);
         if (!cancelled) {
           setPositions(parsed);
           setDemo(false);
@@ -276,15 +317,16 @@ export default function MapClient({
   }, [externalPositions]);
 
   useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
+    if (!mapReady || !mapRef.current || !leafletRef.current) return;
     const L = leafletRef.current;
     const map = mapRef.current;
     const markers = markersRef.current ?? L.featureGroup().addTo(map);
     markersRef.current = markers;
+    const validPositions = positions.filter(isValidPosition);
 
     markers.clearLayers();
 
-    positions.forEach((machine) => {
+    validPositions.forEach((machine) => {
       L.marker([machine.lat, machine.lng], {
         icon: createMarkerIcon(L, machine.status),
       })
@@ -292,9 +334,9 @@ export default function MapClient({
         .addTo(markers);
     });
 
-    if (positions.length === 1) {
-      map.setView([positions[0].lat, positions[0].lng], 13);
-    } else if (positions.length > 1) {
+    if (validPositions.length === 1) {
+      map.setView([validPositions[0].lat, validPositions[0].lng], 13);
+    } else if (validPositions.length > 1) {
       const bounds = markers.getBounds();
       if (bounds.isValid()) {
         map.fitBounds(bounds.pad(0.2), { maxZoom: 13 });
@@ -304,7 +346,7 @@ export default function MapClient({
     }
 
     setTimeout(() => map.invalidateSize(), 100);
-  }, [positions]);
+  }, [mapReady, positions]);
 
   if (loading) {
     return (
@@ -324,8 +366,25 @@ export default function MapClient({
     );
   }
 
+  const hasVisiblePositions = visiblePositionCount > 0;
+
+  if (!hasVisiblePositions && !demo) {
+    return (
+      <div className="flex h-[calc(100vh-5.5rem)] min-h-[28rem] w-full items-center justify-center bg-black/20 px-6 text-center sm:h-[calc(100vh-5rem)]">
+        <div>
+          <p className="text-sm font-semibold text-slate-200">
+            Localizacao nao disponivel para esta frota.
+          </p>
+          <p className="mt-2 max-w-sm text-xs text-slate-500">
+            Nenhuma maquina veio com coordenadas validas de GPS no momento.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-[50vh] h-[calc(100vh-5.5rem)] w-full sm:h-[calc(100vh-5rem)] relative">
+    <div className="relative h-[calc(100vh-5.5rem)] min-h-[28rem] w-full sm:h-[calc(100vh-5rem)]">
       {process.env.NODE_ENV !== 'production' && (
         <div
           id="map-client-debug"
@@ -351,7 +410,7 @@ export default function MapClient({
         </div>
       )}
 
-      <div ref={containerRef} className="h-full w-full" />
+      <div ref={containerRef} className="relative z-0 h-full min-h-[28rem] w-full" />
     </div>
   );
 }
