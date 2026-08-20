@@ -22,6 +22,22 @@ export default async function PrescricaoPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: maquinaId } = await params;
+
+  if (!maquinaId) {
+    return (
+      <AppShell
+        active="/colheitadeiras"
+        eyebrow="ManutenÃ§Ã£o"
+        title="PrescriÃ§Ãµes"
+      >
+        <EmptyState
+          title="Selecione uma mÃ¡quina."
+          message="Selecione uma mÃ¡quina para ver a prescriÃ§Ã£o."
+        />
+      </AppShell>
+    );
+  }
+
   const baseUrl = resolveApiUrl();
   const prescricoesUrl = `${baseUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
 

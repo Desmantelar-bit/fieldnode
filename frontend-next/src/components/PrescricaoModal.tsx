@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import useSWR, { useSWRConfig } from 'swr';
 import { telemetryService } from '@/services/telemetryService';
 import type { Prescricao } from '@/types/telemetry';
 
 interface PrescricaoModalProps {
-  machineId: string;
+  machineId?: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -19,27 +20,56 @@ function statusTone(status: string) {
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof DOMException && error.name === 'AbortError'
+  ) || (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error as { name?: string }).name === 'AbortError'
+  );
+}
+
 export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalProps) {
-  const [prescricao, setPrescricao] = useState<Prescricao | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [empty, setEmpty] = useState(false);
+  const { mutate } = useSWRConfig();
+  const shouldFetch = isOpen && Boolean(machineId);
 
   useEffect(() => {
-    if (isOpen && machineId) {
-      setLoading(true);
-      setError(null);
-      setEmpty(false);
-      setPrescricao(null);
-      telemetryService.getPrescricoes(machineId)
-        .then((items) => {
-          setPrescricao(items[0] ?? null);
-          setEmpty(items.length === 0);
-        })
-        .catch(() => setError('Falha ao carregar prescrição'))
-        .finally(() => setLoading(false));
+    if (!isOpen) {
+      mutate(
+        (key) => Array.isArray(key) && key[0] === 'prescricoes',
+        undefined,
+        { revalidate: false },
+      );
     }
-  }, [isOpen, machineId]);
+  }, [isOpen, mutate]);
+
+  const {
+    data: prescricoes,
+    error,
+    isLoading: loading,
+  } = useSWR<Prescricao[]>(
+    shouldFetch && machineId ? ['prescricoes', machineId] : null,
+    async ([, id]: readonly ['prescricoes', string]) => {
+      try {
+        return await telemetryService.getPrescricoes(id);
+      } catch (error) {
+        if (isAbortError(error)) {
+          return [];
+        }
+        throw error;
+      }
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      keepPreviousData: false,
+    },
+  );
+
+  const prescricao = shouldFetch ? (prescricoes?.[0] ?? null) : null;
+  const empty = shouldFetch && prescricoes?.length === 0;
 
   if (!isOpen) return null;
 
@@ -56,6 +86,12 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
           </button>
         </div>
 
+        {!machineId && (
+          <div className="text-center py-8 text-slate-400">
+            Selecione uma máquina para ver a prescrição.
+          </div>
+        )}
+
         {loading && (
           <div className="text-center py-8 text-slate-400">
             Carregando prescrição...
@@ -64,7 +100,7 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
 
         {error && (
           <div className="text-center py-8 text-red-400">
-            {error}
+            Falha ao carregar prescrição
           </div>
         )}
 
@@ -84,7 +120,7 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
                 {prescricao.descricao}
               </div>
             </div>
-            
+
             <div className="text-sm text-slate-400">
               <div className="font-medium mb-2">Gerado em:</div>
               <div>{new Date(prescricao.data_geracao).toLocaleString('pt-BR')}</div>
