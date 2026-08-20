@@ -3,23 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
-import { resolveApiUrl } from "@/services/telemetryService";
+import { resolveApiUrl, telemetryService } from "@/services/telemetryService";
+import type { Relatorio } from "@/types/telemetry";
 
 type MachineOption = {
   id: number;
   maquina_id: string;
   modelo: string;
   marca: string;
-};
-
-type ReportData = {
-  status?: string;
-  detalhe?: string;
-  periodo: string;
-  total_leituras: number;
-  maquinas_ativas: number;
-  alertas_gerados: number;
-  eficiencia_operacional: number;
 };
 
 const PERIOD_OPTIONS = [
@@ -37,7 +28,7 @@ export default function RelatoriosPage() {
   const [period, setPeriod] = useState(7);
   const [loading, setLoading] = useState(false);
   const [loadingMachines, setLoadingMachines] = useState(true);
-  const [report, setReport] = useState<ReportData | null>(null);
+  const [report, setReport] = useState<Relatorio | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filteredMachines = useMemo(() => {
@@ -52,23 +43,14 @@ export default function RelatoriosPage() {
   useEffect(() => {
     const fetchMachines = async () => {
       try {
-        const res = await fetch(`${API_URL}/colheitadeira/`, {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) throw new Error("Falha ao buscar maquinas");
-        const data = await res.json();
-        const options: MachineOption[] = (data ?? [])
-          .filter((m: { maquina_id?: string }) => m.maquina_id)
-          .map((m: {
-            id: number;
-            maquina_id: string;
-            modelo?: { nome?: string; marca?: { nome?: string } };
-          }) => ({
+        const data = await telemetryService.getFleetStatus();
+        const options: MachineOption[] = data
+          .filter((m) => m.maquina_id)
+          .map((m) => ({
             id: m.id,
-            maquina_id: m.maquina_id,
-            modelo: m.modelo?.nome ?? "Modelo nao informado",
-            marca: m.modelo?.marca?.nome ?? "Marca nao informada",
+            maquina_id: m.maquina_id ?? "",
+            modelo: m.modelo.nome,
+            marca: m.modelo.marca.nome,
           }));
         setMachines(options);
         if (options.length > 0) setSelectedMachine(options[0].maquina_id);
@@ -87,12 +69,10 @@ export default function RelatoriosPage() {
     setError(null);
     setReport(null);
     try {
-      const res = await fetch(
-        `${API_URL}/relatorio/?maquina_id=${encodeURIComponent(selectedMachine)}&periodo=${period}&formato=json`,
-        { cache: "no-store", headers: { Accept: "application/json" } },
-      );
-      if (!res.ok) throw new Error(`Falha ao gerar relatorio (${res.status})`);
-      const data: ReportData = await res.json();
+      const data = await telemetryService.getRelatorio({
+        machineId: selectedMachine,
+        period,
+      });
       if (data.status && data.status !== "ok") {
         throw new Error(data.detalhe || "Sem dados para o periodo selecionado");
       }

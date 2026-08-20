@@ -5,7 +5,8 @@ import "leaflet/dist/leaflet.css";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { resolveApiUrl } from "@/services/telemetryService";
-import { MachinePositionSchema, type MachinePosition } from "@/types/telemetry";
+import { ListaPosicoesMaquinasSchema } from "@/schemas";
+import type { MachinePosition } from "@/types/telemetry";
 
 type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
@@ -77,7 +78,19 @@ function hasUsableCoordinates(data: UnknownRecord) {
 }
 
 function parsePositions(data: UnknownRecord[]) {
-  return MachinePositionSchema.array().parse(data.filter(hasUsableCoordinates));
+  const parseResult = ListaPosicoesMaquinasSchema.safeParse(
+    data.filter(hasUsableCoordinates),
+  );
+
+  if (!parseResult.success) {
+    console.error('Contrato de API quebrado:', {
+      endpoint: 'MapClient.getMachinePositions',
+      errors: parseResult.error.format(),
+    });
+    throw new Error('Formato de dados inesperado recebido do servidor.');
+  }
+
+  return parseResult.data;
 }
 
 function getPopupHtml(machine: MachinePosition) {

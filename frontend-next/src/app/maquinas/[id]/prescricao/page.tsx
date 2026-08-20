@@ -2,19 +2,8 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
 import { resolveApiUrl } from "@/services/telemetryService";
-
-const PrescricaoItemSchema = z.object({
-  id: z.coerce.number(),
-  maquina_id: z.string(),
-  titulo: z.string(),
-  descricao: z.string(),
-  data_geracao: z.string(),
-  status: z.enum(["pendente", "concluida", "cancelada"]),
-});
-
-const PrescricaoResponseSchema = z.array(PrescricaoItemSchema);
-
-type PrescricaoItem = z.infer<typeof PrescricaoItemSchema>;
+import { ListaPrescricoesSchema } from "@/schemas";
+import type { Prescricao } from "@/types/telemetry";
 
 export default async function PrescricaoPage({
   params,
@@ -27,12 +16,12 @@ export default async function PrescricaoPage({
     return (
       <AppShell
         active="/colheitadeiras"
-        eyebrow="ManutenÃ§Ã£o"
-        title="PrescriÃ§Ãµes"
+        eyebrow="Manutenção"
+        title="Prescrições"
       >
         <EmptyState
-          title="Selecione uma mÃ¡quina."
-          message="Selecione uma mÃ¡quina para ver a prescriÃ§Ã£o."
+          title="Selecione uma máquina."
+          message="Selecione uma máquina para ver a prescrição."
         />
       </AppShell>
     );
@@ -41,7 +30,7 @@ export default async function PrescricaoPage({
   const baseUrl = resolveApiUrl();
   const prescricoesUrl = `${baseUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
 
-  let prescricoes: PrescricaoItem[] = [];
+  let prescricoes: Prescricao[] = [];
 
   try {
     const response = await fetch(prescricoesUrl, {
@@ -56,7 +45,26 @@ export default async function PrescricaoPage({
     }
 
     const raw = await response.json();
-    prescricoes = PrescricaoResponseSchema.parse(raw);
+    const parseResult = ListaPrescricoesSchema.safeParse(raw);
+    if (!parseResult.success) {
+      console.error("Contrato de API quebrado:", {
+        endpoint: "PrescricaoPage.getPrescricoes",
+        errors: parseResult.error.format(),
+      });
+      return (
+        <AppShell
+          active="/colheitadeiras"
+          eyebrow="Manutenção"
+          title="Prescrições"
+        >
+          <ErrorState
+            title="Resposta inesperada da API."
+            message="A API retornou dados em formato não esperado."
+          />
+        </AppShell>
+      );
+    }
+    prescricoes = parseResult.data;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erro desconhecido";

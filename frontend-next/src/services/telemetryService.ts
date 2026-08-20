@@ -1,11 +1,5 @@
 import {
-  MachineFleetSchema,
-  MachinePositionSchema,
   OperatorSchema,
-  TelemetryInputSchema,
-  TelemetrySchema,
-  PrescricaoSchema,
-  RelatorioSchema,
   type Machine,
   type MachinePosition,
   type Operator,
@@ -14,6 +8,15 @@ import {
   type Prescricao,
   type Relatorio,
 } from '@/types/telemetry';
+import {
+  ListaColheitadeirasSchema,
+  ListaLeiturasTelemetriaSchema,
+  ListaPosicoesMaquinasSchema,
+  ListaPrescricoesSchema,
+  RelatorioResumoSchema,
+  TelemetryInputSchema,
+} from '@/schemas';
+import type { z } from 'zod';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -80,6 +83,24 @@ async function handleResponse<T = unknown>(
   }
 }
 
+function validateApiContract<T extends z.ZodTypeAny>(
+  schema: T,
+  data: unknown,
+  label: string,
+): z.infer<T> {
+  const parseResult = schema.safeParse(data);
+
+  if (!parseResult.success) {
+    console.error('Contrato de API quebrado:', {
+      endpoint: label,
+      errors: parseResult.error.format(),
+    });
+    throw new Error('Formato de dados inesperado recebido do servidor.');
+  }
+
+  return parseResult.data;
+}
+
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
     const headers = new Headers({ Accept: "application/json" });
@@ -92,7 +113,7 @@ export const telemetryService = {
       }),
     );
     const data = await handleResponse(response, "getFleetStatus:");
-    return MachineFleetSchema.array().parse(data);
+    return validateApiContract(ListaColheitadeirasSchema, data, "getFleetStatus");
   },
 
   async getMachinePositions(maquinaId?: string): Promise<MachinePosition[]> {
@@ -107,7 +128,7 @@ export const telemetryService = {
       }),
     );
     const data = await handleResponse(response, "getMachinePositions:");
-    return MachinePositionSchema.array().parse(data);
+    return validateApiContract(ListaPosicoesMaquinasSchema, data, "getMachinePositions");
   },
 
   async getLatestReadings(): Promise<Telemetry[]> {
@@ -118,7 +139,7 @@ export const telemetryService = {
       }),
     );
     const data = await handleResponse(response, "getLatestReadings:");
-    return TelemetrySchema.array().parse(data);
+    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getLatestReadings");
   },
 
   async getMachineReadings(machineId: string): Promise<Telemetry[]> {
@@ -133,7 +154,7 @@ export const telemetryService = {
       ),
     );
     const data = await handleResponse(response, "getMachineReadings:");
-    return TelemetrySchema.array().parse(data);
+    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
   },
 
   async getOperators(): Promise<Operator[]> {
@@ -143,11 +164,11 @@ export const telemetryService = {
       fetch(`${API_URL}/operario/`, { cache: "no-store", headers, signal }),
     );
     const data = await handleResponse(response, "getOperators:");
-    return OperatorSchema.array().parse(data);
+    return validateApiContract(OperatorSchema.array(), data, "getOperators");
   },
 
   async sendTelemetry(reading: TelemetryInput) {
-    const payload = TelemetryInputSchema.parse(reading);
+    const payload = validateApiContract(TelemetryInputSchema, reading, "sendTelemetry");
     const headers = new Headers({
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -191,7 +212,7 @@ export const telemetryService = {
       ),
     );
     const data = await handleResponse(response, "getPrescricoes:");
-    return PrescricaoSchema.array().parse(data);
+    return validateApiContract(ListaPrescricoesSchema, data, "getPrescricoes");
   },
 
   async getPrescricao(machineId: string): Promise<Prescricao> {
@@ -202,17 +223,24 @@ export const telemetryService = {
     return prescricoes[0];
   },
 
-  async getRelatorio(formato?: "json" | "csv"): Promise<Relatorio> {
+  async getRelatorio(options?: {
+    formato?: "json" | "csv";
+    machineId?: string;
+    period?: number;
+  }): Promise<Relatorio> {
     const headers = new Headers({ Accept: "application/json" });
     if (API_KEY) headers.set("X-API-Key", API_KEY);
-    const url = formato
-      ? `${API_URL}/relatorio/?formato=${formato}`
-      : `${API_URL}/relatorio/?formato=json`;
+    const params = new URLSearchParams({
+      formato: options?.formato ?? "json",
+    });
+    if (options?.machineId) params.set("maquina_id", options.machineId);
+    if (options?.period != null) params.set("periodo", String(options.period));
+    const url = `${API_URL}/relatorio/?${params.toString()}`;
     const response = await withTimeout((signal) =>
       fetch(url, { cache: "no-store", headers, signal }),
     );
     const data = await handleResponse(response, "getRelatorio:");
 
-    return RelatorioSchema.parse(data);
+    return validateApiContract(RelatorioResumoSchema, data, "getRelatorio");
   },
 };
