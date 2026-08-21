@@ -5,6 +5,7 @@ Nenhum outro módulo de IA deve consultar o banco diretamente. Tudo passa por aq
 """
 from dataclasses import dataclass
 from typing import Optional
+import math
 import pandas as pd
 from django.db.models import QuerySet
 
@@ -73,17 +74,46 @@ def gerar_recomendacao(status: str, motivos: list[str]) -> Optional[str]:
     return f"Inspeção imediata recomendada antes da próxima operação. Motivos: {'; '.join(motivos)}."
 
 
-def analisar_maquina(maquina_id: str) -> ResultadoAnalise:
+def _valor_json_seguro(valor):
+    """Converte escalares pandas/NumPy e NaN para valores aceitos pelo JSONField."""
+    if hasattr(valor, 'item'):
+        valor = valor.item()
+    if isinstance(valor, float) and not math.isfinite(valor):
+        return None
+    if isinstance(valor, dict):
+        return {chave: _valor_json_seguro(item) for chave, item in valor.items()}
+    if isinstance(valor, list):
+        return [_valor_json_seguro(item) for item in valor]
+    return valor
+
+
+def analisar_maquina(
+    maquina_id: str, salvar_historico: bool = False
+) -> ResultadoAnalise:
     """Ponto de entrada único. Qualquer view ou management command chama SÓ isso."""
     df = carregar_janela(maquina_id)
     features = calcular_features(df)
     tem_anomalia, motivos = detectar_anomalia(features)
     status = classificar_risco(motivos)
     recomendacao = gerar_recomendacao(status, motivos)
-    return ResultadoAnalise(
+    resultado = ResultadoAnalise(
         maquina_id=maquina_id,
         status=status,
         motivos=motivos,
         metricas=features,
         recomendacao=recomendacao,
     )
+
+    if salvar_historico:
+        # Import local evita acoplamento/import circular no carregamento do pipeline.
+        from api_tcc.models import RegistroAnalise
+
+        RegistroAnalise.objects.create(
+            maquina_id=resultado.maquina_id,
+            status=resultado.status,
+            motivos=_valor_json_seguro(resultado.motivos),
+            metricas=_valor_json_seguro(resultado.metricas),
+            recomendacao=resultado.recomendacao,
+        )
+
+    return resultado

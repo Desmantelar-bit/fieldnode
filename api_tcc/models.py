@@ -205,6 +205,22 @@ class LeituraTelemetria(models.Model):
     def __str__(self):
         return f'#{self.id} — {self.maquina_id} — {self.temperatura}°C — {self.timestamp}'
 
+class RegistroAnalise(models.Model):
+    """Snapshot auditável de uma decisão do pipeline de IA."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    maquina_id = models.CharField(max_length=50)
+    status = models.CharField(max_length=20)
+    motivos = models.JSONField(default=list)
+    metricas = models.JSONField(default=dict)
+    recomendacao = models.TextField(null=True, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-criado_em']
+        indexes = [models.Index(fields=['maquina_id', 'criado_em'])]
+
+
 class TelemetriaInvalida(models.Model):
     """
     Dead-letter para payloads rejeitados na ingestão.
