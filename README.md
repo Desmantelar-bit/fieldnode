@@ -127,8 +127,14 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env
 python manage.py migrate
+python manage.py treinar_isolation_forest
 python manage.py runserver
 ```
+
+O Isolation Forest é treinado offline com o cenário normal de bancada. O arquivo
+`api_tcc/ia/modelos/isolation_forest_v1.pkl` acompanha o projeto; para regenerá-lo
+de forma determinística, execute `python manage.py treinar_isolation_forest`.
+Ele é um sinal não supervisionado complementar aos thresholds determinísticos.
 
 ### Frontend
 

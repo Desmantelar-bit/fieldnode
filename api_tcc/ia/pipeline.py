@@ -8,6 +8,7 @@ from typing import Optional
 import math
 import pandas as pd
 from django.db.models import QuerySet
+from api_tcc.ia.deteccao_multivariada import calcular_score_anomalia
 
 
 @dataclass
@@ -44,7 +45,9 @@ def calcular_features(df: pd.DataFrame) -> dict:
     }
 
 
-def detectar_anomalia(features: dict) -> tuple[bool, list[str]]:
+def detectar_anomalia(
+    features: dict, ultima_leitura: Optional[dict] = None
+) -> tuple[bool, list[str]]:
     """Regras determinísticas documentadas — nada de threshold chutado sem justificativa."""
     motivos = []
     # LIMIARES DEFINIDOS PARA FINS DE PROTOTIPAÇÃO — documentar a origem
@@ -55,6 +58,23 @@ def detectar_anomalia(features: dict) -> tuple[bool, list[str]]:
         motivos.append('tendência de aumento sustentado de temperatura')
     if features.get('vib_media', 0) > 5:
         motivos.append('vibração média acima do padrão esperado')
+
+    # Sinal adicional multivariado: complementa, sem substituir, os limiares acima.
+    if ultima_leitura is not None:
+        try:
+            resultado_iso = calcular_score_anomalia(
+                ultima_leitura['temperatura'],
+                ultima_leitura['vibracao'],
+                ultima_leitura['rpm'],
+            )
+            if resultado_iso['anomalia_multivariada'] and not motivos:
+                motivos.append(
+                    'padrão combinado de sensores fora do comportamento usual '
+                    '(Isolation Forest)'
+                )
+        except FileNotFoundError:
+            pass  # modelo ainda não treinado — sistema continua funcionando só com regras base
+
     return (len(motivos) > 0, motivos)
 
 
@@ -93,7 +113,8 @@ def analisar_maquina(
     """Ponto de entrada único. Qualquer view ou management command chama SÓ isso."""
     df = carregar_janela(maquina_id)
     features = calcular_features(df)
-    tem_anomalia, motivos = detectar_anomalia(features)
+    ultima_leitura = df.iloc[0].to_dict() if not df.empty else None
+    tem_anomalia, motivos = detectar_anomalia(features, ultima_leitura)
     status = classificar_risco(motivos)
     recomendacao = gerar_recomendacao(status, motivos)
     resultado = ResultadoAnalise(

@@ -7,4 +7,5 @@ python-decouple==3.8
 paho-mqtt==1.6.1
 pandas==3.0.2
 scikit-learn==1.8.0
+joblib==1.5.3
 requests==2.32.3
