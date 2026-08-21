@@ -84,7 +84,7 @@ export default function RelatoriosPage() {
     }
   };
 
-  const downloadCsv = async () => {
+  const downloadXlsx = async () => {
     if (!selectedMachine) return;
     const fim = new Date();
     const inicio = new Date(fim);
@@ -106,13 +106,13 @@ export default function RelatoriosPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `relatorio_${selectedMachine}_${period}d.csv`;
+      a.download = `relatorio_${selectedMachine}_${period}d.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
     } catch (err) {
-      setError(err instanceof Error ? "Falha ao exportar o CSV." : "Falha ao exportar o CSV.");
+      setError(err instanceof Error ? "Falha ao exportar o XLSX." : "Falha ao exportar o XLSX.");
     }
   };
 
@@ -195,10 +195,10 @@ export default function RelatoriosPage() {
               </button>
               {report && (
                 <button
-                  onClick={downloadCsv}
+                  onClick={downloadXlsx}
                   className="h-10 rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
                 >
-                  CSV
+                  XLSX
                 </button>
               )}
             </div>

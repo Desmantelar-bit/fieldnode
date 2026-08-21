@@ -3,13 +3,14 @@
 from io import BytesIO
 
 from django.http import HttpResponse
+from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 
-from api_tcc.models import LeituraTelemetria, RegistroAnalise
+from api_tcc.models import Colheitadeira, LeituraTelemetria, RegistroAnalise
 
 
 class RelatorioExportarView(APIView):
@@ -25,6 +26,13 @@ class RelatorioExportarView(APIView):
         maquina_id = request.query_params.get("maquina_id")
         if not maquina_id:
             return HttpResponse('Parâmetro "maquina_id" é obrigatório', status=400)
+
+        # A existência vem do cadastro de máquinas, e não das leituras. Assim,
+        # uma máquina cadastrada, mas ainda sem telemetria, recebe um relatório
+        # vazio válido; um identificador desconhecido não é mascarado por uma
+        # planilha aparentemente válida.
+        if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
+            return HttpResponse("Máquina não encontrada", status=404)
 
         leituras = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by(
             "timestamp"
@@ -94,12 +102,10 @@ class RelatorioExportarView(APIView):
             ws.cell(row=2, column=1, value="Nenhuma leitura registrada para esta máquina.")
         else:
             for linha, leitura in enumerate(leituras.iterator(), start=2):
-                timestamp = (
-                    leitura.timestamp.strftime("%d/%m/%Y %H:%M:%S")
-                    if leitura.timestamp
-                    else ""
-                )
-                ws.cell(row=linha, column=1, value=timestamp)
+                timestamp = self._normalizar_timestamp_excel(leitura.timestamp)
+                celula_timestamp = ws.cell(row=linha, column=1, value=timestamp)
+                if timestamp:
+                    celula_timestamp.number_format = "DD/MM/YYYY HH:MM:SS"
                 ws.cell(row=linha, column=2, value=leitura.temperatura)
                 ws.cell(row=linha, column=3, value=leitura.vibracao)
                 ws.cell(row=linha, column=4, value=leitura.rpm)
@@ -131,12 +137,10 @@ class RelatorioExportarView(APIView):
             ws.cell(row=2, column=1, value="Nenhum evento anômalo registrado no período.")
         else:
             for linha, analise in enumerate(analises.iterator(), start=2):
-                timestamp = (
-                    analise.criado_em.strftime("%d/%m/%Y %H:%M:%S")
-                    if analise.criado_em
-                    else ""
-                )
-                ws.cell(row=linha, column=1, value=timestamp)
+                timestamp = self._normalizar_timestamp_excel(analise.criado_em)
+                celula_timestamp = ws.cell(row=linha, column=1, value=timestamp)
+                if timestamp:
+                    celula_timestamp.number_format = "DD/MM/YYYY HH:MM:SS"
                 ws.cell(row=linha, column=2, value=analise.status)
                 motivos = analise.motivos if isinstance(analise.motivos, list) else []
                 ws.cell(row=linha, column=3, value="; ".join(map(str, motivos)))
@@ -151,3 +155,10 @@ class RelatorioExportarView(APIView):
     def _definir_larguras(ws, larguras):
         for coluna, largura in enumerate(larguras, start=1):
             ws.column_dimensions[get_column_letter(coluna)].width = largura
+
+    @staticmethod
+    def _normalizar_timestamp_excel(timestamp):
+        """Converte datetimes do Django para o tipo aceito no formato XLSX."""
+        if timestamp and timezone.is_aware(timestamp):
+            return timezone.make_naive(timestamp, timezone.get_current_timezone())
+        return timestamp

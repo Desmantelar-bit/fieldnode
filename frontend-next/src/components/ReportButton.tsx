@@ -42,7 +42,7 @@ export function ReportButton({ machineId, machines = [], label = 'Extrair relato
       const blobUrl = window.URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = blobUrl;
-      anchor.download = `relatorio_${exportMachineId}_${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.download = `relatorio_${exportMachineId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
