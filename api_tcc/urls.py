@@ -14,9 +14,9 @@ from api_tcc.api.views_ingestao import (
     PrescricaoListView,
     PrescricaoTesteView,
     RelatorioView,
-    RelatorioExportarView,
 )
 from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
+from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
 
 router = routers.DefaultRouter()
