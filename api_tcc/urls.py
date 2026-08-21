@@ -16,6 +16,7 @@ from api_tcc.api.views_ingestao import (
     RelatorioView,
     RelatorioExportarView,
 )
+from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
 from api_tcc import views_gps
 
 router = routers.DefaultRouter()
@@ -47,6 +48,7 @@ urlpatterns = [
     path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
     path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
+    path("prescricoes/<str:maquina_id>/", PrescricaoMaquinaView.as_view(), name="prescricao-maquina"),
     path("relatorio/", RelatorioView.as_view(), name="relatorio"),
     path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
