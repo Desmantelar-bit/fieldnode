@@ -1,9 +1,13 @@
-import { z } from "zod";
-import { AppShell } from "@/components/AppShell";
-import { ErrorState, EmptyState } from "@/components/EmptyState";
-import { resolveApiUrl } from "@/services/telemetryService";
-import { ListaPrescricoesSchema } from "@/schemas";
-import type { Prescricao } from "@/types/telemetry";
+import { AppShell } from '@/components/AppShell';
+import { ErrorState, EmptyState } from '@/components/EmptyState';
+import { AnalisePrescricaoSchema } from '@/schemas';
+import { resolveApiUrl } from '@/services/telemetryService';
+
+function sourceLabel(source: string) {
+  if (source === 'ia_generativa') return 'Explicação gerada por IA';
+  if (source === 'fallback_determinístico') return 'Modo offline: recomendação segura';
+  return 'Recomendação determinística';
+}
 
 export default async function PrescricaoPage({
   params,
@@ -14,169 +18,61 @@ export default async function PrescricaoPage({
 
   if (!maquinaId) {
     return (
-      <AppShell
-        active="/colheitadeiras"
-        eyebrow="Manutenção"
-        title="Prescrições"
-      >
-        <EmptyState
-          title="Selecione uma máquina."
-          message="Selecione uma máquina para ver a prescrição."
-        />
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <EmptyState title="Selecione uma máquina." message="Selecione uma máquina para ver a prescrição." />
       </AppShell>
     );
   }
-
-  const baseUrl = resolveApiUrl();
-  const prescricoesUrl = `${baseUrl}/prescricoes/lista/?maquina_id=${encodeURIComponent(maquinaId)}`;
-
-  let prescricoes: Prescricao[] = [];
 
   try {
-    const response = await fetch(prescricoesUrl, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const response = await fetch(
+      `${resolveApiUrl()}/prescricoes/${encodeURIComponent(maquinaId)}/`,
+      { cache: 'no-store', headers: { Accept: 'application/json' } },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    if (!response.ok) {
-      throw new Error(
-        `Falha ao buscar prescrições: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const raw = await response.json();
-    const parseResult = ListaPrescricoesSchema.safeParse(raw);
-    if (!parseResult.success) {
-      console.error("Contrato de API quebrado:", {
-        endpoint: "PrescricaoPage.getPrescricoes",
-        errors: parseResult.error.format(),
-      });
-      return (
-        <AppShell
-          active="/colheitadeiras"
-          eyebrow="Manutenção"
-          title="Prescrições"
-        >
-          <ErrorState
-            title="Resposta inesperada da API."
-            message="A API retornou dados em formato não esperado."
-          />
-        </AppShell>
-      );
-    }
-    prescricoes = parseResult.data;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Erro desconhecido";
-    console.error("Erro ao buscar prescrições:", message);
-
-    if (error instanceof z.ZodError) {
-      return (
-        <AppShell
-          active="/colheitadeiras"
-          eyebrow="Manutenção"
-          title="Prescrições"
-        >
-          <ErrorState
-            title="Resposta inesperada da API."
-            message="A API retornou dados em formato não esperado."
-          />
-        </AppShell>
-      );
-    }
+    const parsed = AnalisePrescricaoSchema.safeParse(await response.json());
+    if (!parsed.success) throw new Error('Resposta da análise em formato inesperado.');
+    const analise = parsed.data;
+    const texto = analise.explicacao_operador || analise.recomendacao_tecnica || 'Nenhuma ação necessária.';
 
     return (
-      <AppShell
-        active="/colheitadeiras"
-        eyebrow="Manutenção"
-        title="Prescrições"
-      >
-        <ErrorState
-          title="Não consegui carregar as prescrições."
-          message={`${message} — confira se o backend está rodando, se o CORS está liberado para esta origem e tente novamente.`}
-        />
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-50">Prescrição para {maquinaId}</h1>
+              <p className="mt-1 text-sm text-slate-400">Recomendação operacional baseada na telemetria atual.</p>
+            </div>
+            <a href="/colheitadeiras" className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]">
+              Voltar
+            </a>
+          </div>
+
+          <section className="glass-panel rounded-lg border border-white/10 bg-white/[0.02] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-slate-100">Status: {analise.status}</span>
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+                {sourceLabel(analise.fonte_explicacao)}
+              </span>
+            </div>
+            <p className="mt-4 text-base font-medium leading-relaxed text-slate-100">{texto}</p>
+            {analise.recomendacao_tecnica && (
+              <p className="mt-3 text-sm text-slate-300">Conduta técnica: {analise.recomendacao_tecnica}</p>
+            )}
+            {analise.motivos.length > 0 && (
+              <p className="mt-3 text-sm text-slate-400">Motivos: {analise.motivos.join('; ')}.</p>
+            )}
+          </section>
+        </div>
+      </AppShell>
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro desconhecido';
+    return (
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <ErrorState title="Não consegui carregar a prescrição." message={`${message} — tente novamente.`} />
       </AppShell>
     );
   }
-
-  return (
-    <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrições">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-50">
-              Prescrições para {maquinaId}
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Recomendações de manutenção geradas pelo sistema.
-            </p>
-          </div>
-          <a
-            href="/colheitadeiras"
-            className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-          >
-            Voltar
-          </a>
-        </div>
-
-        {prescricoes.length === 0 ? (
-          <EmptyState
-            title="Nenhuma prescrição encontrada."
-            message="Nenhuma recomendação de manutenção foi gerada ou armazenada para esta máquina ainda."
-          />
-        ) : (
-          <div className="space-y-4">
-            {prescricoes.map((prescricao) => (
-              <div
-                key={prescricao.id}
-                className="glass-panel rounded-lg p-5 border border-white/10 bg-white/[0.02]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-lg font-semibold text-slate-50">
-                      {prescricao.titulo}
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      <span className="font-medium text-slate-300">
-                        Status:
-                      </span>{" "}
-                      {prescricao.status.charAt(0).toUpperCase() +
-                        prescricao.status.slice(1)}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-400">
-                      <span className="font-medium text-slate-300">
-                        Gerada em:
-                      </span>{" "}
-                      {new Date(prescricao.data_geracao).toLocaleString(
-                        "pt-BR",
-                      )}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded px-2.5 py-1 text-xs font-semibold border ${
-                      prescricao.status === "pendente"
-                        ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
-                        : prescricao.status === "concluida"
-                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                          : "bg-red-500/15 text-red-300 border-red-500/30"
-                    }`}
-                  >
-                    {prescricao.status === "pendente"
-                      ? "PENDENTE"
-                      : prescricao.status === "concluida"
-                        ? "CONCLUIDA"
-                        : "CANCELADA"}
-                  </span>
-                </div>
-
-                <p className="mt-4 text-sm text-slate-300">
-                  {prescricao.descricao}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </AppShell>
-  );
 }

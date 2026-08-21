@@ -15,8 +15,10 @@ export {
   type PosicaoMaquina,
 } from './maquinas';
 export {
+  AnalisePrescricaoSchema,
   ListaPrescricoesSchema,
   PrescricaoSchema,
+  type AnalisePrescricao,
   type Prescricao,
 } from './prescricoes';
 export {

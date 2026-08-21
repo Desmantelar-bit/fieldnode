@@ -5,6 +5,7 @@ import {
   type Operator,
   type Telemetry,
   type TelemetryInput,
+  type AnalisePrescricao,
   type Prescricao,
   type Relatorio,
 } from '@/types/telemetry';
@@ -12,6 +13,7 @@ import {
   ListaColheitadeirasSchema,
   ListaLeiturasTelemetriaSchema,
   ListaPosicoesMaquinasSchema,
+  AnalisePrescricaoSchema,
   ListaPrescricoesSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
@@ -221,6 +223,22 @@ export const telemetryService = {
       throw new Error("Nenhuma prescricao encontrada para esta maquina.");
     }
     return prescricoes[0];
+  },
+
+  async getAnalisePrescricao(machineId: string): Promise<AnalisePrescricao> {
+    const response = await withTimeout((signal) =>
+      fetch(`${API_URL}/prescricoes/${encodeURIComponent(machineId)}/`, {
+        cache: "no-store",
+        headers: new Headers({ Accept: "application/json" }),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, "getAnalisePrescricao:");
+    return validateApiContract(
+      AnalisePrescricaoSchema,
+      data,
+      "getAnalisePrescricao",
+    );
   },
 
   async getRelatorio(options?: {
