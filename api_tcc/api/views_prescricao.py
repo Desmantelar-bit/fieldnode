@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api_tcc.ia.pipeline import analisar_maquina
+from api_tcc.ia.explicacao_llm import gerar_explicacao_natural
 
 logger = logging.getLogger("api_tcc.api")
 
@@ -53,6 +54,8 @@ class PrescricaoView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        explicacao = gerar_explicacao_natural(resultado)
+
         return Response(
             {
                 "maquina_id": resultado.maquina_id,
@@ -60,6 +63,9 @@ class PrescricaoView(APIView):
                 "motivos": resultado.motivos,
                 "metricas": metricas_seguras,
                 "recomendacao": resultado.recomendacao,
+                "recomendacao_tecnica": resultado.recomendacao,
+                "explicacao_operador": explicacao["texto"],
+                "fonte_explicacao": explicacao["fonte"],
                 "gerado_em": timezone.now().isoformat(),
             }
         )
