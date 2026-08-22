@@ -1,45 +1,48 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState, ErrorState } from '@/components/EmptyState';
+import { LoadingState } from '@/components/ui/FeedbackStates';
 import { HistoryChart } from '@/components/HistoryChart';
 import { MetricCard } from '@/components/MetricCard';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
 import { PrescricaoModal } from '@/components/PrescricaoModal';
 import { telemetryService } from '@/services/telemetryService';
 import { ReportButton } from '@/components/ReportButton';
+import type { EstadoRequisicao } from '@/types/api';
 import type { Telemetry } from '@/types/telemetry';
 
 export default function DetailsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const [machineId, setMachineId] = useState<string | null>(null);
-  const [readings, setReadings] = useState<Telemetry[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [estado, setEstado] = useState<EstadoRequisicao<Telemetry[]>>({ tipo: 'carregando' });
   const [showPrescricao, setShowPrescricao] = useState(false);
 
+  const carregar = useCallback((id: string) => {
+    setEstado({ tipo: 'carregando' });
+    telemetryService.getMachineReadings(id)
+      .then((data) =>
+        setEstado(data.length === 0 ? { tipo: 'vazio' } : { tipo: 'sucesso', dados: data })
+      )
+      .catch((err: unknown) =>
+        setEstado({ tipo: 'erro', mensagem: err instanceof Error ? err.message : 'API de telemetria nao respondeu' })
+      );
+  }, []);
+
   useEffect(() => {
-    searchParams.then(params => {
-      const id = params.id;
-      setMachineId(id || null);
-      
-      if (!id) {
-        setLoading(false);
-        return;
-      }
-
-      telemetryService.getMachineReadings(id)
-        .then(setReadings)
-        .catch(() => setError('API de telemetria não respondeu'))
-        .finally(() => setLoading(false));
+    searchParams.then((params) => {
+      const id = params.id ?? null;
+      setMachineId(id);
+      if (!id) { setEstado({ tipo: 'vazio' }); return; }
+      carregar(id);
     });
-  }, [searchParams]);
+  }, [searchParams, carregar]);
 
-  if (loading) {
+  if (estado.tipo === 'carregando') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title="Carregando...">
-        <div className="text-center py-8 text-slate-400">Carregando detalhes da máquina...</div>
+        <LoadingState mensagem="Carregando historico da maquina..." />
       </AppShell>
     );
   }
@@ -52,15 +55,15 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
     );
   }
 
-  if (error) {
+  if (estado.tipo === 'erro') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title={`Maquina ${machineId}`}>
-        <ErrorState title="Nao consegui carregar o historico." message="A API de telemetria nao respondeu para esta maquina. Confira o backend e tente novamente." />
+        <ErrorState title="Nao consegui carregar o historico." message={estado.mensagem} />
       </AppShell>
     );
   }
 
-  if (!readings || readings.length === 0) {
+  if (estado.tipo === 'vazio') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title={`Maquina ${machineId}`}>
         <EmptyState title="Nenhuma leitura encontrada." message="Esta maquina existe no link, mas ainda nao tem telemetria registrada." />
@@ -68,6 +71,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
     );
   }
 
+  const readings = estado.dados;
   const latest = readings[0];
   const risk = latest.status_risco?.rotuloRisco;
   const tempTone = latest.temperatura > 85 ? 'red' : latest.temperatura > 75 ? 'amber' : 'emerald';

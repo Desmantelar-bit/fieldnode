@@ -3,26 +3,22 @@
 import { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, ErrorState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/ui/FeedbackStates";
 import { FleetGrid } from "@/components/FleetGrid";
-import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { telemetryService } from "@/services/telemetryService";
 import type { Machine } from "@/types/telemetry";
+import type { EstadoRequisicao } from "@/types/api";
 
 export default function MaquinasPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [machines, setMachines] = useState<Machine[]>([]);
+  const [estado, setEstado] = useState<EstadoRequisicao<Machine[]>>({ tipo: 'carregando' });
 
   const carregar = async () => {
-    setLoading(true);
-    setError(null);
+    setEstado({ tipo: 'carregando' });
     try {
       const dados = await telemetryService.getFleetStatus();
-      setMachines(dados);
+      setEstado(dados.length === 0 ? { tipo: 'vazio' } : { tipo: 'sucesso', dados: dados });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar colheitadeiras.");
-    } finally {
-      setLoading(false);
+      setEstado({ tipo: 'erro', mensagem: err instanceof Error ? err.message : "Falha ao carregar colheitadeiras." });
     }
   };
 
@@ -30,23 +26,23 @@ export default function MaquinasPage() {
     carregar();
   }, []);
 
-  if (loading) {
+  if (estado.tipo === 'carregando') {
     return (
       <AppShell active="/maquinas" eyebrow="FieldNode" title="Máquinas">
-        <SkeletonGrid />
+        <LoadingState mensagem="Carregando frota..." />
       </AppShell>
     );
   }
 
-  if (error) {
+  if (estado.tipo === 'erro') {
     return (
       <AppShell active="/maquinas" eyebrow="FieldNode" title="Máquinas">
-        <ErrorState title="Não consegui carregar a frota." message={error} />
+        <ErrorState title="Não consegui carregar a frota." message={estado.mensagem} />
       </AppShell>
     );
   }
 
-  if (machines.length === 0) {
+  if (estado.tipo === 'vazio') {
     return (
       <AppShell active="/maquinas" eyebrow="FieldNode" title="Máquinas">
         <EmptyState
@@ -56,6 +52,8 @@ export default function MaquinasPage() {
       </AppShell>
     );
   }
+
+  const machines = estado.dados;
 
   return (
     <AppShell active="/maquinas" eyebrow="FieldNode" title="Máquinas">

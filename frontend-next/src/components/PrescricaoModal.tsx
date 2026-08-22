@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { telemetryService } from '@/services/telemetryService';
+import { ErrorState } from '@/components/ui/FeedbackStates';
 import type { AnalisePrescricao } from '@/types/telemetry';
 
 interface PrescricaoModalProps {
@@ -86,9 +87,7 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
           )}
 
           {error && (
-            <p className="text-center py-8 text-red-400 text-sm">
-              Falha ao carregar prescrição.
-            </p>
+            <ErrorState mensagem={error instanceof Error ? error.message : "Falha ao carregar prescrição."} />
           )}
 
           {analise && !loading && (

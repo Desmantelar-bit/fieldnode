@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ErrorState, EmptyState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/ui/FeedbackStates";
 import { resolveApiUrl, telemetryService } from "@/services/telemetryService";
 import type { Relatorio } from "@/types/telemetry";
+import type { EstadoRequisicao } from "@/types/api";
 
 type MachineOption = {
   id: number;
@@ -22,28 +24,26 @@ const PERIOD_OPTIONS = [
 const API_URL = resolveApiUrl();
 
 export default function RelatoriosPage() {
-  const [machines, setMachines] = useState<MachineOption[]>([]);
+  const [estadoMaquinas, setEstadoMaquinas] = useState<EstadoRequisicao<MachineOption[]>>({ tipo: "carregando" });
   const [selectedMachine, setSelectedMachine] = useState("");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState(7);
-  const [loading, setLoading] = useState(false);
-  const [loadingMachines, setLoadingMachines] = useState(true);
-  const [report, setReport] = useState<Relatorio | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [estadoRelatorio, setEstadoRelatorio] = useState<EstadoRequisicao<Relatorio>>({ tipo: "carregando" });
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const filteredMachines = useMemo(() => {
+    if (estadoMaquinas.tipo !== "sucesso") return [];
     const q = search.trim().toLowerCase();
-    if (!q) return machines;
-    return machines.filter((m) => {
+    if (!q) return estadoMaquinas.dados;
+    return estadoMaquinas.dados.filter((m) => {
       const haystack = `${m.maquina_id} ${m.modelo} ${m.marca}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [machines, search]);
+  }, [estadoMaquinas, search]);
 
   useEffect(() => {
-    const fetchMachines = async () => {
-      try {
-        const data = await telemetryService.getFleetStatus();
+    telemetryService.getFleetStatus()
+      .then((data) => {
         const options: MachineOption[] = data
           .filter((m) => m.maquina_id)
           .map((m) => ({
@@ -52,22 +52,25 @@ export default function RelatoriosPage() {
             modelo: m.modelo.nome,
             marca: m.modelo.marca.nome,
           }));
-        setMachines(options);
-        if (options.length > 0) setSelectedMachine(options[0].maquina_id);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar maquinas");
-      } finally {
-        setLoadingMachines(false);
-      }
-    };
-    fetchMachines();
+        if (options.length === 0) {
+          setEstadoMaquinas({ tipo: "vazio" });
+        } else {
+          setEstadoMaquinas({ tipo: "sucesso", dados: options });
+          setSelectedMachine(options[0].maquina_id);
+        }
+      })
+      .catch((err: unknown) =>
+        setEstadoMaquinas({
+          tipo: "erro",
+          mensagem: err instanceof Error ? err.message : "Erro ao carregar maquinas",
+        })
+      );
   }, []);
 
   const handleGenerate = async () => {
     if (!selectedMachine) return;
-    setLoading(true);
-    setError(null);
-    setReport(null);
+    setEstadoRelatorio({ tipo: "carregando" });
+    setDownloadError(null);
     try {
       const data = await telemetryService.getRelatorio({
         machineId: selectedMachine,
@@ -76,16 +79,15 @@ export default function RelatoriosPage() {
       if (data.status && data.status !== "ok") {
         throw new Error(data.detalhe || "Sem dados para o periodo selecionado");
       }
-      setReport(data);
+      setEstadoRelatorio({ tipo: "sucesso", dados: data });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao gerar relatorio");
-    } finally {
-      setLoading(false);
+      setEstadoRelatorio({ tipo: "erro", mensagem: err instanceof Error ? err.message : "Erro ao gerar relatorio" });
     }
   };
 
   const downloadXlsx = async () => {
     if (!selectedMachine) return;
+    setDownloadError(null);
     const fim = new Date();
     const inicio = new Date(fim);
     inicio.setDate(inicio.getDate() - period);
@@ -111,8 +113,8 @@ export default function RelatoriosPage() {
       a.click();
       a.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
-    } catch (err) {
-      setError(err instanceof Error ? "Falha ao exportar o XLSX." : "Falha ao exportar o XLSX.");
+    } catch {
+      setDownloadError("Falha ao exportar o XLSX.");
     }
   };
 
@@ -123,8 +125,18 @@ export default function RelatoriosPage() {
         ? "text-amber-200"
         : "text-emerald-200";
 
+  const relatorio = estadoRelatorio.tipo === "sucesso" ? estadoRelatorio.dados : null;
+
   return (
     <AppShell active="/relatorios" eyebrow="FieldNode" title="Relatorios">
+      {estadoMaquinas.tipo === "carregando" && <LoadingState mensagem="Carregando frota..." />}
+      {estadoMaquinas.tipo === "erro" && (
+        <ErrorState title="Nao foi possivel carregar a frota." message={estadoMaquinas.mensagem} />
+      )}
+      {estadoMaquinas.tipo === "vazio" && (
+        <EmptyState title="Nenhuma maquina cadastrada." message="Cadastre maquinas na API para gerar relatorios." />
+      )}
+      {estadoMaquinas.tipo === "sucesso" && (
       <div className="space-y-6">
         <section className="glass-panel rounded-lg p-5">
           <h2 className="text-sm font-semibold text-slate-200">
@@ -151,12 +163,9 @@ export default function RelatoriosPage() {
                   setSelectedMachine(e.target.value);
                   setSearch("");
                 }}
-                disabled={loadingMachines}
-                className="h-10 rounded-md border border-white/10 bg-black/30 px-3 text-sm text-slate-100 outline-none focus:border-emerald-300/40 disabled:opacity-50"
+                className="h-10 rounded-md border border-white/10 bg-black/30 px-3 text-sm text-slate-100 outline-none focus:border-emerald-300/40"
               >
-                {loadingMachines ? (
-                  <option>Carregando...</option>
-                ) : filteredMachines.length === 0 ? (
+                {filteredMachines.length === 0 ? (
                   <option>Nenhuma maquina encontrada</option>
                 ) : (
                   filteredMachines.map((m) => (
@@ -188,12 +197,12 @@ export default function RelatoriosPage() {
             <div className="flex items-end gap-2">
               <button
                 onClick={handleGenerate}
-                disabled={loading || !selectedMachine}
+                disabled={estadoRelatorio.tipo === "carregando" || !selectedMachine}
                 className="h-10 flex-1 rounded-md bg-emerald-600/20 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-600/30 disabled:opacity-50"
               >
-                {loading ? "Gerando..." : "Gerar relatorio"}
+                {estadoRelatorio.tipo === "carregando" ? "Gerando..." : "Gerar relatorio"}
               </button>
-              {report && (
+              {estadoRelatorio.tipo === "sucesso" && (
                 <button
                   onClick={downloadXlsx}
                   className="h-10 rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
@@ -205,66 +214,75 @@ export default function RelatoriosPage() {
           </div>
         </section>
 
-        {error && <ErrorState title="Relatorio indisponivel" message={error} />}
-
-        {report && (
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="glass-panel rounded-lg p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Leituras analisadas
-              </p>
-              <p className="mt-3 text-2xl font-semibold text-slate-50">
-                {report.total_leituras}
-              </p>
-            </div>
-            <div className="glass-panel rounded-lg p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Maquinas ativas
-              </p>
-              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.maquinas_ativas, [0, 3])}`}>
-                {report.maquinas_ativas}
-              </p>
-            </div>
-            <div className="glass-panel rounded-lg p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Alertas gerados
-              </p>
-              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.alertas_gerados, [5, 20])}`}>
-                {report.alertas_gerados}
-              </p>
-            </div>
-            <div className="glass-panel rounded-lg p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Eficiencia
-              </p>
-              <p className={`mt-3 text-2xl font-semibold ${toneClass(report.eficiencia_operacional, [50, 80])}`}>
-                {report.eficiencia_operacional.toFixed(1)}%
-              </p>
-            </div>
-          </section>
+        {downloadError && (
+          <ErrorState title="Exportacao indisponivel" message={downloadError} />
         )}
 
-        {report && (
-          <section className="glass-panel rounded-lg p-5">
-            <h2 className="text-sm font-semibold text-slate-200">
-              Resumo operacional
-            </h2>
-            <p className="mt-3 text-sm text-slate-300">
-              O sistema encontrou {report.total_leituras} leituras, {report.maquinas_ativas} maquinas ativas e {report.alertas_gerados} alertas no periodo analisado.
-            </p>
-            <p className="mt-4 text-[11px] text-slate-500">
-              Periodo: {report.periodo}
-            </p>
-          </section>
+        {estadoRelatorio.tipo === "carregando" && <LoadingState mensagem="Gerando relatorio..." />}
+
+        {estadoRelatorio.tipo === "erro" && (
+          <ErrorState title="Relatorio indisponivel" message={estadoRelatorio.mensagem} />
         )}
 
-        {!report && !error && !loading && (
+        {estadoRelatorio.tipo === "vazio" && (
           <EmptyState
             title="Nenhum relatorio gerado."
             message="Selecione a maquina e o periodo para visualizar as metricas operacionais."
           />
         )}
+
+        {relatorio && (
+          <>
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="glass-panel rounded-lg p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Leituras analisadas
+                </p>
+                <p className="mt-3 text-2xl font-semibold text-slate-50">
+                  {relatorio.total_leituras}
+                </p>
+              </div>
+              <div className="glass-panel rounded-lg p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Maquinas ativas
+                </p>
+                <p className={`mt-3 text-2xl font-semibold ${toneClass(relatorio.maquinas_ativas, [0, 3])}`}>
+                  {relatorio.maquinas_ativas}
+                </p>
+              </div>
+              <div className="glass-panel rounded-lg p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Alertas gerados
+                </p>
+                <p className={`mt-3 text-2xl font-semibold ${toneClass(relatorio.alertas_gerados, [5, 20])}`}>
+                  {relatorio.alertas_gerados}
+                </p>
+              </div>
+              <div className="glass-panel rounded-lg p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Eficiencia
+                </p>
+                <p className={`mt-3 text-2xl font-semibold ${toneClass(relatorio.eficiencia_operacional, [50, 80])}`}>
+                  {relatorio.eficiencia_operacional.toFixed(1)}%
+                </p>
+              </div>
+            </section>
+
+            <section className="glass-panel rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-200">
+                Resumo operacional
+              </h2>
+              <p className="mt-3 text-sm text-slate-300">
+                O sistema encontrou {relatorio.total_leituras} leituras, {relatorio.maquinas_ativas} maquinas ativas e {relatorio.alertas_gerados} alertas no periodo analisado.
+              </p>
+              <p className="mt-4 text-[11px] text-slate-500">
+                Periodo: {relatorio.periodo}
+              </p>
+            </section>
+          </>
+        )}
       </div>
+      )}
     </AppShell>
   );
 }

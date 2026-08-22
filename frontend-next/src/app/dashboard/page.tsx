@@ -41,11 +41,20 @@ async function FleetData() {
 
 export default async function DashboardPage() {
   let reportMachines: FleetStatus = [];
+  let reportError: string | null = null;
 
   try {
     reportMachines = await telemetryService.getFleetStatus();
-  } catch {
-    reportMachines = [];
+  } catch (err) {
+    reportError = err instanceof Error ? err.message : "Falha ao carregar dados do dashboard.";
+  }
+
+  if (reportError) {
+    return (
+      <AppShell active="/dashboard" eyebrow="FieldNode" title="Frota em campo">
+        <ErrorState title="Dashboard indisponivel" message={reportError} />
+      </AppShell>
+    );
   }
 
   return (
