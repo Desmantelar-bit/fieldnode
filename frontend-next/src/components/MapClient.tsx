@@ -7,6 +7,7 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { resolveApiUrl } from "@/services/telemetryService";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
+import { getStatusColor, readCssVar } from "@/lib/theme";
 
 type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
@@ -113,14 +114,9 @@ function getPopupHtml(machine: MachinePosition) {
 }
 
 function createMarkerIcon(L: LeafletModule, status: string) {
-  const color =
-    status === 'operando'
-      ? '#10b981'
-      : status === 'parada'
-        ? '#f59e0b'
-        : '#ef4444';
+  const color = getStatusColor(status);
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='28' height='28'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z' fill='${color}' stroke='%23000000' stroke-opacity='0.15' stroke-width='1'/><circle cx='12' cy='9' r='3' fill='%23fff' opacity='0.9'/></svg>`;
+  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='28' height='28'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z' fill='${color}' stroke='${readCssVar('background')}' stroke-opacity='0.15' stroke-width='1'/><circle cx='12' cy='9' r='3' fill='${readCssVar('foreground')}' opacity='0.9'/></svg>`;
   const iconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
   return L.icon({
@@ -364,7 +360,7 @@ export default function MapClient({
   if (loading) {
     return (
       <div className="min-h-[50vh] h-[calc(100vh-5.5rem)] w-full sm:h-[calc(100vh-5rem)] flex items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
       </div>
     );
   }
@@ -372,8 +368,8 @@ export default function MapClient({
   if (error) {
     return (
       <div className="min-h-[50vh] h-[calc(100vh-5.5rem)] w-full sm:h-[calc(100vh-5rem)] flex items-center justify-center">
-        <div className="glass-panel border border-white/10 bg-white/[0.02] p-6 text-center">
-          <p className="text-xs text-red-300">{error}</p>
+        <div className="glass-panel p-6 text-center">
+          <p className="text-xs text-status-critico">{error}</p>
         </div>
       </div>
     );
@@ -385,10 +381,10 @@ export default function MapClient({
     return (
       <div className="flex h-[calc(100vh-5.5rem)] min-h-[28rem] w-full items-center justify-center bg-black/20 px-6 text-center sm:h-[calc(100vh-5rem)]">
         <div>
-          <p className="text-sm font-semibold text-slate-200">
+          <p className="text-sm font-semibold text-field-text2">
             Localizacao nao disponivel para esta frota.
           </p>
-          <p className="mt-2 max-w-sm text-xs text-slate-500">
+          <p className="mt-2 max-w-sm text-xs text-field-text3">
             Nenhuma maquina veio com coordenadas validas de GPS no momento.
           </p>
         </div>
@@ -406,8 +402,8 @@ export default function MapClient({
             top: 12,
             right: 12,
             zIndex: 9999,
-            background: 'rgba(0,0,0,0.6)',
-            color: '#fff',
+            background: 'var(--overlay-debug)',
+            color: 'var(--text-1)',
             padding: '6px 8px',
             borderRadius: 6,
             fontSize: 12,
@@ -418,7 +414,7 @@ export default function MapClient({
       )}
 
       {demo && positions.length > 1 && (
-        <div className="absolute left-4 top-4 z-20 rounded-lg border border-amber-300/30 bg-amber-300/15 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-100 backdrop-blur-md">
+        <div className="absolute left-4 top-4 z-20 rounded-lg border border-status-atencao/30 bg-status-atencao/15 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-status-atencao backdrop-blur-md">
           Modo Demo - Rota Simulada
         </div>
       )}

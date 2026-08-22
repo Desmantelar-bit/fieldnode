@@ -1,9 +1,10 @@
 import type { Telemetry } from '@/types/telemetry';
+import { chartColors } from '@/lib/theme';
 
 const toneStyles = {
-  red: { stroke: '#fca5a5', fill: 'rgba(239,68,68,0.18)', label: 'Crítico' },
-  amber: { stroke: '#fcd34d', fill: 'rgba(245,158,11,0.18)', label: 'Atenção' },
-  emerald: { stroke: '#6ee7b7', fill: 'rgba(16,185,129,0.18)', label: 'Normal' },
+  red: { ...chartColors.critico, label: 'Crítico' },
+  amber: { ...chartColors.atencao, label: 'Atenção' },
+  emerald: chartColors.normal,
 };
 
 const thresholdRanges: Record<string, { alert: number; critical: number; unit: string; higherIsWorse: boolean; min: number; max: number }> = {
@@ -30,9 +31,9 @@ export function HistoryChart({
   const points = readings.map((r) => Number(r[field])).reverse();
   if (!points.length) {
     return (
-      <article className="glass-panel rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
-        <p className="mt-4 text-xs text-slate-500">Sem leituras no período.</p>
+      <article className="glass-panel rounded-lg p-6">
+        <h2 className="text-sm font-semibold text-field-text2">{title}</h2>
+        <p className="mt-4 text-xs text-field-text3">Sem leituras no período.</p>
       </article>
     );
   }
@@ -77,11 +78,11 @@ export function HistoryChart({
   const criticalY = rangeConfig ? clampY(pad.top + innerH - ((rangeConfig.critical - effectiveMin) / effectiveRange) * innerH) : null;
 
   return (
-    <article className="glass-panel rounded-lg p-5">
+    <article className="glass-panel rounded-lg p-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
-          <p className="text-[11px] text-slate-500">
+          <h2 className="text-sm font-semibold text-field-text2">{title}</h2>
+          <p className="text-[11px] text-field-text3">
             {points.length} leitura{points.length !== 1 ? 's' : ''} • máx {fmt.format(max)}{suffix}
           </p>
         </div>
@@ -89,18 +90,18 @@ export function HistoryChart({
           {rangeConfig && (
             <>
               <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                <span className="text-[10px] font-medium text-slate-400">Alerta {fmt.format(rangeConfig.alert)}{rangeConfig.unit}</span>
+                <span className="h-2 w-2 rounded-full bg-status-atencao" />
+                <span className="text-[10px] font-medium text-field-text3">Alerta {fmt.format(rangeConfig.alert)}{rangeConfig.unit}</span>
               </span>
               <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-red-400" />
-                <span className="text-[10px] font-medium text-slate-400">Crítico {fmt.format(rangeConfig.critical)}{rangeConfig.unit}</span>
+                <span className="h-2 w-2 rounded-full bg-status-critico" />
+                <span className="text-[10px] font-medium text-field-text3">Crítico {fmt.format(rangeConfig.critical)}{rangeConfig.unit}</span>
               </span>
             </>
           )}
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full" style={{ background: colors.stroke }} />
-            <span className="text-[11px] font-medium text-slate-400">{field}</span>
+            <span className="text-[11px] font-medium text-field-text3">{field}</span>
           </span>
         </div>
       </div>
@@ -115,18 +116,18 @@ export function HistoryChart({
         <defs>
           <linearGradient id={`grad-${field}`} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={colors.fill} />
-            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="100%" stopColor={chartColors.transparent} />
           </linearGradient>
         </defs>
 
-        <rect x={pad.left} y={pad.top} width={innerW} height={innerH} fill="rgba(255,255,255,0.03)" rx="4" />
+        <rect x={pad.left} y={pad.top} width={innerW} height={innerH} fill={chartColors.surface} rx="4" />
 
         {yTicks.map((v) => {
           const cy = y(v);
           return (
             <g key={v}>
-              <line x1={pad.left} x2={pad.left + innerW} y1={cy} y2={cy} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-              <text x={pad.left - 8} y={cy + 3} textAnchor="end" className="text-[10px] fill-slate-500">
+              <line x1={pad.left} x2={pad.left + innerW} y1={cy} y2={cy} stroke={chartColors.grid} strokeDasharray="4 4" />
+              <text x={pad.left - 8} y={cy + 3} textAnchor="end" className="text-[10px] fill-field-text3">
                 {fmt.format(v)}{suffix}
               </text>
             </g>
@@ -139,7 +140,7 @@ export function HistoryChart({
             x2={pad.left + innerW}
             y1={criticalY}
             y2={criticalY}
-            stroke="#ef4444"
+            stroke={chartColors.critico.stroke}
             strokeDasharray="6 4"
             opacity="0.9"
           />
@@ -150,7 +151,7 @@ export function HistoryChart({
             x2={pad.left + innerW}
             y1={alertY}
             y2={alertY}
-            stroke="#f59e0b"
+            stroke={chartColors.atencao.stroke}
             strokeDasharray="6 4"
             opacity="0.9"
           />
@@ -159,7 +160,7 @@ export function HistoryChart({
         {xTicks.map((i) => {
           const cx = x(i);
           return (
-            <text key={i} x={cx} y={pad.top + innerH + 18} textAnchor="middle" className="text-[10px] fill-slate-500">
+            <text key={i} x={cx} y={pad.top + innerH + 18} textAnchor="middle" className="text-[10px] fill-field-text3">
               {i + 1}
             </text>
           );
@@ -169,7 +170,7 @@ export function HistoryChart({
         <path d={line} fill="none" stroke={colors.stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
         {points.map((v, i) => (
-          <circle key={i} cx={x(i)} cy={y(v)} r="3" fill={colors.stroke} stroke="rgba(0,0,0,0.4)" strokeWidth="1.5">
+          <circle key={i} cx={x(i)} cy={y(v)} r="3" fill={colors.stroke} stroke={chartColors.pointStroke} strokeWidth="1.5">
             <title>{`${fmt.format(v)}${suffix}`}</title>
           </circle>
         ))}

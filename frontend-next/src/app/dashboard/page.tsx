@@ -27,7 +27,7 @@ async function FleetData() {
   const totalHours = machines.reduce((sum, machine) => sum + machine.status_de_operacao.tempo_de_operacao, 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <MetricCard label="Maquinas" value={machines.length} helper="cadastradas na frota" />
         <MetricCard label="Em operacao" value={activeMachines} helper={`${movingMachines} em movimento`} tone="emerald" />
@@ -56,8 +56,8 @@ export default async function DashboardPage() {
       actions={
         <div className="inline-flex items-center gap-2">
           <ReportButton machines={reportMachines} />
-          <div className="inline-flex items-center gap-2 border border-emerald-300/20 bg-emerald-300/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 shadow-[0_0_18px_rgba(100,217,140,0.15)] animate-pulse">
-            <span className="h-2.5 w-2.5 bg-emerald-300 shadow-[0_0_6px_rgba(100,217,140,0.7)]" />
+          <div className="inline-flex items-center gap-2 border border-status-normal/20 bg-status-normal/15 px-3 py-1.5 text-xs font-semibold text-status-normal shadow-[0_0_18px_var(--glow-normal)] animate-pulse">
+            <span className="h-2.5 w-2.5 bg-status-normal shadow-[0_0_6px_var(--glow-normal-strong)]" />
             Sync offline ativo
           </div>
         </div>

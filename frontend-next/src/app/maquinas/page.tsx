@@ -9,21 +9,17 @@ import { telemetryService } from "@/services/telemetryService";
 import type { Machine } from "@/types/telemetry";
 
 export default function MaquinasPage() {
-  console.log('🚜 MaquinasPage montada');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
 
   const carregar = async () => {
-    console.log('🔄 Carregando máquinas...');
     setLoading(true);
     setError(null);
     try {
       const dados = await telemetryService.getFleetStatus();
-      console.log('✅ Máquinas carregadas:', dados.length, dados);
       setMachines(dados);
     } catch (err) {
-      console.error('❌ Erro ao carregar máquinas:', err);
       setError(err instanceof Error ? err.message : "Falha ao carregar colheitadeiras.");
     } finally {
       setLoading(false);
@@ -31,7 +27,6 @@ export default function MaquinasPage() {
   };
 
   useEffect(() => {
-    console.log('🎯 useEffect executado');
     carregar();
   }, []);
 
@@ -65,12 +60,12 @@ export default function MaquinasPage() {
   return (
     <AppShell active="/maquinas" eyebrow="FieldNode" title="Máquinas">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-field-text3">
           {machines.length} máquina{machines.length !== 1 ? "s" : ""} cadastrada{machines.length !== 1 ? "s" : ""}
         </p>
         <button
           onClick={carregar}
-          className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+          className="rounded-md border border-field-border bg-field-glass-mid px-3 py-1.5 text-xs font-semibold text-field-text2 transition hover:bg-field-panel2"
         >
           Atualizar
         </button>
