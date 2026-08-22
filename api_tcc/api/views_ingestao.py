@@ -51,13 +51,6 @@ def _serializar_analise(analise):
     return normalizar(analise.__dict__)
 
 
-class HealthView(APIView):
-    """GET /api/health/ - checagem simples para scripts e deploy."""
-
-    def get(self, request):
-        return Response({'status': 'ok'})
-
-
 class AnomaliaView(APIView):
     """
     GET /api/anomalias/

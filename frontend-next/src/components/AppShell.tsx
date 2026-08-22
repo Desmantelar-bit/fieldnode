@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { resolveApiUrl } from "@/services/telemetryService";
+import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 
 type NavItem = {
   href: string;
@@ -109,10 +110,7 @@ export function AppShell({
         </nav>
 
         <div className="mt-auto border border-field-border bg-field-glass p-3">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-label text-field-text3">
-            <span className="h-2 w-2 bg-status-normal shadow-[0_0_14px_var(--glow-normal-strong)]" />
-            API online
-          </div>
+          <ApiStatusIndicator />
           <p className="mt-2 text-xs text-field-text3">{API_URL}</p>
         </div>
       </aside>

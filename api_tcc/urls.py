@@ -3,7 +3,6 @@ from rest_framework import routers
 from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import (
     AnomaliaView,
-    HealthView,
     IngestaoLoteView,
     IngestaoTelemetriaView,
     UltimaLeituraView,
@@ -15,6 +14,7 @@ from api_tcc.api.views_ingestao import (
     PrescricaoTesteView,
     RelatorioView,
 )
+from api_tcc.api.views_health import HealthView
 from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
@@ -43,7 +43,7 @@ urlpatterns = [
     path("leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
     path("manutencao/", ManutencaoView.as_view(), name="manutencao"),
     path("metricas/", MetricasView.as_view(), name="metricas"),
-    path("health/", HealthView.as_view(), name="health"),
+    path("health/", HealthView.as_view(), name="api-health"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
