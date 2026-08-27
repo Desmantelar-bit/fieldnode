@@ -28,7 +28,7 @@ export default function RelatoriosPage() {
   const [selectedMachine, setSelectedMachine] = useState("");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState(7);
-  const [estadoRelatorio, setEstadoRelatorio] = useState<EstadoRequisicao<Relatorio>>({ tipo: "carregando" });
+  const [estadoRelatorio, setEstadoRelatorio] = useState<EstadoRequisicao<Relatorio>>({ tipo: "vazio" });
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const filteredMachines = useMemo(() => {

@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
+const API_BACKEND = process.env.FIELDNODE_SERVER_API_URL ?? "http://127.0.0.1:8000/api";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${API_BACKEND}/:path*`,
+      },
+    ];
+  },
   headers() {
     return Promise.resolve([
       {

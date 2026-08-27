@@ -44,6 +44,19 @@ CORS_ALLOWED_ORIGINS = env_config(
 )
 CORS_ALLOW_CREDENTIALS = env_config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
 
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-api-key",
+]
+
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "same-origin"

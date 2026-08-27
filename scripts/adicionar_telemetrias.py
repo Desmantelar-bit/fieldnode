@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Adiciona telemetrias de teste para as 9 colheitadeiras."""
+"""Adiciona telemetrias de teste para as 15 colheitadeiras."""
 import os, sys, django
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings')
@@ -23,6 +23,12 @@ maquinas = [
     {"id": "COLH-07", "temp_base": 62, "vib_base": 0.15, "rpm_base": 500},
     {"id": "COLH-08", "temp_base": 80, "vib_base": 0.45, "rpm_base": 1880},
     {"id": "COLH-09", "temp_base": 72, "vib_base": 0.40, "rpm_base": 1720},
+    {"id": "COLH-10", "temp_base": 76, "vib_base": 0.36, "rpm_base": 1780},
+    {"id": "COLH-11", "temp_base": 68, "vib_base": 0.22, "rpm_base": 900},
+    {"id": "COLH-12", "temp_base": 84, "vib_base": 0.58, "rpm_base": 2010},
+    {"id": "COLH-13", "temp_base": 79, "vib_base": 0.43, "rpm_base": 1840},
+    {"id": "COLH-14", "temp_base": 64, "vib_base": 0.18, "rpm_base": 650},
+    {"id": "COLH-15", "temp_base": 81, "vib_base": 0.50, "rpm_base": 1950},
 ]
 
 total = 0

@@ -10,6 +10,20 @@ export function ServiceWorkerBridge() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      });
+      if ('caches' in window) {
+        caches.keys().then((cacheNames) => {
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith('fieldnode-'))
+            .forEach((cacheName) => caches.delete(cacheName));
+        });
+      }
+      return;
+    }
+
     let active = true;
 
     navigator.serviceWorker

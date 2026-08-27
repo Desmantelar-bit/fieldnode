@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Script oficial para popular o banco com dados de teste.
 
-Cria 3 colheitadeiras completas com maquina_id, operários e dependências.
+Cria 15 colheitadeiras completas com maquina_id, operários e dependências.
 Use: python scripts/popular_banco.py
 """
 import os, sys, django
@@ -61,6 +61,12 @@ maquinas = [
     {"maquina_id": "COLH-07", "modelo": mod1, "operario": op7, "em_op": False, "em_mov": False, "tempo": 250.0, "vel": 0.0, "comb": 15.0},
     {"maquina_id": "COLH-08", "modelo": mod2, "operario": op8, "em_op": True, "em_mov": True, "tempo": 75.0, "vel": 11.5, "comb": 55.0},
     {"maquina_id": "COLH-09", "modelo": mod3, "operario": op9, "em_op": True, "em_mov": False, "tempo": 130.0, "vel": 0.0, "comb": 40.0},
+    {"maquina_id": "COLH-10", "modelo": mod2, "operario": op1, "em_op": True, "em_mov": True, "tempo": 105.0, "vel": 9.5, "comb": 68.0},
+    {"maquina_id": "COLH-11", "modelo": mod3, "operario": op2, "em_op": False, "em_mov": False, "tempo": 180.0, "vel": 0.0, "comb": 25.0},
+    {"maquina_id": "COLH-12", "modelo": mod1, "operario": op3, "em_op": True, "em_mov": True, "tempo": 140.0, "vel": 13.0, "comb": 72.0},
+    {"maquina_id": "COLH-13", "modelo": mod2, "operario": op4, "em_op": True, "em_mov": False, "tempo": 90.0, "vel": 0.0, "comb": 48.0},
+    {"maquina_id": "COLH-14", "modelo": mod3, "operario": op5, "em_op": False, "em_mov": False, "tempo": 220.0, "vel": 0.0, "comb": 18.0},
+    {"maquina_id": "COLH-15", "modelo": mod1, "operario": op6, "em_op": True, "em_mov": True, "tempo": 115.0, "vel": 10.5, "comb": 63.0},
 ]
 
 for m in maquinas:
@@ -73,20 +79,23 @@ for m in maquinas:
     status = StatusdeOperacao.objects.create(em_operacao=m["em_op"], tempo_de_operacao=m["tempo"])
     movimento = EstadodeMovimento.objects.create(em_movimento=m["em_mov"], velocidade=m["vel"])
     
-    c = Colheitadeira.objects.create(
+    c, criada = Colheitadeira.objects.get_or_create(
         maquina_id=m["maquina_id"],
-        modelo=m["modelo"],
-        combustivel=comb,
-        pressao_pneus=pneus,
-        altura_do_corte=altura,
-        pressao_do_corte=pressao,
-        temp_umi_ambiente=temp_umi,
-        temperatura_maquina=temp_maq,
-        operario=m["operario"],
-        status_de_operacao=status,
-        estado_de_movimento=movimento
+        defaults={
+            "modelo": m["modelo"],
+            "combustivel": comb,
+            "pressao_pneus": pneus,
+            "altura_do_corte": altura,
+            "pressao_do_corte": pressao,
+            "temp_umi_ambiente": temp_umi,
+            "temperatura_maquina": temp_maq,
+            "operario": m["operario"],
+            "status_de_operacao": status,
+            "estado_de_movimento": movimento,
+        },
     )
-    print(f"  ✓ {c.maquina_id} - {c.modelo.marca.nome} {c.modelo.nome} - Operador: {c.operario.nome}")
+    acao = "criada" if criada else "já existia"
+    print(f"  ✓ {c.maquina_id} - {acao} - {c.modelo.marca.nome} {c.modelo.nome} - Operador: {c.operario.nome}")
 
 print(f"\n✅ Banco populado com sucesso!")
 print(f"   • {Colheitadeira.objects.count()} colheitadeiras")
