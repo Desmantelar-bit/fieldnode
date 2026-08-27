@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Ferramentas de teste usadas apenas no ambiente de desenvolvimento.
+pytest==8.0.0
+pytest-django==4.8.0

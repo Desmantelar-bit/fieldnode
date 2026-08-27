@@ -1,62 +1,38 @@
-# Scripts do FieldNode
+# Scripts Auxiliares do FieldNode
 
-Scripts utilitários para gerenciar o sistema.
+Esta pasta contém scripts utilitários para preparação, validação e testes da
+API. **Nenhum destes arquivos é executado em produção pelo Django.** Execute-os
+a partir da raiz do repositório, por exemplo: `python scripts/<arquivo>.py`.
 
-## Scripts Principais
+## Dados e demonstração
 
-### `limpar_banco.py`
-Limpa completamente o banco de dados, removendo todos os dados em ordem correta de dependências.
+- `popular_banco.py`: popula o banco com a base de demonstração.
+- `limpar_banco.py`: remove os dados do banco respeitando a ordem das relações.
+- `adicionar_telemetrias.py`: adiciona leituras de telemetria para testes locais.
+- `criar_prescricoes_teste.py`: cria prescrições de exemplo.
+- `demo_pane.py`: prepara dados usados na demonstração.
+- `simular_cenarios.py`: envia cenários determinísticos, como Normal e
+  Temperatura Crescente.
+- `simular_mqtt.py`: simula um gateway MQTT com fallback HTTP.
+
+## Validação e testes
+
+- `teste_carga.py` e `stress_test.py`: exercitam concorrência, latência e rate
+  limit da ingestão.
+- `teste_deduplicacao.py`: envia o mesmo UUID em paralelo e valida a proteção
+  contra duplicação.
+- `teste_fluxo_completo.py`: valida o fluxo de ingestão e consultas da API.
+- `testar_django_client.py`, `testar_http.py`, `teste_busca.py`,
+  `testar_operarios.py` e `testar_prescricoes.py`: verificações manuais de
+  endpoints e contratos específicos.
+- `teste_health_checklist.py` e `testar_semana5_ui_decisao.py`: checklists de
+  saúde da API e do fluxo de interface.
+- `validar_sistema.py`: verifica arquivos e contratos esperados pelo projeto.
+
+## Execução comum
 
 ```bash
-# Docker
-docker compose exec web python scripts/limpar_banco.py
-
-# Local
-python scripts/limpar_banco.py
-```
-
-### `popular_banco.py`
-Script oficial para popular o banco com dados de teste. Cria:
-- 3 colheitadeiras (COLH-01, COLH-02, COLH-03)
-- 3 operários (João Silva, Maria Santos, Pedro Costa)
-- 3 marcas e modelos (Case IH TC5000, John Deere S780, New Holland CR9090)
-- Unidades de medida e dependências
-
-```bash
-# Docker
-docker compose exec web python scripts/popular_banco.py
-
-# Local
 python scripts/popular_banco.py
-```
-
-## Scripts de Teste
-
-### `teste_fluxo_completo.py`
-Valida o fluxo completo de ingestão e consulta de telemetria.
-
-### `validar_sistema.py`
-Valida a estrutura de arquivos do projeto.
-
-### `simular_mqtt.py`
-Simula envio de telemetria via MQTT para testes.
-
-### `stress_test.py`
-Teste de carga para a API de ingestão.
-
-## Fluxo Recomendado
-
-1. Limpar o banco:
-```bash
-docker compose exec web python scripts/limpar_banco.py
-```
-
-2. Popular com dados:
-```bash
-docker compose exec web python scripts/popular_banco.py
-```
-
-3. Validar funcionamento:
-```bash
-docker compose exec web python scripts/teste_fluxo_completo.py
+python scripts/simular_cenarios.py
+python scripts/teste_deduplicacao.py
 ```

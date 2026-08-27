@@ -6,6 +6,9 @@ Telemetria offline-first para máquinas agrícolas. Ingestão Django, dashboard 
 
 ## Arquitetura
 
+**Nota:** O diretório oficial do frontend é o `frontend-next/`, construído em
+Next.js. Versões legadas e scaffolds não utilizados foram removidos da base.
+
 ```mermaid
 graph TD
     ESP32["ESP32 / Sensor de Campo"]
