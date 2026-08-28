@@ -73,6 +73,7 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-base-950: var(--background);
   --color-foreground: var(--foreground);
   --color-field-bg: var(--background);
   --color-field-panel: var(--panel);

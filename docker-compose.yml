@@ -68,9 +68,12 @@ services:
       - "3000:3000"
     entrypoint: >
       sh -c "if [ ! -d node_modules ] || [ ! -f node_modules/.bin/next ]; then
-               npm install --legacy-peer-deps;
+               npm install --legacy-peer-deps &&
+               npm rebuild lightningcss;
+             else
+               npm rebuild lightningcss || true;
              fi &&
-             rm -rf /app/.next &&
+             rm -rf /app/.next || true &&
              npm run dev -- --hostname 0.0.0.0"
     depends_on:
       - web

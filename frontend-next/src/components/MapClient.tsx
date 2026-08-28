@@ -2,14 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { resolveApiUrl } from "@/services/telemetryService";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
 import type { EstadoRequisicao } from "@/types/api";
 import { LoadingState, EmptyState, ErrorState } from "@/components/ui/FeedbackStates";
-import { getStatusColor, readCssVar } from "@/lib/theme";
 
 type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
@@ -73,38 +70,45 @@ function getPopupHtml(machine: MachinePosition) {
 
   return `
     <div style="font-size:0.9rem; line-height:1.35;">
-      <strong>Máquina:</strong> ${machine.maquina_id ?? machine.modelo}<br />
+      <strong>Máquina:</strong> ${escapeHtml(machine.maquina_id ?? machine.modelo)}<br />
       <strong>Status:</strong> ${statusLabel}<br />
-      <strong>Temperatura:</strong> ${machine.telemetria.temperatura}°C<br />
-      <strong>RPM:</strong> ${machine.telemetria.rpm}<br />
-      <strong>Última atualização:</strong> ${new Date(machine.telemetria.timestamp).toLocaleString()}
+      <strong>Temperatura:</strong> ${escapeHtml(String(machine.telemetria.temperatura))}°C<br />
+      <strong>RPM:</strong> ${escapeHtml(String(machine.telemetria.rpm))}<br />
+      <strong>Última atualização:</strong> ${escapeHtml(new Date(machine.telemetria.timestamp).toLocaleString())}
     </div>
   `;
 }
 
-function createMarkerIcon(L: LeafletModule, status: string) {
-  const color = getStatusColor(status);
-
-  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='28' height='28'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z' fill='${color}' stroke='${readCssVar("background")}' stroke-opacity='0.15' stroke-width='1'/><circle cx='12' cy='9' r='3' fill='${readCssVar("foreground")}' opacity='0.9'/></svg>`;
-  const iconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-
-  return L.icon({
-    iconUrl,
-    iconSize: [28, 36],
-    iconAnchor: [14, 36],
-    popupAnchor: [0, -34],
-  });
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#039;",
+    '"': "&quot;",
+  })[character] ?? character);
 }
 
-function getStaticImageSrc(image: { src?: string } | string) {
-  return typeof image === "string" ? image : image.src;
+function getMarkerStatus(status: MachinePosition["status"]) {
+  if (status === "operando") {
+    return { label: "Operando", className: "bg-status-normal", indicator: "●" };
+  }
+  if (status === "parada") {
+    return { label: "Atenção", className: "bg-status-atencao", indicator: "●" };
+  }
+  return { label: "Offline", className: "bg-status-critico", indicator: "●" };
 }
 
-function configureDefaultLeafletIcons(L: LeafletModule) {
-  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconUrl: getStaticImageSrc(markerIcon),
-    shadowUrl: getStaticImageSrc(markerShadow),
+function createMarkerIcon(L: LeafletModule, machine: MachinePosition) {
+  const status = getMarkerStatus(machine.status);
+  const machineId = escapeHtml(machine.maquina_id ?? machine.modelo);
+
+  return L.divIcon({
+    className: "leaflet-machine-pill-icon",
+    html: `<div class="flex items-center gap-2 whitespace-nowrap rounded-full border border-white/20 bg-slate-950/90 px-3 py-2 text-xs font-semibold text-white shadow-xl backdrop-blur-md"><span aria-hidden="true">🚜</span><span>${machineId}</span><span class="h-1 w-1 rounded-full bg-white/30"></span><span class="flex items-center gap-1 text-slate-200"><span class="text-[10px] ${status.className}">${status.indicator}</span>${status.label}</span></div>`,
+    iconSize: [190, 36],
+    iconAnchor: [95, 18],
+    popupAnchor: [0, -20],
   });
 }
 
@@ -132,8 +136,10 @@ function cleanupLeafletContainer(container: HTMLElement | null) {
 
 export default function MapClient({
   externalPositions,
+  fullBleed = false,
 }: {
   externalPositions?: MachinePosition[];
+  fullBleed?: boolean;
 }) {
   const [estado, setEstado] = useState<EstadoRequisicao<MachinePosition[]>>({ tipo: "carregando" });
   const [retryCount, setRetryCount] = useState(0);
@@ -176,7 +182,6 @@ export default function MapClient({
       const imported = await import("leaflet");
       const leafletImport = imported as { default?: LeafletModule };
       const L = leafletImport.default ?? imported;
-      configureDefaultLeafletIcons(L);
       leafletRef.current = L;
 
       cleanupLeafletContainer(container);
@@ -248,7 +253,7 @@ export default function MapClient({
 
     validPositions.forEach((machine) => {
       L.marker([machine.lat, machine.lng], {
-        icon: createMarkerIcon(L, machine.status),
+        icon: createMarkerIcon(L, machine),
       })
         .bindPopup(getPopupHtml(machine))
         .addTo(markers);
@@ -318,7 +323,7 @@ export default function MapClient({
 
   if (estado.tipo === "carregando") {
     return (
-      <div className="min-h-[50vh] h-[calc(100vh-5.5rem)] w-full sm:h-[calc(100vh-5rem)] flex items-center justify-center">
+      <div className={`${fullBleed ? "h-full" : "min-h-[50vh] h-[calc(100vh-5.5rem)] sm:h-[calc(100vh-5rem)]"} flex w-full items-center justify-center`}>
         <LoadingState mensagem="Carregando posições..." />
       </div>
     );
@@ -326,7 +331,7 @@ export default function MapClient({
 
   if (estado.tipo === "erro") {
     return (
-      <div className="min-h-[50vh] h-[calc(100vh-5.5rem)] w-full sm:h-[calc(100vh-5rem)] flex items-center justify-center">
+      <div className={`${fullBleed ? "h-full" : "min-h-[50vh] h-[calc(100vh-5.5rem)] sm:h-[calc(100vh-5rem)]"} flex w-full items-center justify-center`}>
         <ErrorState mensagem={estado.mensagem} onRetry={() => setRetryCount((c) => c + 1)} />
       </div>
     );
@@ -334,14 +339,14 @@ export default function MapClient({
 
   if (estado.tipo === "vazio") {
     return (
-      <div className="flex h-[calc(100vh-5.5rem)] min-h-[28rem] w-full items-center justify-center bg-black/20 px-6 text-center sm:h-[calc(100vh-5rem)]">
+      <div className={`${fullBleed ? "h-full min-h-0" : "h-[calc(100vh-5.5rem)] min-h-[28rem] sm:h-[calc(100vh-5rem)]"} flex w-full items-center justify-center bg-black/20 px-6 text-center`}>
         <EmptyState mensagem="Nenhuma máquina veio com coordenadas válidas de GPS no momento." />
       </div>
     );
   }
 
   return (
-    <div className="relative h-[calc(100vh-5.5rem)] min-h-[28rem] w-full sm:h-[calc(100vh-5rem)]">
+    <div className={`${fullBleed ? "h-full min-h-0" : "h-[calc(100vh-5.5rem)] min-h-[28rem] sm:h-[calc(100vh-5rem)]"} relative w-full`}>
       {process.env.NODE_ENV !== "production" && (
         <div
           id="map-client-debug"
@@ -361,7 +366,7 @@ export default function MapClient({
         </div>
       )}
 
-      <div ref={containerRef} className="relative z-0 h-full min-h-[28rem] w-full" />
+      <div ref={containerRef} className={`relative z-0 h-full w-full ${fullBleed ? "min-h-0" : "min-h-[28rem]"}`} />
     </div>
   );
 }
