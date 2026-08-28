@@ -1,6 +1,7 @@
 services:
   db:
-    image: mysql:8.0
+    image: mysql:8.0-debian
+    platform: linux/amd64
     restart: always
     env_file:
       - .env
@@ -53,7 +54,8 @@ services:
         condition: service_healthy
 
   frontend:
-    image: node:22-bookworm-slim
+    image: node:22-bookworm
+    platform: linux/amd64
     working_dir: /app
     env_file:
       - .env
