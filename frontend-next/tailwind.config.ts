@@ -1,10 +1,16 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  content: [
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/lib/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
   theme: {
     extend: {
       colors: {
+        base: {
+          950: '#0B0E14',
+        },
         field: {
           bg: 'var(--background)',
           panel: 'var(--panel)',
@@ -31,7 +37,12 @@ const config: Config = {
           DEFAULT: 'var(--ui-accent)',
           dim: 'var(--panel-glass-strong)',
           text: 'var(--text-1)',
+          lime: '#CCFF00',
+          orange: '#FF5E00',
         },
+      },
+      backdropBlur: {
+        xs: '2px',
       },
       borderRadius: {
         none: '0',
@@ -42,6 +53,7 @@ const config: Config = {
         xl: '0',
         '2xl': '0',
         '3xl': '0',
+        '4xl': '2rem',
       },
       boxShadow: {
         glass: 'var(--shadow-glass)',
@@ -55,12 +67,13 @@ const config: Config = {
         8: 'var(--space-8)',
       },
       fontFamily: {
-        sans: 'var(--font-primary)',
+        sans: ['Inter', 'SF Pro Display', 'sans-serif'],
         mono: 'var(--font-code)',
       },
       letterSpacing: {
         label: 'var(--tracking-label)',
         title: 'var(--tracking-title)',
+        tightest: '-.04em',
       },
     },
   },
