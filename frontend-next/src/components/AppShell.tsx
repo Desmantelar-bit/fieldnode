@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/Sidebar';
+import { BackButton } from '@/components/BackButton';
+import { ChatFAB } from '@/components/ChatFAB';
 
 type NavItem = {
   href: string;
@@ -73,9 +75,11 @@ export function AppShell({
   return (
     <main className="min-h-screen bg-[image:var(--surface-page)] text-field-text">
       <Sidebar />
+      <BackButton />
+      <ChatFAB />
 
       <section className="pb-24 lg:ml-28">
-        <header className="sticky top-0 z-20 border-b border-field-border bg-[color:var(--surface-header)] px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 border-b border-field-border bg-[color:var(--surface-header)] px-4 py-4 pl-20 backdrop-blur-xl sm:px-6 sm:pl-20 lg:px-8 lg:pl-8">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             <div>
               {eyebrow ? (

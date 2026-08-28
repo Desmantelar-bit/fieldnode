@@ -1,21 +1,20 @@
-// Superfícies Glassmorphism
-export const glassCard = 'bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl';
-export const glassPill = 'bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-full';
-
-// Tipografia e KPIs
-export const kpiNumber = 'text-5xl font-bold tracking-tighter text-white';
-export const kpiLabel = 'text-xs uppercase tracking-wide text-slate-400';
-
-// Cores Semânticas
+export const glassCard = 'border border-white/10 bg-slate-900/45 shadow-glass backdrop-blur-xl rounded-3xl';
+export const glassPill = 'border border-white/10 bg-slate-950/60 shadow-glass backdrop-blur-xl rounded-full';
+export const kpiNumber = 'text-4xl font-semibold tracking-tight text-white sm:text-5xl';
+export const kpiLabel = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400';
+export const surfacePage = 'bg-[image:var(--surface-page)]';
 export const statusColor = {
-  normal: 'text-lime-400',
-  atencao: 'text-amber-400',
-  critico: 'text-orange-500',
+  normal: 'text-status-normal',
+  atencao: 'text-status-atencao',
+  critico: 'text-status-critico',
 } as const;
-
-// Cores semânticas reservadas para séries de tendência e sparklines.
+export const statusSurface = {
+  normal: 'border-status-normal/25 bg-status-normal/10',
+  atencao: 'border-status-atencao/25 bg-status-atencao/10',
+  critico: 'border-status-critico/25 bg-status-critico/10',
+} as const;
 export const sparklineColor = {
-  normal: '#CCFF00',
-  atencao: '#FBBF24',
-  critico: '#FF5E00',
+  normal: 'var(--status-normal)',
+  atencao: 'var(--status-atencao)',
+  critico: 'var(--status-critico)',
 } as const;
