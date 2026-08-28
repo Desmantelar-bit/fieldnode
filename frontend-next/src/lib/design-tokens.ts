@@ -12,3 +12,10 @@ export const statusColor = {
   atencao: 'text-amber-400',
   critico: 'text-orange-500',
 } as const;
+
+// Cores semânticas reservadas para séries de tendência e sparklines.
+export const sparklineColor = {
+  normal: '#CCFF00',
+  atencao: '#FBBF24',
+  critico: '#FF5E00',
+} as const;

@@ -4,14 +4,41 @@ import { AppShell } from '@/components/AppShell';
 import { ErrorState } from '@/components/EmptyState';
 import { FleetGrid } from '@/components/FleetGrid';
 import { FleetMap } from '@/components/FleetMap';
-import { MetricCard } from '@/components/MetricCard';
 import { ReportButton } from '@/components/ReportButton';
 import { SkeletonGrid } from '@/components/SkeletonGrid';
+import { SparklineCard } from '@/components/SparklineCard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type FleetStatus = Awaited<ReturnType<typeof telemetryService.getFleetStatus>>;
+
+const dadosRpm = [
+  { valor: 1750 },
+  { valor: 1800 },
+  { valor: 1820 },
+  { valor: 1790 },
+  { valor: 1850 },
+  { valor: 1820 },
+];
+
+const dadosTemperatura = [
+  { valor: 72 },
+  { valor: 74 },
+  { valor: 76 },
+  { valor: 79 },
+  { valor: 82 },
+  { valor: 78 },
+];
+
+const dadosVibracao = [
+  { valor: 1.8 },
+  { valor: 2.0 },
+  { valor: 1.9 },
+  { valor: 2.2 },
+  { valor: 2.1 },
+  { valor: 2.1 },
+];
 
 async function FleetData() {
   let machines;
@@ -22,16 +49,24 @@ async function FleetData() {
     return <ErrorState title="Nao consegui falar com a API agora." message="Confira se o backend Django esta rodando em 127.0.0.1:8000. O dashboard continua de pe, so esta sem dados frescos para mostrar." />;
   }
 
-  const activeMachines = machines.filter((machine) => machine.status_de_operacao.em_operacao).length;
-  const movingMachines = machines.filter((machine) => machine.estado_de_movimento.em_movimento).length;
-  const totalHours = machines.reduce((sum, machine) => sum + machine.status_de_operacao.tempo_de_operacao, 0);
-
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label="Maquinas" value={machines.length} helper="cadastradas na frota" />
-        <MetricCard label="Em operacao" value={activeMachines} helper={`${movingMachines} em movimento`} tone="emerald" />
-        <MetricCard label="Horas" value={`${totalHours.toFixed(1)}h`} helper="tempo total reportado" tone="amber" />
+      <section aria-label="Indicadores operacionais" className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 md:col-span-4">
+          <SparklineCard titulo="RPM Médio" valor={1820} dados={dadosRpm} status="normal" />
+        </div>
+        <div className="col-span-12 md:col-span-4">
+          <SparklineCard
+            titulo="Temperatura do Motor"
+            valor={78}
+            unidade="°C"
+            dados={dadosTemperatura}
+            status="atencao"
+          />
+        </div>
+        <div className="col-span-12 md:col-span-4">
+          <SparklineCard titulo="Vibração do Rotor" valor={2.1} dados={dadosVibracao} status="normal" />
+        </div>
       </section>
       <FleetGrid machines={machines} />
       <FleetMap />
@@ -51,7 +86,7 @@ export default async function DashboardPage() {
 
   if (reportError) {
     return (
-      <AppShell active="/dashboard" eyebrow="FieldNode" title="Frota em campo">
+      <AppShell active="/dashboard" eyebrow="FieldNode" title="Central de Operações">
         <ErrorState title="Dashboard indisponivel" message={reportError} />
       </AppShell>
     );
@@ -61,7 +96,7 @@ export default async function DashboardPage() {
     <AppShell
       active="/dashboard"
       eyebrow="FieldNode"
-      title="Frota em campo"
+      title="Central de Operações"
       actions={
         <div className="inline-flex items-center gap-2">
           <ReportButton machines={reportMachines} />
@@ -72,6 +107,7 @@ export default async function DashboardPage() {
         </div>
       }
     >
+      <p className="mb-8 text-sm text-field-text3">Monitoramento multivariado da frota em tempo real.</p>
       <Suspense fallback={<SkeletonGrid />}>
         <FleetData />
       </Suspense>
