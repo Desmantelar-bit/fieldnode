@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { resolveApiUrl } from "@/services/telemetryService";
-import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
+import { Sidebar } from '@/components/Sidebar';
 
 type NavItem = {
   href: string;
@@ -16,8 +15,6 @@ const navItems: NavItem[] = [
   { href: "/operarios", label: "Operários", icon: "users" },
   { href: "/relatorios", label: "Relatórios", icon: "report" },
 ];
-
-const API_URL = resolveApiUrl();
 
 const icons: Record<string, ReactNode> = {
   grid: (
@@ -75,55 +72,9 @@ export function AppShell({
 }) {
   return (
     <main className="min-h-screen bg-[image:var(--surface-page)] text-field-text">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-field-border bg-black/20 px-4 py-6 backdrop-blur-xl lg:flex lg:flex-col">
-        <Link
-          href="/dashboard"
-          className="mb-6 flex items-center gap-3 border-b border-field-border px-2 pb-6"
-        >
-          <span className="flex h-9 w-9 items-center justify-center border border-accent/25 bg-accent/10 text-accent">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2 3 7l9 5 9-5-9-5Z" />
-              <path d="m3 12 9 5 9-5" />
-              <path d="m3 17 9 5 9-5" />
-            </svg>
-          </span>
-          <span>
-            <span className="block text-sm font-semibold tracking-tight">
-              FieldNode
-            </span>
-            <span className="block text-[10px] font-semibold uppercase tracking-label text-field-text3">
-              Telemetria
-            </span>
-          </span>
-        </Link>
+      <Sidebar />
 
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = active === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${
-                  isActive
-                    ? "bg-accent/10 text-accent ring-1 ring-accent/20"
-                    : "text-field-text3 hover:bg-field-glass-strong hover:text-field-text2"
-                }`}
-              >
-                <span className="h-4 w-4">{icons[item.icon]}</span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto border border-field-border bg-field-glass p-3">
-          <ApiStatusIndicator />
-          <p className="mt-2 text-xs text-field-text3">{API_URL}</p>
-        </div>
-      </aside>
-
-      <section className="lg:pl-64 pb-24 lg:pb-0">
+      <section className="pb-24 lg:ml-28">
         <header className="sticky top-0 z-20 border-b border-field-border bg-[color:var(--surface-header)] px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             <div>
