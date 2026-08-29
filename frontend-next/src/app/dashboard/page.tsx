@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { telemetryService } from '@/services/telemetryService';
 import { AppShell } from '@/components/AppShell';
+import { ChatFAB } from '@/components/ChatFAB';
 import { ErrorState } from '@/components/EmptyState';
 import { FleetGrid } from '@/components/FleetGrid';
 import { FleetMap } from '@/components/FleetMap';
@@ -51,11 +52,11 @@ async function FleetData() {
 
   return (
     <div className="space-y-6">
-      <section aria-label="Indicadores operacionais" className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 md:col-span-4">
+      <section aria-label="Indicadores operacionais" className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-12">
+        <div className="md:col-span-4">
           <SparklineCard titulo="RPM Médio" valor={1820} dados={dadosRpm} status="normal" />
         </div>
-        <div className="col-span-12 md:col-span-4">
+        <div className="md:col-span-4">
           <SparklineCard
             titulo="Temperatura do Motor"
             valor={78}
@@ -64,12 +65,13 @@ async function FleetData() {
             status="atencao"
           />
         </div>
-        <div className="col-span-12 md:col-span-4">
+        <div className="md:col-span-4">
           <SparklineCard titulo="Vibração do Rotor" valor={2.1} dados={dadosVibracao} status="normal" />
         </div>
       </section>
       <FleetGrid machines={machines} />
       <FleetMap />
+      <ChatFAB machines={machines} />
     </div>
   );
 }

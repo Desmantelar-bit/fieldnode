@@ -2,13 +2,13 @@
   "name": "FieldNode Telemetria",
   "short_name": "FieldNode",
   "description": "Dashboard de telemetria agrícola offline-first",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "categories": ["business", "productivity", "utilities"],
-  "theme_color": "#64d98c",
-  "background_color": "#090d0b",
+  "theme_color": "#0B100E",
+  "background_color": "#0B100E",
   "prefer_related_applications": false,
   "icons": [
     {

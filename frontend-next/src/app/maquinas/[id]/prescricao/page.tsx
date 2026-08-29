@@ -39,14 +39,9 @@ export default async function PrescricaoPage({
     return (
       <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
         <div className="space-y-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-50">Prescrição para {maquinaId}</h1>
-              <p className="mt-1 text-sm text-slate-400">Recomendação operacional baseada na telemetria atual.</p>
-            </div>
-            <a href="/colheitadeiras" className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]">
-              Voltar
-            </a>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-50">Prescrição para {maquinaId}</h2>
+            <p className="mt-1 text-sm text-slate-400">Recomendação operacional baseada na telemetria atual.</p>
           </div>
 
           <section className="glass-panel rounded-lg border border-white/10 bg-white/[0.02] p-5">

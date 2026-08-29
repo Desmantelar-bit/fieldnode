@@ -1,63 +1,6 @@
-import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Sidebar } from '@/components/Sidebar';
 import { BackButton } from '@/components/BackButton';
-import { ChatFAB } from '@/components/ChatFAB';
-
-type NavItem = {
-  href: string;
-  label: string;
-  icon: string;
-};
-
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "grid" },
-  { href: "/mapa", label: "Mapa", icon: "map" },
-  { href: "/colheitadeiras", label: "Máquinas", icon: "machine" },
-  { href: "/operarios", label: "Operários", icon: "users" },
-  { href: "/relatorios", label: "Relatórios", icon: "report" },
-];
-
-const icons: Record<string, ReactNode> = {
-  grid: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  ),
-  map: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z" />
-      <circle cx="12" cy="9" r="2.5" />
-    </svg>
-  ),
-  machine: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M4 15h11l2-5h3v5" />
-      <path d="M5 15v-4h5l2 4" />
-      <circle cx="7" cy="17" r="2" />
-      <circle cx="18" cy="17" r="2" />
-    </svg>
-  ),
-  users: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-      <circle cx="9.5" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  report: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-    </svg>
-  ),
-};
+import { Sidebar } from '@/components/Sidebar';
 
 export function AppShell({
   active,
@@ -72,16 +15,17 @@ export function AppShell({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const showBackButton = active !== '/dashboard';
+
   return (
     <main className="min-h-screen bg-[image:var(--surface-page)] text-field-text">
       <Sidebar />
-      <BackButton />
-      <ChatFAB />
+      {showBackButton ? <BackButton /> : null}
 
-      <section className="pb-24 lg:ml-28">
-        <header className="sticky top-0 z-20 border-b border-field-border bg-[color:var(--surface-header)] px-4 py-4 pl-20 backdrop-blur-xl sm:px-6 sm:pl-20 lg:px-8 lg:pl-8">
+      <section className="pb-24 lg:ml-28 lg:pb-0">
+        <header className="sticky top-0 z-20 border-b border-field-border bg-[color:var(--surface-header)] px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div>
+            <div className={showBackButton ? 'pl-14 lg:pl-0' : ''}>
               {eyebrow ? (
                 <p className="text-[11px] font-semibold uppercase tracking-label text-accent/80">
                   {eyebrow}
@@ -99,28 +43,6 @@ export function AppShell({
           {children}
         </div>
       </section>
-
-      {/* Mobile bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 bg-black/80 border-t border-field-border px-4 py-3 backdrop-blur-xl lg:hidden">
-        {navItems.map((item) => {
-          const isActive = active === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex min-h-[4rem] w-full flex-col items-center justify-center px-3 py-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                isActive
-                  ? "text-accent"
-                  : "text-field-text2 hover:text-field-text1"
-              }`}
-              aria-label={item.label}
-            >
-              <span className="h-6 w-6">{icons[item.icon]}</span>
-              <span className="mt-1 block text-[11px]">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
     </main>
   );
 }
