@@ -33,6 +33,21 @@ class OperarioAdmin(admin.ModelAdmin):
     search_fields = ('nome',)
 
 
+@admin.register(models.Machine)
+class MachineAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "external_code",
+        "organization",
+        "modelo",
+        "colheitadeira",
+        "criado_em",
+        "ativo",
+    )
+    search_fields = ("external_code",)
+    list_filter = ("ativo",)
+
+
 admin.site.register(models.UnidadedeMedida)
 admin.site.register(models.Marca)
 admin.site.register(models.Modelo)

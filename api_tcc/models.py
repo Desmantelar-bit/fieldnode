@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db import models
 import uuid as uuid_lib
 
@@ -279,3 +280,102 @@ class Prescricao(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.colheitadeira.modelo.nome}"
+
+
+# ---------------------------------------------------------------------------
+# S1-T1 — Fundação Multi-tenant + Machine Canônica
+# ---------------------------------------------------------------------------
+
+class Organization(models.Model):
+    """Tenant raiz: agrupa usuários e máquinas de uma mesma operação agrícola."""
+
+    id        = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    nome      = models.CharField(max_length=255, verbose_name="Nome")
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Organização"
+        verbose_name_plural = "Organizações"
+
+    def __str__(self):
+        return self.nome
+
+
+class Membership(models.Model):
+    """Associação de um usuário Django a uma Organization com papel (role)."""
+
+    ROLE_CHOICES = [
+        ("admin",  "Administrador"),
+        ("member", "Membro"),
+        ("viewer", "Visualizador"),
+    ]
+
+    user         = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuário")
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.CASCADE, verbose_name="Organização"
+    )
+    role      = models.CharField(
+        max_length=50, choices=ROLE_CHOICES, default="member", verbose_name="Papel"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Membership"
+        verbose_name_plural = "Memberships"
+        unique_together = [("user", "organization")]
+
+    def __str__(self):
+        return f"{self.user} → {self.organization} [{self.role}]"
+
+
+class Machine(models.Model):
+    """
+    Entidade canônica que representa um hardware físico (ex.: ESP32/colheitadeira).
+
+    external_code: ID do dispositivo normalizado (.strip().upper()), único no sistema.
+    Serve de âncora para LeituraTelemetria (FK adicionada em S1-T2) e de ponte
+    opcional para Colheitadeira (especialização agrícola) e Organization (multi-tenant).
+    """
+
+    id            = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    external_code = models.CharField(
+        max_length=100,
+        unique=True,
+        db_index=True,
+        verbose_name="Código externo",
+        help_text="ID do hardware/ESP32 normalizado (.strip().upper())",
+    )
+
+    # FKs opcionais — nullable para permitir backfill incremental
+    organization  = models.ForeignKey(
+        "Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name="Organização",
+    )
+    modelo        = models.ForeignKey(
+        "Modelo",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name="Modelo",
+    )
+    colheitadeira = models.ForeignKey(
+        "Colheitadeira",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Colheitadeira vinculada",
+    )
+
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    ativo     = models.BooleanField(default=True, db_index=True, verbose_name="Ativo")
+
+    class Meta:
+        verbose_name = "Machine"
+        verbose_name_plural = "Machines"
+        ordering = ["external_code"]
+
+    def __str__(self):
+        return self.external_code
