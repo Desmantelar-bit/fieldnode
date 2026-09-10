@@ -1,3 +1,4 @@
+import random
 import paho.mqtt.client as mqtt
 import json
 import time
@@ -27,6 +28,7 @@ def mon():
         except:errors+=1
         time.sleep(30)
 def main():
+    global sent
     c=mqtt.Client()
     c.on_connect=on_c
     c.connect(BROKER,PORT)

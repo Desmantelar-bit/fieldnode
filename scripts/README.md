@@ -6,7 +6,14 @@ a partir da raiz do repositório, por exemplo: `python scripts/<arquivo>.py`.
 
 ## Dados e demonstração
 
-- `popular_banco.py`: popula o banco com a base de demonstração.
+- `seed_data.py`: ponto de entrada único para população de dados. Aceita
+  `--scenario {simples,completo,stress}`:
+  - `simples` — 8 colheitadeiras, dados fixos, 96 leituras. Limpa o banco.
+    Bom para demo e smoke test.
+  - `completo` — 10 colheitadeiras `COLH-01..10`, 500 leituras com GPS real
+    (Goiás/DF). Idempotente (`get_or_create`).
+  - `stress` — 20 colheitadeiras `STRESS-01..20`, 4 000 leituras via
+    `bulk_create`. Para validar performance de escrita em massa.
 - `limpar_banco.py`: remove os dados do banco respeitando a ordem das relações.
 - `adicionar_telemetrias.py`: adiciona leituras de telemetria para testes locais.
 - `criar_prescricoes_teste.py`: cria prescrições de exemplo.
@@ -32,7 +39,7 @@ a partir da raiz do repositório, por exemplo: `python scripts/<arquivo>.py`.
 ## Execução comum
 
 ```bash
-python scripts/popular_banco.py
+python scripts/seed_data.py --scenario simples
 python scripts/simular_cenarios.py
 python scripts/teste_deduplicacao.py
 ```
