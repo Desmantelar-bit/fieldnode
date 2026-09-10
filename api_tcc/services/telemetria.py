@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from django.utils.timezone import make_aware, is_aware
 from django.db import IntegrityError
-from api_tcc.models import LeituraTelemetria, Colheitadeira
+from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +117,20 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
 
     try:
         timestamp = _normalizar_timestamp(dados["timestamp"])
+
+        # S1-T2 — Resolução de entidade Machine on-the-fly.
+        # Normaliza o ID para garantir que "colh-01", " COLH-01 " e "COLH-01"
+        # apontem sempre para o mesmo objeto Machine (external_code único).
+        # Nunca bloqueia a ingestão: se a máquina não existe no cadastro, cria.
+        codigo_normalizado = str(dados["maquina_id"]).strip().upper()
+        machine_obj, criado = Machine.objects.get_or_create(external_code=codigo_normalizado)
+        if criado:
+            logger.info("Machine criada on-the-fly: %s", codigo_normalizado)
+
         leitura = LeituraTelemetria(
             id=uuid_recebido,
-            maquina_id=str(dados["maquina_id"]).strip(),
+            maquina_id=codigo_normalizado,  # campo legado — mantido para retrocompatibilidade
+            machine=machine_obj,          # FK canônica (S1-T2)
             temperatura=float(dados["temperatura"]),
             vibracao=float(dados["vibracao"]),
             rpm=int(dados["rpm"]),

@@ -187,6 +187,18 @@ class Colheitadeira(models.Model):
 class LeituraTelemetria(models.Model):
     id          = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
     maquina_id  = models.CharField(max_length=50, verbose_name='ID da Máquina')
+
+    # S1-T2 — FK canônica para Machine (nullable para retrocompatibilidade com dados históricos)
+    # Removido em fase futura após backfill completo e migração do campo legado.
+    machine = models.ForeignKey(
+        'Machine',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='leituras',
+        verbose_name='Machine (FK)',
+    )
+
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
     rpm         = models.IntegerField(verbose_name='RPM')

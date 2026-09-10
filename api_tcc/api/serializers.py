@@ -264,11 +264,19 @@ from api_tcc.models import LeituraTelemetria
 class LeituraTelemetriaSerializer(serializers.ModelSerializer):
     status_risco = serializers.SerializerMethodField()
 
+    machine = serializers.PrimaryKeyRelatedField(read_only=True)
+    # S1-T2 — UUID do objeto Machine canônico (read-only).
+    # Sensores continuam enviando apenas maquina_id no payload; este campo
+    # é somente de leitura e expõe a FK resolvida pelo serviço de ingestão.
+    machine_id = serializers.UUIDField(source="machine.id", read_only=True, allow_null=True)
+
     class Meta:
         model = LeituraTelemetria
         fields = [
             "id",
             "maquina_id",
+            "machine",
+            "machine_id",
             "temperatura",
             "vibracao",
             "rpm",
@@ -286,7 +294,14 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
     def validate_maquina_id(self, value):
         if not value or str(value).strip() == "":
             raise serializers.ValidationError("O ID da máquina não pode ser vazio.")
-        return value
+        return str(value).strip().upper()
+
+    def create(self, validated_data):
+        machine, _ = models.Machine.objects.get_or_create(
+            external_code=validated_data["maquina_id"]
+        )
+        validated_data["machine"] = machine
+        return super().create(validated_data)
 
     def validate_temperatura(self, value):
         if value > 200:

@@ -5,6 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
+from api_tcc.services.telemetria import registrar_leitura
 
 from api_tcc.models import (
     AlturadoCorte,
@@ -12,6 +13,7 @@ from api_tcc.models import (
     Combustivel,
     EstadodeMovimento,
     LeituraTelemetria,
+    Machine,
     Marca,
     Modelo,
     Operario,
@@ -79,12 +81,49 @@ class IngestaoTelemetriaTest(TestCase):
         self.headers = {"HTTP_X_API_KEY": getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")}
 
     def test_ingestao_valida_retorna_201(self):
-        response = self.client.post("/api/telemetria/", _payload(), format="json", **self.headers)
+        response = self.client.post(
+            "/api/telemetria/", _payload(maquina_id=" colh-t01 "), format="json", **self.headers
+        )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["status"], "ok")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
         leitura = LeituraTelemetria.objects.get()
-        self.assertNotIn("seq_id", LeituraTelemetriaSerializer(leitura).data)
+        self.assertIsNotNone(leitura.machine)
+        self.assertEqual(leitura.maquina_id, "COLH-T01")
+        self.assertEqual(leitura.machine.external_code, "COLH-T01")
+        serialized = LeituraTelemetriaSerializer(leitura).data
+        self.assertIn("machine", serialized)
+        self.assertIn("machine_id", serialized)
+        self.assertNotIn("seq_id", serialized)
+
+    def test_ingestao_mqtt_reutiliza_machine_normalizada(self):
+        status_1, _ = registrar_leitura(_payload(maquina_id=" mqtt-01 "))
+        status_2, _ = registrar_leitura(
+            _payload(maquina_id="MQTT-01", timestamp="2026-06-01T10:01:00Z")
+        )
+
+        self.assertEqual(status_1, "criado")
+        self.assertEqual(status_2, "criado")
+        self.assertEqual(Machine.objects.filter(external_code="MQTT-01").count(), 1)
+        leituras = LeituraTelemetria.objects.order_by("timestamp")
+        self.assertEqual(leituras.count(), 2)
+        self.assertIsNotNone(leituras[0].machine)
+        self.assertEqual(leituras[0].machine_id, leituras[1].machine_id)
+        self.assertEqual(leituras[0].machine.external_code, "MQTT-01")
+
+    def test_ingestao_em_lote_grava_machine(self):
+        response = self.client.post(
+            "/api/telemetria/lote/",
+            {"leituras": [_payload(maquina_id=" lote-01 ")]},
+            format="json",
+            **self.headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["salvas"], 1)
+        leitura = LeituraTelemetria.objects.get()
+        self.assertIsNotNone(leitura.machine)
+        self.assertEqual(leitura.machine.external_code, "LOTE-01")
 
     def test_ingestao_invalida_retorna_400(self):
         response = self.client.post(
