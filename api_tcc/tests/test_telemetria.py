@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.services.telemetria import registrar_leitura
+from api_tcc.services.telemetria import registrar_leitura, validar_payload
 
 from api_tcc.models import (
     AlturadoCorte,
@@ -96,6 +96,29 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertIn("machine_id", serialized)
         self.assertNotIn("seq_id", serialized)
 
+    def test_ingestao_com_schema_version_retorna_201(self):
+        response = self.client.post(
+            "/api/telemetria/",
+            _payload(schema_version="1.0", maquina_id="schema-01"),
+            format="json",
+            **self.headers,
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(LeituraTelemetria.objects.count(), 1)
+
+    def test_ingestao_sem_schema_version_retorna_201(self):
+        payload = _payload(maquina_id="schema-legacy-01")
+
+        with self.assertLogs("api_tcc.services.telemetria", level="WARNING") as logs:
+            response = self.client.post(
+                "/api/telemetria/", payload, format="json", **self.headers
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(LeituraTelemetria.objects.count(), 1)
+        self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))
+
     def test_ingestao_mqtt_reutiliza_machine_normalizada(self):
         status_1, _ = registrar_leitura(_payload(maquina_id=" mqtt-01 "))
         status_2, _ = registrar_leitura(
@@ -139,3 +162,26 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "duplicata ignorada")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
+
+
+class SchemaVersionTest(TestCase):
+    def test_payload_sem_schema_version_injeta_versao_e_registra_warning(self):
+        payload = _payload()
+
+        with self.assertLogs("api_tcc.services.telemetria", level="WARNING") as logs:
+            valido, motivo = validar_payload(payload)
+
+        self.assertTrue(valido, motivo)
+        self.assertEqual(payload["schema_version"], "1.0")
+        self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))
+        self.assertTrue(any("Assumindo '1.0'" in mensagem for mensagem in logs.output))
+
+    def test_payload_com_schema_version_none_injeta_versao_e_registra_warning(self):
+        payload = _payload(schema_version=None)
+
+        with self.assertLogs("api_tcc.services.telemetria", level="WARNING") as logs:
+            valido, motivo = validar_payload(payload)
+
+        self.assertTrue(valido, motivo)
+        self.assertEqual(payload["schema_version"], "1.0")
+        self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))

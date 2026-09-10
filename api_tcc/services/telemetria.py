@@ -36,7 +36,20 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
 
     Usamos tipos explícitos aqui porque o ESP32 às vezes manda string "85.5"
     em vez de float 85.5 dependendo da biblioteca JSON usada no firmware.
+
+    S1-T3 — Checagem de schema_version (contrato versionado).
+    Se ausente, injeta "1.0" para retrocompatibilidade e loga aviso.
+    Ver docs/CONTRATO_TELEMETRIA_V1.md para o contrato formal.
     """
+    # ── S1-T3: Versionamento de schema ──────────────────────────
+    if "schema_version" not in dados or dados["schema_version"] is None:
+        dados["schema_version"] = "1.0"
+        logger.warning(
+            "DeprecationWarning: Payload recebido sem schema_version. "
+            "Assumindo '1.0'. Maquina ID: %s",
+            dados.get("maquina_id", "Desconhecida"),
+        )
+
     campos_obrigatorios = ["maquina_id", "temperatura", "vibracao", "rpm", "timestamp"]
     for campo in campos_obrigatorios:
         if campo not in dados or dados[campo] is None:
