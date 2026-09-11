@@ -25,6 +25,7 @@ Cenários:
 import argparse
 import os
 import sys
+import uuid
 import django
 from datetime import datetime, timedelta, timezone as tz
 
@@ -259,9 +260,12 @@ def scenario_simples():
             rpm         = 1500 + (i * 70 + j * 40) % 600
             leitura_lat = lat + (j % 3) * 0.0008
             leitura_lng = lng + (j % 2) * 0.001
+            mid = str(uuid.uuid4())
 
             leituras.append(LeituraTelemetria(
                 maquina_id=maquina.maquina_id,
+                device_id=maquina.maquina_id,
+                message_id=mid,
                 temperatura=round(temperatura, 1),
                 vibracao=round(vibracao, 2),
                 rpm=rpm,
@@ -527,15 +531,18 @@ def scenario_completo():
             ts  = base - timedelta(minutes=j * 5)
             lat = round(lat_base + (random.random() - 0.5) * 0.002, 6)
             lng = round(lng_base + (random.random() - 0.5) * 0.002, 6)
+            mid = f"{maquina_id}-{j:04d}"
             _, created = LeituraTelemetria.objects.get_or_create(
-                maquina_id=maquina_id,
-                timestamp=ts,
+                device_id=maquina_id,
+                message_id=mid,
                 defaults={
+                    "maquina_id":  maquina_id,
                     "temperatura": round(random.uniform(65, 98), 1),
                     "vibracao":    round(random.uniform(0.15, 0.95), 2),
                     "rpm":         random.randint(1300, 2300),
                     "latitude":    lat,
                     "longitude":   lng,
+                    "timestamp":   ts,
                 },
             )
             if created:
@@ -698,6 +705,8 @@ def scenario_stress():
             ts = base - timedelta(minutes=j * 2)
             leituras.append(LeituraTelemetria(
                 maquina_id=colheitadeira.maquina_id,
+                device_id=colheitadeira.maquina_id,
+                message_id=str(uuid.uuid4()),
                 temperatura=round(65 + (i + j) % 35, 1),
                 vibracao=round(0.15 + (i + j) % 10 * 0.08, 2),
                 rpm=1300 + (i * 50 + j * 10) % 1000,

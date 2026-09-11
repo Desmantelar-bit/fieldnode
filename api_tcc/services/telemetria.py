@@ -6,12 +6,23 @@ Views e workers MQTT chamam estas funções — nunca acessam o modelo diretamen
 
 Decisão de arquitetura: separar regra de negócio da camada de transporte
 permite reutilização entre a API REST e o listener MQTT sem duplicação de lógica.
+
+S1-T5 — Contrato de identidade e sincronização:
+- registrar_leitura() usa (device_id, message_id) como chave de idempotência composta.
+- UUID da linha continua sendo o identificador interno; não é a chave de idempotência.
+- SyncCursor armazena o último sequence_number confirmado por device_id (monotônico).
+- Fallbacks de compatibilidade preservam comportamento dos simuladores legados.
 """
+import hashlib
+import json
 import logging
+import uuid as uuid_lib
 from datetime import datetime
+
+from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware
-from django.db import IntegrityError
-from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine
+
+from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine, SyncCursor
 
 logger = logging.getLogger(__name__)
 
@@ -98,78 +109,224 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────
 # REGISTRO DE LEITURA
 # ──────────────────────────────────────────────────────────────
+
+
+def _computar_payload_hash(dados: dict) -> str:
+    """
+    Computa SHA-256 do payload original (serializado) para rastreabilidade.
+    Não é usado como chave de idempotência — apenas como fingerprint.
+    """
+    raw = json.dumps(dados, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
+    """
+    Atualiza SyncCursor para o device_id com monotonicidade garantida.
+
+    Regra: last_acked_sequence = MAX(atual, novo_sequence).
+    O cursor nunca retrocede, mesmo que o evento chegue fora de ordem.
+
+    Deve ser chamado dentro de uma transação atômica (garantido por registrar_leitura).
+    """
+    cursor, criado = SyncCursor.objects.get_or_create(
+        device_id=device_id,
+        defaults={"last_acked_sequence": sequence_number},
+    )
+    if not criado and sequence_number > cursor.last_acked_sequence:
+        anterior = cursor.last_acked_sequence
+        nova_sequencia = sequence_number
+        cursor.last_acked_sequence = nova_sequencia
+        cursor.save(update_fields=["last_acked_sequence", "atualizado_em"])
+        logger.debug(
+            "SyncCursor avançado: device=%s seq=%d → %d",
+            device_id,
+            anterior,
+            nova_sequencia,
+        )
+    elif criado:
+        logger.debug("SyncCursor criado: device=%s seq=%d", device_id, sequence_number)
+
+
 def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     """
-    Persiste uma leitura de telemetria com deduplicação por UUID.
+    Persiste uma leitura de telemetria com idempotência composta por (device_id, message_id).
 
     Retorna:
-        ("criado", id_str)      — leitura nova salva com sucesso
-        ("duplicata", id_str)   — UUID já existia, ignorado (idempotente)
-        ("invalido", motivo)    — payload inválido, descartado
-        ("erro", detalhe)       — falha inesperada de banco
+        ("criado",    id_str)    — leitura nova salva com sucesso
+        ("duplicata", id_str)   — (device_id, message_id) já existia; replay ignorado
+        ("invalido",  motivo)   — payload inválido, descartado
+        ("erro",      detalhe)  — falha inesperada de banco
 
-    Decisão: tratamos IntegrityError separado de Exception genérico.
-    IntegrityError = race condition de UUID duplicado (ok, idempotente).
-    Exception      = algo inesperado que precisa de atenção imediata.
+    Contrato de identidade (S1-T5):
+    ─────────────────────────────────────────────────────────────────
+    • device_id   = dados["device_id"]   ou fallback: maquina_id.strip().upper()
+    • message_id  = dados["message_id"]  ou fallback: UUID gerado por envio
+                    ↳ ATENÇÃO: sem message_id, o reenvio NÃO é idempotente.
+                      Cada envio sem message_id gera um novo UUID → nova linha.
+                      Isso é comportamento intencional e documentado para preservar
+                      compatibilidade com simuladores legados.
+    • UUID da linha (id): continua sendo o identificador interno; não é idempotência.
+
+    Transação atômica:
+    ─────────────────────────────────────────────────────────────────
+    LeituraTelemetria + SyncCursor são atualizados atomicamente.
+    Não pode haver estado parcial (leitura criada sem cursor ou vice-versa).
+
+    Compatibilidade legada:
+    ─────────────────────────────────────────────────────────────────
+    • Payload sem device_id → fallback para maquina_id (idempotência preservada por machine_id)
+    • Payload sem message_id → UUID por envio (NÃO idempotente — documentado)
+    • Payload com id (UUID) explícito: usado como PK da linha, não como idempotência
     """
     valido, motivo = validar_payload(dados)
     if not valido:
         _registrar_leitura_invalida(dados, motivo)
-        logger.warning("Payload rejeitado — motivo: %s | maquina_id: %s",
-                       motivo, dados.get("maquina_id", "desconhecida"))
+        logger.warning(
+            "Payload rejeitado — motivo: %s | maquina_id: %s",
+            motivo,
+            dados.get("maquina_id", "desconhecida"),
+        )
         return "invalido", motivo
 
-    uuid_recebido = dados.get("id")
+    # ── Resolução de identidade ────────────────────────────────
+    # device_id: usa campo explícito quando presente; fallback para maquina_id normalizado.
+    maquina_id_normalizado = str(dados.get("maquina_id", "")).strip().upper()
+    device_id = str(
+        dados.get("device_id") or maquina_id_normalizado or "DESCONHECIDO"
+    ).strip()
 
-    # Deduplicação: evita gravar o mesmo pacote duas vezes
-    # (o ESP32 pode reenviar após timeout mesmo que o servidor já recebeu)
-    if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
-        logger.info("UUID ignorado (duplicata): %s | maquina: %s",
-                    uuid_recebido, dados.get("maquina_id"))
-        return "duplicata", str(uuid_recebido)
+    # message_id: usa campo explícito quando presente.
+    # SEM message_id, MAS COM id: usa o id como message_id para manter
+    # a retrocompatibilidade da idempotência legada (simuladores antigos).
+    # SEM message_id E SEM id: gera UUID por envio — NÃO idempotente.
+    message_id_recebido = dados.get("message_id")
+    uuid_recebido = dados.get("id") or None
+
+    if message_id_recebido:
+        message_id = str(message_id_recebido).strip()
+    elif uuid_recebido:
+        # Fallback de retrocompatibilidade: simuladores antigos mandavam apenas 'id'
+        message_id = str(uuid_recebido).strip()
+        logger.debug(
+            "message_id ausente, usando id %s como fallback de idempotência | device: %s",
+            message_id,
+            device_id,
+        )
+    else:
+        message_id = str(uuid_lib.uuid4())
+        logger.debug(
+            "message_id e id ausentes → UUID gerado por envio (não idempotente): %s | device: %s",
+            message_id,
+            device_id,
+        )
+
+    # Ausência de sequence_number é compatibilidade legada, não um ACK real.
+    sequence_number_recebido = dados.get("sequence_number")
+    sequence_informada = sequence_number_recebido is not None
+    sequence_number = int(sequence_number_recebido or 0)
+
+    # source / transport: origem e protocolo de transporte
+    source = str(dados.get("source") or "api").strip()[:50]
+    transport = str(dados.get("transport") or "http").strip()[:50]
+
+    # payload_hash para rastreabilidade
+    payload_hash = _computar_payload_hash(dados)
 
     try:
         timestamp = _normalizar_timestamp(dados["timestamp"])
 
-        # S1-T2 — Resolução de entidade Machine on-the-fly.
-        # Normaliza o ID para garantir que "colh-01", " COLH-01 " e "COLH-01"
-        # apontem sempre para o mesmo objeto Machine (external_code único).
-        # Nunca bloqueia a ingestão: se a máquina não existe no cadastro, cria.
-        codigo_normalizado = str(dados["maquina_id"]).strip().upper()
-        machine_obj, criado = Machine.objects.get_or_create(external_code=codigo_normalizado)
-        if criado:
-            logger.info("Machine criada on-the-fly: %s", codigo_normalizado)
-
-        leitura = LeituraTelemetria(
-            id=uuid_recebido,
-            maquina_id=codigo_normalizado,  # campo legado — mantido para retrocompatibilidade
-            machine=machine_obj,          # FK canônica (S1-T2)
-            temperatura=float(dados["temperatura"]),
-            vibracao=float(dados["vibracao"]),
-            rpm=int(dados["rpm"]),
-            latitude=float(dados["latitude"]) if "latitude" in dados and dados["latitude"] is not None else None,
-            longitude=float(dados["longitude"]) if "longitude" in dados and dados["longitude"] is not None else None,
-            timestamp=timestamp,
+        # Resolução de Machine on-the-fly (S1-T2 — preservado)
+        machine_obj, maq_criada = Machine.objects.get_or_create(
+            external_code=maquina_id_normalizado
         )
-        leitura.save()
-        logger.info("Leitura registrada com sucesso. UUID: %s | maquina: %s | temp: %.1f°C",
-                    leitura.id, leitura.maquina_id, leitura.temperatura)
+        if maq_criada:
+            logger.info("Machine criada on-the-fly: %s", maquina_id_normalizado)
+
+        with transaction.atomic():
+            # ── Verificação de idempotência por (device_id, message_id) ──────
+            # get_or_create atomicamente: protege contra race condition.
+            # A constraint unique_together no banco é a última barreira.
+            leitura, foi_criada = LeituraTelemetria.objects.get_or_create(
+                device_id=device_id,
+                message_id=message_id,
+                defaults={
+                    "id": uuid_recebido,  # usa UUID enviado ou None → auto-gerado
+                    "maquina_id": maquina_id_normalizado,
+                    "machine": machine_obj,
+                    "temperatura": float(dados["temperatura"]),
+                    "vibracao": float(dados["vibracao"]),
+                    "rpm": int(dados["rpm"]),
+                    "latitude": float(dados["latitude"])
+                    if dados.get("latitude") is not None
+                    else None,
+                    "longitude": float(dados["longitude"])
+                    if dados.get("longitude") is not None
+                    else None,
+                    "timestamp": timestamp,
+                    "sequence_number": sequence_number,
+                    "source": source,
+                    "transport": transport,
+                    "payload_hash": payload_hash,
+                    "sync_status": "sincronizado",
+                },
+            )
+
+            if not foi_criada:
+                # Replay: (device_id, message_id) já existe — ignorar sem criar linha nova.
+                logger.info(
+                    "Replay ignorado (idempotência): device=%s msg=%s | leitura_id=%s",
+                    device_id,
+                    message_id,
+                    leitura.id,
+                )
+                # O cursor NÃO é avançado por replay — monotonicidade preservada.
+                return "duplicata", str(leitura.id)
+
+            # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
+            if sequence_informada:
+                _atualizar_sync_cursor(device_id, sequence_number)
+
+        logger.info(
+            "Leitura registrada: id=%s | device=%s | msg=%s | seq=%d | temp=%.1f°C",
+            leitura.id,
+            device_id,
+            message_id,
+            sequence_number,
+            leitura.temperatura,
+        )
         return "criado", str(leitura.id)
 
     except IntegrityError:
-        # Só tratamos o conflito como duplicata quando o UUID realmente existe;
-        # caso contrário, não escondemos perda de telemetria como idempotência.
-        if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
-            logger.info("UUID ignorado (race condition): %s | maquina: %s",
-                        uuid_recebido, dados.get("maquina_id"))
-            return "duplicata", str(uuid_recebido)
-        logger.exception("Conflito de integridade ao salvar leitura da maquina %s",
-                         dados.get("maquina_id"))
-        return "erro", "conflito de integridade ao salvar a leitura"
+        # Race condition: dois processos tentaram inserir o mesmo (device_id, message_id)
+        # simultaneamente. O banco rejeitou o segundo via unique_together.
+        # Comportamento correto: tratar como duplicata.
+        try:
+            existente = LeituraTelemetria.objects.get(
+                device_id=device_id, message_id=message_id
+            )
+            logger.info(
+                "Race condition resolvida (IntegrityError): device=%s msg=%s → duplicata existente=%s",
+                device_id,
+                message_id,
+                existente.id,
+            )
+            return "duplicata", str(existente.id)
+        except LeituraTelemetria.DoesNotExist:
+            logger.exception(
+                "IntegrityError inesperado ao salvar leitura. device=%s msg=%s",
+                device_id,
+                message_id,
+            )
+            return "erro", "conflito de integridade ao salvar a leitura"
 
     except Exception as exc:
-        logger.error("Falha inesperada ao salvar leitura. maquina: %s | erro: %s",
-                     dados.get("maquina_id"), str(exc), exc_info=True)
+        logger.error(
+            "Falha inesperada ao salvar leitura. device=%s | erro: %s",
+            device_id,
+            str(exc),
+            exc_info=True,
+        )
         return "erro", str(exc)
 
 

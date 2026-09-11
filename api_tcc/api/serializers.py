@@ -266,29 +266,54 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
 
     machine = serializers.PrimaryKeyRelatedField(read_only=True)
     # S1-T2 — UUID do objeto Machine canônico (read-only).
-    # Sensores continuam enviando apenas maquina_id no payload; este campo
-    # é somente de leitura e expõe a FK resolvida pelo serviço de ingestão.
     machine_id = serializers.UUIDField(source="machine.id", read_only=True, allow_null=True)
+
+    # S1-T5 — Aliases semânticos para event_time / ingested_at.
+    # Os campos internos continuam sendo timestamp e recebido_em para compatibilidade.
+    event_time  = serializers.DateTimeField(source='timestamp', read_only=True)
+    ingested_at = serializers.DateTimeField(source='recebido_em', read_only=True)
 
     class Meta:
         model = LeituraTelemetria
         fields = [
+            # Identidade interna
             "id",
+            # Identidade de dispositivo e mensagem (S1-T5)
+            "device_id",
+            "message_id",
+            "sequence_number",
+            # Legado — mantido para compatibilidade com frontend e simuladores
             "maquina_id",
+            # FK canônica (S1-T2)
             "machine",
             "machine_id",
+            # Telemetria
             "temperatura",
             "vibracao",
             "rpm",
             "latitude",
             "longitude",
-            "timestamp",
-            "recebido_em",
+            # Tempo: campos internos + aliases semânticos
+            "timestamp",      # campo interno (= event_time)
+            "event_time",     # alias read-only para timestamp
+            "recebido_em",    # campo interno (= ingested_at)
+            "ingested_at",    # alias read-only para recebido_em
+            # Metadados de origem/transporte (S1-T5)
+            "source",
+            "transport",
+            "sync_status",
+            # Risco calculado
             "status_risco",
         ]
         extra_kwargs = {
-            'id':          {'read_only': True},
-            'recebido_em': {'read_only': True},
+            'id':             {'read_only': True},
+            'device_id':      {'read_only': True},
+            'message_id':     {'read_only': True},
+            'sequence_number':{'read_only': True},
+            'recebido_em':    {'read_only': True},
+            'source':         {'read_only': True},
+            'transport':      {'read_only': True},
+            'sync_status':    {'read_only': True},
         }
 
     def validate_maquina_id(self, value):

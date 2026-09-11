@@ -26,8 +26,11 @@ from api_tcc.models import LeituraTelemetria, Machine, Organization, Membership
 
 def _criar_leitura(maquina_id: str) -> LeituraTelemetria:
     """Cria uma LeituraTelemetria mínima com o maquina_id fornecido."""
+    import uuid
     return LeituraTelemetria.objects.create(
         maquina_id=maquina_id,
+        device_id=maquina_id,
+        message_id=str(uuid.uuid4()),
         temperatura=75.0,
         vibracao=0.30,
         rpm=1800,

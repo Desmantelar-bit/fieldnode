@@ -120,8 +120,11 @@ class RelatorioExportarBordaTestCase(TestCase):
         maquina_id = "maquina-unitaria-01"
         self.criar_maquina(maquina_id)
         instante = timezone.make_aware(datetime(2026, 8, 21, 10, 30))
+        import uuid
         LeituraTelemetria.objects.create(
             maquina_id=maquina_id,
+            device_id=maquina_id,
+            message_id=str(uuid.uuid4()),
             temperatura=70.0,
             vibracao=1.2,
             rpm=1500,
@@ -149,10 +152,13 @@ class RelatorioExportarBordaTestCase(TestCase):
         maquina_id = "maquina-bulk-01"
         self.criar_maquina(maquina_id)
         instante = timezone.now()
+        import uuid
         LeituraTelemetria.objects.bulk_create(
             [
                 LeituraTelemetria(
                     maquina_id=maquina_id,
+                    device_id=maquina_id,
+                    message_id=str(uuid.uuid4()),
                     temperatura=75.0 + (indice % 15),
                     vibracao=2.0,
                     rpm=1800,

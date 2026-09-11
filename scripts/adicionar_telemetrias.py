@@ -49,6 +49,8 @@ for maq in maquinas:
         LeituraTelemetria.objects.create(
             id=uuid.uuid4(),
             maquina_id=maq['id'],
+            device_id=maq['id'],
+            message_id=str(uuid.uuid4()),
             temperatura=round(temp, 1),
             vibracao=round(vib, 2),
             rpm=rpm,
