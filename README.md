@@ -188,12 +188,15 @@ O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz ban
 
 | Endpoint | Método | Autenticação | Descrição |
 | --- | --- | --- | --- |
+| `/api/auth/login/` | POST | usuario/senha | Retorna token DRF para operacoes autenticadas |
 | `/api/health/` | GET | — | Checagem de saúde |
 | `/api/telemetria/` | POST | `X-API-Key` | Ingestão com deduplicação UUID |
 | `/api/telemetria/` | GET | — | Últimas 50 leituras (debug) |
 | `/api/leituras/ultimas/` | GET | — | Última leitura por máquina com `status_risco` |
 | `/api/colheitadeira/` | GET | — | Frota cadastrada |
+| `/api/colheitadeira/` | POST/PATCH/DELETE | `Authorization: Token <token>` | Cadastro administrativo de maquinas |
 | `/api/operario/` | GET | — | Operários cadastrados |
+| `/api/operario/` | POST/PATCH/DELETE | `Authorization: Token <token>` | Cadastro administrativo de operarios |
 | `/api/anomalias/` | GET | — | Agenda detecção de anomalias (Isolation Forest) |
 | `/api/manutencao/` | GET | — | Agenda análise de manutenção (Random Forest) |
 | `/api/prescricoes/` | GET | — | Agenda geração de prescrição |
@@ -203,6 +206,32 @@ O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz ban
 | `/api/maquinas/posicao/` | GET | — | Posição GPS da frota |
 | `/api/metricas/` | GET | — | Leituras válidas, inválidas e taxa de rejeição |
 | `/api/status-mqtt/` | GET | — | Status de conectividade MQTT |
+
+### Autenticacao administrativa
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "sua-senha"}'
+```
+
+Resposta:
+
+```json
+{"token": "token-gerado-pelo-drf"}
+```
+
+Use o token nas operacoes de escrita dos cadastros:
+
+```bash
+Authorization: Token token-gerado-pelo-drf
+```
+
+No frontend, o MVP guarda esse token em `localStorage` como
+`fieldnode_auth_token`. Isso e aceitavel para o TCC/prototipo, mas e uma
+divida tecnica explicita: em producao, o ideal e migrar para cookie `httpOnly`
+com uma estrategia de CSRF adequada, porque XSS lendo token em `localStorage`
+nao e teoria, e so uma terca-feira ruim.
 
 ### Exemplo de ingestão
 

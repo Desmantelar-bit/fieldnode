@@ -53,6 +53,39 @@ export function resolveApiUrl(): string {
 const API_URL = resolveApiUrl();
 const API_KEY = process.env.NEXT_PUBLIC_FIELDNODE_API_KEY || "";
 const API_TIMEOUT_MS = 10000;
+export const AUTH_TOKEN_STORAGE_KEY = "fieldnode_auth_token";
+
+export function getStoredAuthToken(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+}
+
+export function clearStoredAuthToken(): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+}
+
+function redirectToLoginOnAuthFailure(response: Response): void {
+  if (
+    typeof window !== "undefined" &&
+    (response.status === 401 || response.status === 403) &&
+    window.location.pathname !== "/login"
+  ) {
+    clearStoredAuthToken();
+    window.location.replace("/login");
+  }
+}
+
+function applyAuthHeaders(headers: Headers): Headers {
+  const token = getStoredAuthToken();
+  if (token) headers.set("Authorization", `Token ${token}`);
+  return headers;
+}
+
+function apiHeaders(init?: HeadersInit): Headers {
+  return applyAuthHeaders(new Headers(init));
+}
 
 function withTimeout<T>(
   request: (signal: AbortSignal) => Promise<T>,
@@ -67,6 +100,7 @@ async function handleResponse<T = unknown>(
   label = "",
 ): Promise<T> {
   if (!response.ok) {
+    redirectToLoginOnAuthFailure(response);
     let text = "";
     try {
       text = await response.text();
@@ -93,11 +127,11 @@ function validateApiContract<T extends z.ZodTypeAny>(
   const parseResult = schema.safeParse(data);
 
   if (!parseResult.success) {
-    console.error('Contrato de API quebrado:', {
+    console.error("Contrato de API quebrado:", {
       endpoint: label,
       errors: parseResult.error.format(),
     });
-    throw new Error('Formato de dados inesperado recebido do servidor.');
+    throw new Error("Formato de dados inesperado recebido do servidor.");
   }
 
   return parseResult.data;
@@ -105,7 +139,7 @@ function validateApiContract<T extends z.ZodTypeAny>(
 
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
-    const headers = new Headers({ Accept: "application/json" });
+    const headers = apiHeaders({ Accept: "application/json" });
     if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/colheitadeira/`, {
@@ -115,7 +149,11 @@ export const telemetryService = {
       }),
     );
     const data = await handleResponse(response, "getFleetStatus:");
-    return validateApiContract(ListaColheitadeirasSchema, data, "getFleetStatus");
+    return validateApiContract(
+      ListaColheitadeirasSchema,
+      data,
+      "getFleetStatus",
+    );
   },
 
   async getMachinePositions(maquinaId?: string): Promise<MachinePosition[]> {
@@ -125,23 +163,31 @@ export const telemetryService = {
     const response = await withTimeout((signal) =>
       fetch(url, {
         cache: "no-store",
-        headers: new Headers({ Accept: "application/json" }),
+        headers: apiHeaders({ Accept: "application/json" }),
         signal,
       }),
     );
     const data = await handleResponse(response, "getMachinePositions:");
-    return validateApiContract(ListaPosicoesMaquinasSchema, data, "getMachinePositions");
+    return validateApiContract(
+      ListaPosicoesMaquinasSchema,
+      data,
+      "getMachinePositions",
+    );
   },
 
   async getLatestReadings(): Promise<Telemetry[]> {
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/leituras/ultimas/`, {
-        headers: new Headers({ Accept: "application/json" }),
+        headers: apiHeaders({ Accept: "application/json" }),
         signal,
       }),
     );
     const data = await handleResponse(response, "getLatestReadings:");
-    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getLatestReadings");
+    return validateApiContract(
+      ListaLeiturasTelemetriaSchema,
+      data,
+      "getLatestReadings",
+    );
   },
 
   async getMachineReadings(machineId: string): Promise<Telemetry[]> {
@@ -150,17 +196,21 @@ export const telemetryService = {
         `${API_URL}/telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
         {
           cache: "no-store",
-          headers: new Headers({ Accept: "application/json" }),
+          headers: apiHeaders({ Accept: "application/json" }),
           signal,
         },
       ),
     );
     const data = await handleResponse(response, "getMachineReadings:");
-    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
+    return validateApiContract(
+      ListaLeiturasTelemetriaSchema,
+      data,
+      "getMachineReadings",
+    );
   },
 
   async getOperators(): Promise<Operator[]> {
-    const headers = new Headers({ Accept: "application/json" });
+    const headers = apiHeaders({ Accept: "application/json" });
     if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/operario/`, { cache: "no-store", headers, signal }),
@@ -170,8 +220,12 @@ export const telemetryService = {
   },
 
   async sendTelemetry(reading: TelemetryInput) {
-    const payload = validateApiContract(TelemetryInputSchema, reading, "sendTelemetry");
-    const headers = new Headers({
+    const payload = validateApiContract(
+      TelemetryInputSchema,
+      reading,
+      "sendTelemetry",
+    );
+    const headers = apiHeaders({
       "Content-Type": "application/json",
       Accept: "application/json",
       ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
@@ -205,7 +259,7 @@ export const telemetryService = {
   },
 
   async getPrescricoes(machineId: string): Promise<Prescricao[]> {
-    const headers = new Headers({ Accept: "application/json" });
+    const headers = apiHeaders({ Accept: "application/json" });
     if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(
@@ -229,7 +283,7 @@ export const telemetryService = {
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/prescricoes/${encodeURIComponent(machineId)}/`, {
         cache: "no-store",
-        headers: new Headers({ Accept: "application/json" }),
+        headers: apiHeaders({ Accept: "application/json" }),
         signal,
       }),
     );
@@ -246,7 +300,7 @@ export const telemetryService = {
     machineId?: string;
     period?: number;
   }): Promise<Relatorio> {
-    const headers = new Headers({ Accept: "application/json" });
+    const headers = apiHeaders({ Accept: "application/json" });
     if (API_KEY) headers.set("X-API-Key", API_KEY);
     const params = new URLSearchParams({
       formato: options?.formato ?? "json",
