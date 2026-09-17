@@ -119,6 +119,25 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
         self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))
 
+    def test_ingestao_sem_api_key_retorna_401(self):
+        response = self.client.post(
+            "/api/telemetria/", _payload(maquina_id="sem-chave-01"), format="json"
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
+    def test_ingestao_com_api_key_invalida_retorna_401(self):
+        response = self.client.post(
+            "/api/telemetria/",
+            _payload(maquina_id="chave-invalida-01"),
+            format="json",
+            HTTP_X_API_KEY="chave-invalida",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
     def test_ingestao_mqtt_reutiliza_machine_normalizada(self):
         status_1, _ = registrar_leitura(_payload(maquina_id=" mqtt-01 "))
         status_2, _ = registrar_leitura(
@@ -147,6 +166,27 @@ class IngestaoTelemetriaTest(TestCase):
         leitura = LeituraTelemetria.objects.get()
         self.assertIsNotNone(leitura.machine)
         self.assertEqual(leitura.machine.external_code, "LOTE-01")
+
+    def test_ingestao_em_lote_sem_api_key_retorna_401(self):
+        response = self.client.post(
+            "/api/telemetria/lote/",
+            {"leituras": [_payload(maquina_id="lote-sem-chave-01")]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
+    def test_ingestao_em_lote_com_api_key_invalida_retorna_401(self):
+        response = self.client.post(
+            "/api/telemetria/lote/",
+            {"leituras": [_payload(maquina_id="lote-chave-invalida-01")]},
+            format="json",
+            HTTP_X_API_KEY="chave-invalida",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
 
     def test_ingestao_invalida_retorna_400(self):
         response = self.client.post(

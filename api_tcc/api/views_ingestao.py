@@ -23,6 +23,7 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from datetime import datetime
 import csv
 import io
@@ -82,6 +83,8 @@ class IngestaoTelemetriaView(APIView):
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """
     throttle_classes = [IngestaoThrottle]
+    # Excecao intencional: endpoint maquina-a-maquina protegido por X-API-Key.
+    permission_classes = [AllowAny]
 
     def get_throttles(self):
         if self.request.method == 'POST':
@@ -139,6 +142,8 @@ class IngestaoLoteView(APIView):
     privilegiar o relatório detalhado de debug em campo sobre performance bruta.
     """
     throttle_classes = [IngestaoThrottle]
+    # Excecao intencional: endpoint maquina-a-maquina protegido por X-API-Key.
+    permission_classes = [AllowAny]
 
     def _verificar_api_key(self, request) -> bool:
         api_key = request.headers.get('X-API-Key')
