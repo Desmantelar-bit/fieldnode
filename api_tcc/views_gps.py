@@ -1,4 +1,5 @@
 import random
+from django.conf import settings
 from django.http import JsonResponse
 from .models import LeituraTelemetria, Colheitadeira
 from django.views.decorators.http import require_GET
@@ -58,6 +59,8 @@ def get_maquinas_posicao(request):
     data de recebimento da última leitura (recebido_em).
     """
     maquina_id_param = request.GET.get('maquina_id')
+    user = getattr(request, "user", None)
+    demo_publico = bool(settings.DEMO_MODE and not getattr(user, "is_authenticated", False))
     if maquina_id_param:
         maquinas = Colheitadeira.objects.filter(
             maquina_id=maquina_id_param, ativo=True
@@ -69,9 +72,12 @@ def get_maquinas_posicao(request):
     resultado = []
 
     for maquina in maquinas:
-        ultima_leitura = LeituraTelemetria.objects.filter(
+        leituras = LeituraTelemetria.objects.filter(
             maquina_id=maquina.maquina_id
-        ).order_by('-recebido_em').first()
+        )
+        if demo_publico:
+            leituras = leituras.filter(machine__is_demo=True)
+        ultima_leitura = leituras.order_by('-recebido_em').first()
 
         if (
             ultima_leitura

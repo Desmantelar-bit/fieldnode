@@ -30,6 +30,7 @@ services:
     environment:
       SECRET_KEY: ${SECRET_KEY:?configure SECRET_KEY no arquivo .env}
       FIELDNODE_API_KEY: ${FIELDNODE_API_KEY:?configure FIELDNODE_API_KEY no arquivo .env}
+      DEMO_MODE: ${DEMO_MODE:-False}
       DEBUG: ${DEBUG:-False}
       USE_SQLITE: ${USE_SQLITE:-False}
       DB_NAME: ${DB_NAME:-fieldnode_db}
@@ -61,7 +62,6 @@ services:
       - .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000/api}
-      NEXT_PUBLIC_FIELDNODE_API_KEY: ${NEXT_PUBLIC_FIELDNODE_API_KEY:?configure NEXT_PUBLIC_FIELDNODE_API_KEY no arquivo .env}
       FIELDNODE_SERVER_API_URL: ${FIELDNODE_SERVER_API_URL:-http://web:8000/api}
       NEXT_PUBLIC_FIELDNODE_SERVER_API_URL: ${NEXT_PUBLIC_FIELDNODE_SERVER_API_URL:-http://127.0.0.1:8000/api}
     volumes:

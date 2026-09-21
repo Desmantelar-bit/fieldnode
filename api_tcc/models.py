@@ -458,6 +458,12 @@ class Machine(models.Model):
 
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     ativo     = models.BooleanField(default=True, db_index=True, verbose_name="Ativo")
+    is_demo   = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Machine de demonstração",
+        help_text="Marca explicitamente dados criados para demonstração pública controlada.",
+    )
 
     class Meta:
         verbose_name = "Machine"

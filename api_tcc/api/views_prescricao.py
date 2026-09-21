@@ -6,10 +6,22 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.conf import settings
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.ia.explicacao_llm import gerar_explicacao_natural
+from api_tcc.models import Machine
 
 logger = logging.getLogger("api_tcc.api")
+
+
+def _is_demo_publico(request) -> bool:
+    return bool(settings.DEMO_MODE and not request.user.is_authenticated)
+
+
+def _demo_machine_allowed(maquina_id: str, request) -> bool:
+    if not _is_demo_publico(request):
+        return True
+    return Machine.objects.filter(external_code=maquina_id.strip().upper(), is_demo=True).exists()
 
 
 def _valor_json_seguro(valor):
@@ -40,6 +52,11 @@ class PrescricaoView(APIView):
     """
 
     def get(self, request, maquina_id):
+        if not _demo_machine_allowed(maquina_id, request):
+            return Response(
+                {"status": "erro", "detalhe": "máquina não disponível no dataset demo"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         try:
             resultado = analisar_maquina(maquina_id)
             metricas_seguras = _valor_json_seguro(resultado.metricas)

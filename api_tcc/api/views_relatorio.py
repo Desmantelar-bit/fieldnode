@@ -10,7 +10,12 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 
-from api_tcc.models import Colheitadeira, LeituraTelemetria, RegistroAnalise
+from django.conf import settings
+from api_tcc.models import Colheitadeira, LeituraTelemetria, Machine, RegistroAnalise
+
+
+def _is_demo_publico(request) -> bool:
+    return bool(settings.DEMO_MODE and not request.user.is_authenticated)
 
 
 class RelatorioExportarView(APIView):
@@ -27,16 +32,17 @@ class RelatorioExportarView(APIView):
         if not maquina_id:
             return HttpResponse('Parâmetro "maquina_id" é obrigatório', status=400)
 
-        # A existência vem do cadastro de máquinas, e não das leituras. Assim,
-        # uma máquina cadastrada, mas ainda sem telemetria, recebe um relatório
-        # vazio válido; um identificador desconhecido não é mascarado por uma
-        # planilha aparentemente válida.
+        if _is_demo_publico(request):
+            if not Machine.objects.filter(external_code=maquina_id.strip().upper(), is_demo=True).exists():
+                return HttpResponse("Máquina não encontrada", status=404)
+
         if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
             return HttpResponse("Máquina não encontrada", status=404)
 
-        leituras = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by(
-            "timestamp"
-        )
+        leituras_qs = LeituraTelemetria.objects.filter(maquina_id=maquina_id)
+        if _is_demo_publico(request):
+            leituras_qs = leituras_qs.filter(machine__is_demo=True)
+        leituras = leituras_qs.order_by("timestamp")
         analises = RegistroAnalise.objects.filter(maquina_id=maquina_id).order_by(
             "criado_em"
         )

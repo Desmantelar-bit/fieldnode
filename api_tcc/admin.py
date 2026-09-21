@@ -43,9 +43,10 @@ class MachineAdmin(admin.ModelAdmin):
         "colheitadeira",
         "criado_em",
         "ativo",
+        "is_demo",
     )
     search_fields = ("external_code",)
-    list_filter = ("ativo",)
+    list_filter = ("ativo", "is_demo")
 
 
 admin.site.register(models.UnidadedeMedida)

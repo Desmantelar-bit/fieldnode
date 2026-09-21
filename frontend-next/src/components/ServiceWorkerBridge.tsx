@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { resolveApiUrl } from "@/services/telemetryService";
 
 const API_URL = resolveApiUrl();
-const API_KEY = process.env.NEXT_PUBLIC_FIELDNODE_API_KEY || '';
 
 export function ServiceWorkerBridge() {
   useEffect(() => {
@@ -41,7 +40,6 @@ export function ServiceWorkerBridge() {
         worker?.postMessage({
           type: 'FIELDNODE_CONFIG',
           apiUrl: API_URL,
-          apiKey: API_KEY,
         });
       })
       .catch((error) => {

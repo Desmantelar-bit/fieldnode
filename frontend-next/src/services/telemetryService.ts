@@ -51,7 +51,6 @@ export function resolveApiUrl(): string {
 }
 
 const API_URL = resolveApiUrl();
-const API_KEY = process.env.NEXT_PUBLIC_FIELDNODE_API_KEY || "";
 const API_TIMEOUT_MS = 10000;
 export const AUTH_TOKEN_STORAGE_KEY = "fieldnode_auth_token";
 
@@ -140,7 +139,6 @@ function validateApiContract<T extends z.ZodTypeAny>(
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
     const headers = apiHeaders({ Accept: "application/json" });
-    if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/colheitadeira/`, {
         cache: "no-store",
@@ -211,7 +209,6 @@ export const telemetryService = {
 
   async getOperators(): Promise<Operator[]> {
     const headers = apiHeaders({ Accept: "application/json" });
-    if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/operario/`, { cache: "no-store", headers, signal }),
     );
@@ -228,7 +225,6 @@ export const telemetryService = {
     const headers = apiHeaders({
       "Content-Type": "application/json",
       Accept: "application/json",
-      ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
     });
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/telemetria/`, {
@@ -252,7 +248,7 @@ export const telemetryService = {
     worker?.postMessage({
       type: "QUEUE_TELEMETRY",
       payload: reading,
-      headers: API_KEY ? { "X-API-Key": API_KEY } : {},
+      headers: {},
     });
 
     return { status: "queued" };
@@ -260,7 +256,6 @@ export const telemetryService = {
 
   async getPrescricoes(machineId: string): Promise<Prescricao[]> {
     const headers = apiHeaders({ Accept: "application/json" });
-    if (API_KEY) headers.set("X-API-Key", API_KEY);
     const response = await withTimeout((signal) =>
       fetch(
         `${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`,
@@ -301,7 +296,6 @@ export const telemetryService = {
     period?: number;
   }): Promise<Relatorio> {
     const headers = apiHeaders({ Accept: "application/json" });
-    if (API_KEY) headers.set("X-API-Key", API_KEY);
     const params = new URLSearchParams({
       formato: options?.formato ?? "json",
     });

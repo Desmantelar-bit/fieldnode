@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
@@ -71,21 +72,26 @@ TemperaturaMaquinaViewSet = _make_viewset(models.TemperaturaMaquina, serializers
 StatusdeOperacaoViewSet = _make_viewset(models.StatusdeOperacao, serializers.StatusdeOperacaoSerializer, _desc('status de operação'))
 EstadodeMovimentoViewSet = _make_viewset(models.EstadodeMovimento, serializers.EstadodeMovimentoSerializer, _desc('estado de movimento'))
 TransbordoViewSet       = _make_viewset(models.Transbordo,       serializers.TransbordoSerializer,       _desc('transbordo'))
-ColheitadeiraViewSet    = _make_viewset(
-    models.Colheitadeira,
-    serializers.ColheitadeiraSerializer,
-    _desc('colheitadeira'),
-    queryset=models.Colheitadeira.objects.filter(ativo=True).select_related(
-        'modelo__marca',
-        'combustivel',
-        'pressao_pneus__unidade_de_medida',
-        'altura_do_corte__unidade_de_medida',
-        'pressao_do_corte__unidade_de_medida',
-        'temp_umi_ambiente',
-        'temperatura_maquina',
-        'operario',
-        'status_de_operacao',
-        'estado_de_movimento',
-    ),
-    soft_delete_field='ativo',
-)
+_COLHEITADEIRA_SELECT = [
+    'modelo__marca', 'combustivel', 'pressao_pneus__unidade_de_medida',
+    'altura_do_corte__unidade_de_medida', 'pressao_do_corte__unidade_de_medida',
+    'temp_umi_ambiente', 'temperatura_maquina', 'operario',
+    'status_de_operacao', 'estado_de_movimento',
+]
+
+
+class ColheitadeiraViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.ColheitadeiraSerializer
+
+    def get_queryset(self):
+        qs = models.Colheitadeira.objects.filter(ativo=True).select_related(*_COLHEITADEIRA_SELECT)
+        demo_mode = getattr(settings, 'DEMO_MODE', False)
+        if demo_mode and not self.request.user.is_authenticated:
+            qs = qs.filter(machine__is_demo=True)
+        return qs
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.ativo = False
+        instance.save(update_fields=['ativo'])
+        return Response(status=status.HTTP_204_NO_CONTENT)

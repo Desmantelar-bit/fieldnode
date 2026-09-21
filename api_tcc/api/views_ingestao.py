@@ -29,13 +29,30 @@ import csv
 import io
 
 
-from api_tcc.models import LeituraTelemetria, Prescricao
+from api_tcc.models import LeituraTelemetria, Machine, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
+
+
+def _is_public_demo_request(request) -> bool:
+    return bool(settings.DEMO_MODE and not request.user.is_authenticated)
+
+
+def _filter_public_demo_leituras(queryset, request):
+    if _is_public_demo_request(request):
+        return queryset.filter(machine__is_demo=True)
+    return queryset
+
+
+def _public_demo_machine_allowed(maquina_id: str | None, request) -> bool:
+    if not _is_public_demo_request(request) or not maquina_id:
+        return True
+    external_code = str(maquina_id).strip().upper()
+    return Machine.objects.filter(external_code=external_code, is_demo=True).exists()
 
 
 def _serializar_analise(analise):
@@ -66,6 +83,11 @@ class AnomaliaView(APIView):
             return Response(
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"},
                 status=400,
+            )
+        if not _public_demo_machine_allowed(maquina, request):
+            return Response(
+                {"status": "erro", "detalhe": "máquina não disponível no dataset demo"},
+                status=404,
             )
 
         logger.debug("Requisição de anomalias. maquina_id=%s", maquina)
@@ -125,7 +147,7 @@ class IngestaoTelemetriaView(APIView):
 
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
-        leituras = LeituraTelemetria.objects.all()
+        leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
         if maquina:
             leituras = leituras.filter(maquina_id=maquina)
         serializer = LeituraTelemetriaSerializer(leituras[:50], many=True)
@@ -230,13 +252,20 @@ class UltimaLeituraView(APIView):
 
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
+        demo_publico = _is_public_demo_request(request)
 
         with connection.cursor() as cursor:
             if maquina:
-                cursor.execute("""
+                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id" if demo_publico else ""
+                demo_filter = "AND m.is_demo = %s" if demo_publico else ""
+                params = [maquina, maquina, maquina]
+                if demo_publico:
+                    params.append(True)
+                cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t2.total_leituras
                     FROM api_tcc_leituratelemetria t1
+                    {demo_join}
                     INNER JOIN (
                         SELECT maquina_id, MAX(timestamp) as max_ts
                         FROM api_tcc_leituratelemetria
@@ -248,12 +277,17 @@ class UltimaLeituraView(APIView):
                         WHERE maquina_id = %s
                     ) t2 ON t1.maquina_id = t2.maquina_id
                     WHERE t1.maquina_id = %s
-                """, [maquina, maquina, maquina])
+                    {demo_filter}
+                """, params)
             else:
-                cursor.execute("""
+                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id" if demo_publico else ""
+                demo_where = "WHERE m.is_demo = %s" if demo_publico else ""
+                params = [True] if demo_publico else []
+                cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t3.total_leituras
                     FROM api_tcc_leituratelemetria t1
+                    {demo_join}
                     INNER JOIN (
                         SELECT maquina_id, MAX(timestamp) as max_ts
                         FROM api_tcc_leituratelemetria
@@ -264,9 +298,10 @@ class UltimaLeituraView(APIView):
                         FROM api_tcc_leituratelemetria
                         GROUP BY maquina_id
                     ) t3 ON t1.maquina_id = t3.maquina_id
+                    {demo_where}
                     ORDER BY t1.maquina_id
                     LIMIT 10
-                """)
+                """, params)
 
             rows = cursor.fetchall()
 
@@ -321,6 +356,11 @@ class ManutencaoView(APIView):
                 {'status': 'erro', 'detalhe': 'maquina_id é obrigatório'},
                 status=400
             )
+        if not _public_demo_machine_allowed(maquina, request):
+            return Response(
+                {'status': 'erro', 'detalhe': 'máquina não disponível no dataset demo'},
+                status=404,
+            )
         logger.debug("Análise de manutenção solicitada. maquina_id=%s", maquina)
         analise = analisar_maquina(maquina)
         return Response(_serializar_analise(analise))
@@ -343,8 +383,9 @@ class MetricasView(APIView):
     def get(self, request):
         from api_tcc.models import TelemetriaInvalida
 
-        total_validas = LeituraTelemetria.objects.count()
-        total_invalidas = TelemetriaInvalida.objects.count()
+        leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
+        total_validas = leituras.count()
+        total_invalidas = 0 if _is_public_demo_request(request) else TelemetriaInvalida.objects.count()
         total_geral = total_validas + total_invalidas
 
         return Response({
@@ -353,7 +394,7 @@ class MetricasView(APIView):
             'taxa_rejeicao_pct': round(
                 (total_invalidas / max(total_geral, 1)) * 100, 1
             ),
-            'maquinas_ativas': LeituraTelemetria.objects.values(
+            'maquinas_ativas': leituras.values(
                 'maquina_id'
             ).distinct().count(),
         })
@@ -375,7 +416,9 @@ class StatusMQTTView(APIView):
     mantendo responsividade de detecção de desconexão.
     """
     def get(self, request):
-        ultima_leitura = LeituraTelemetria.objects.order_by('-recebido_em').first()
+        ultima_leitura = _filter_public_demo_leituras(
+            LeituraTelemetria.objects.all(), request
+        ).order_by('-recebido_em').first()
 
         if not ultima_leitura:
             return Response({
@@ -405,20 +448,17 @@ class RelatorioView(APIView):
     """
     def get(self, request):
         formato = request.query_params.get('formato', 'json')
+        leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
         
         # Cálculos básicos do relatório
-        total_leituras = LeituraTelemetria.objects.count()
-        maquinas_ativas = LeituraTelemetria.objects.values('maquina_id').distinct().count()
+        total_leituras = leituras.count()
+        maquinas_ativas = leituras.values('maquina_id').distinct().count()
         
         # Contar alertas (leituras com risco crítico/atenção)
-        alertas_gerados = 0
-        if total_leituras > 0:
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM api_tcc_leituratelemetria 
-                    WHERE temperatura > 75 OR vibracao > 0.5
-                """)
-                alertas_gerados = cursor.fetchone()[0]
+        alertas_gerados = (
+            leituras.filter(temperatura__gt=75).count()
+            + leituras.filter(temperatura__lte=75, vibracao__gt=0.5).count()
+        )
         
         eficiencia = round((maquinas_ativas / max(total_leituras, 1)) * 100, 1) if total_leituras > 0 else 0
         
@@ -598,6 +638,8 @@ class PrescricaoListView(APIView):
             return Response(
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"}, status=400
             )
+        if not _public_demo_machine_allowed(maquina_id, request):
+            return Response([], status=200)
 
         prescricoes = list(
             Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id).order_by("-data_geracao")
@@ -614,6 +656,8 @@ class PrescricaoTesteView(APIView):
     
     def get(self, request):
         maquina_id = request.query_params.get('maquina_id', 'DESCONHECIDA')
+        if not _public_demo_machine_allowed(maquina_id, request):
+            return Response([], status=200)
         
         resultado = [
             {
@@ -650,6 +694,11 @@ class PrescricaoView(APIView):
             return Response(
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"},
                 status=400,
+            )
+        if not _public_demo_machine_allowed(maquina_id, request):
+            return Response(
+                {"status": "erro", "detalhe": "máquina não disponível no dataset demo"},
+                status=404,
             )
 
         analise = analisar_maquina(maquina_id)

@@ -7,7 +7,6 @@ const TELEMETRY_STORE = 'telemetria-pendente';
 
 let apiConfig = {
   apiUrl: "/api",
-  apiKey: "",
 };
 
 const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
@@ -44,7 +43,6 @@ self.addEventListener("message", (event) => {
   if (message.type === "FIELDNODE_CONFIG") {
     apiConfig = {
       apiUrl: normalizeApiUrl(message.apiUrl || apiConfig.apiUrl),
-      apiKey: message.apiKey || apiConfig.apiKey,
     };
     return;
   }
@@ -224,7 +222,6 @@ function buildHeaders(headers) {
     ...headers,
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...(apiConfig.apiKey ? { "X-API-Key": apiConfig.apiKey } : {}),
   };
 }
 

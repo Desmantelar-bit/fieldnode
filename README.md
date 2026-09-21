@@ -157,16 +157,18 @@ Copie `.env.example` para `.env` e ajuste.
 | --- | --- |
 | `SECRET_KEY` | Chave secreta Django |
 | `FIELDNODE_API_KEY` | API key exigida no header `X-API-Key` |
+| `DEMO_MODE` | Quando `True`, leitura pública anônima usa somente `Machine.is_demo=True` |
 | `DEBUG` | `True` em dev, `False` em produção |
 | `ALLOWED_HOSTS` | Hosts permitidos pelo Django |
 | `CORS_ALLOWED_ORIGINS` | Origens permitidas pelo CORS |
 | `NEXT_PUBLIC_API_URL` | URL da API usada pelo browser |
-| `NEXT_PUBLIC_FIELDNODE_API_KEY` | API key exposta ao browser |
 | `FIELDNODE_SERVER_API_URL` | URL da API usada pelo servidor Next (container) |
 | `USE_SQLITE` | `True` para SQLite em dev |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | Conexão MySQL |
 
 O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz banca técnica levantar a sobrancelha antes do café esfriar.
+
+`FIELDNODE_API_KEY` deve ficar no backend, scripts locais e dispositivos de ingestão. O frontend não recebe segredo via `NEXT_PUBLIC_*`.
 
 ---
 
@@ -206,6 +208,8 @@ O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz ban
 | `/api/maquinas/posicao/` | GET | — | Posição GPS da frota |
 | `/api/metricas/` | GET | — | Leituras válidas, inválidas e taxa de rejeição |
 | `/api/status-mqtt/` | GET | — | Status de conectividade MQTT |
+
+Com `DEMO_MODE=True`, endpoints públicos de leitura operacional retornam somente dados associados a `Machine.is_demo=True`. Isso não libera escrita, não substitui autorização e não marca máquina real como demonstração.
 
 ### Autenticacao administrativa
 

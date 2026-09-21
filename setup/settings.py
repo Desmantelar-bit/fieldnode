@@ -31,6 +31,7 @@ if os.environ.get("DEBUG") == "release":
 
 DEBUG = env_config("DEBUG", default=False, cast=bool)
 FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
+DEMO_MODE = env_config("DEMO_MODE", default=False, cast=bool)
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
 
