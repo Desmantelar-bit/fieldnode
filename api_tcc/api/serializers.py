@@ -298,6 +298,8 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "event_time",     # alias read-only para timestamp
             "recebido_em",    # campo interno (= ingested_at)
             "ingested_at",    # alias read-only para recebido_em
+            # Qualidade do dado (S3-T1)
+            "trust_score",
             # Metadados de origem/transporte (S1-T5)
             "source",
             "transport",
@@ -311,6 +313,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'message_id':     {'read_only': True},
             'sequence_number':{'read_only': True},
             'recebido_em':    {'read_only': True},
+            'trust_score':    {'read_only': True},
             'source':         {'read_only': True},
             'transport':      {'read_only': True},
             'sync_status':    {'read_only': True},

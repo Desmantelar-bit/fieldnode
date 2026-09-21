@@ -23,6 +23,8 @@ from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware
 
 from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine, SyncCursor
+from api_tcc.services.data_health import HISTORY_LIMIT, calcular_trust_score
+from api_tcc.services.sensor_limits import LIMITES
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +33,6 @@ logger = logging.getLogger(__name__)
 # Limites baseados em especificação operacional de motores diesel agrícolas.
 # Valores fora desses ranges indicam falha de sensor, não condição real.
 # ──────────────────────────────────────────────────────────────
-LIMITES = {
-    "temperatura": (0.0, 150.0),    # °C — abaixo de 0 ou acima de 150 = sensor morto
-    "vibracao":    (0.0, 10.0),     # adimensional — negativo impossível, >10 = ruído
-    "rpm":         (0, 5000),       # RPM — motor diesel agrícola não passa de 4500 em carga
-}
-
-
 def validar_payload(dados: dict) -> tuple[bool, str]:
     """
     Verifica se os campos obrigatórios existem e estão dentro dos limites físicos.
@@ -244,45 +239,57 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             logger.info("Machine criada on-the-fly: %s", maquina_id_normalizado)
 
         with transaction.atomic():
-            # ── Verificação de idempotência por (device_id, message_id) ──────
-            # get_or_create atomicamente: protege contra race condition.
-            # A constraint unique_together no banco é a última barreira.
-            leitura, foi_criada = LeituraTelemetria.objects.get_or_create(
+            # Idempotency first: duplicate messages return the existing row
+            # without recalculating Trust Score. The database constraint remains
+            # the final protection against concurrent inserts.
+            leitura = LeituraTelemetria.objects.filter(
                 device_id=device_id,
                 message_id=message_id,
-                defaults={
-                    "id": uuid_recebido,  # usa UUID enviado ou None → auto-gerado
-                    "maquina_id": maquina_id_normalizado,
-                    "machine": machine_obj,
-                    "temperatura": float(dados["temperatura"]),
-                    "vibracao": float(dados["vibracao"]),
-                    "rpm": int(dados["rpm"]),
-                    "latitude": float(dados["latitude"])
-                    if dados.get("latitude") is not None
-                    else None,
-                    "longitude": float(dados["longitude"])
-                    if dados.get("longitude") is not None
-                    else None,
-                    "timestamp": timestamp,
-                    "sequence_number": sequence_number,
-                    "source": source,
-                    "transport": transport,
-                    "payload_hash": payload_hash,
-                    "sync_status": "sincronizado",
-                },
-            )
+            ).first()
+            foi_criada = leitura is None
 
             if not foi_criada:
-                # Replay: (device_id, message_id) já existe — ignorar sem criar linha nova.
                 logger.info(
-                    "Replay ignorado (idempotência): device=%s msg=%s | leitura_id=%s",
+                    "Replay ignorado (idempotencia): device=%s msg=%s | leitura_id=%s",
                     device_id,
                     message_id,
                     leitura.id,
                 )
-                # O cursor NÃO é avançado por replay — monotonicidade preservada.
                 return "duplicata", str(leitura.id)
 
+            if foi_criada:
+                historico_recente = list(
+                    LeituraTelemetria.objects.filter(machine=machine_obj)
+                    .order_by("-timestamp")[:HISTORY_LIMIT]
+                )
+                leitura = LeituraTelemetria(
+                    id=uuid_recebido or uuid_lib.uuid4(),
+                    device_id=device_id,
+                    message_id=message_id,
+                    maquina_id=maquina_id_normalizado,
+                    machine=machine_obj,
+                    temperatura=float(dados["temperatura"]),
+                    vibracao=float(dados["vibracao"]),
+                    rpm=int(dados["rpm"]),
+                    latitude=float(dados["latitude"])
+                    if dados.get("latitude") is not None
+                    else None,
+                    longitude=float(dados["longitude"])
+                    if dados.get("longitude") is not None
+                    else None,
+                    timestamp=timestamp,
+                    sequence_number=sequence_number,
+                    source=source,
+                    transport=transport,
+                    payload_hash=payload_hash,
+                    sync_status="sincronizado",
+                )
+                trust_score, _trust_motivos = calcular_trust_score(
+                    leitura,
+                    historico_recente,
+                )
+                leitura.trust_score = trust_score
+                leitura.save(force_insert=True)
             # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
             if sequence_informada:
                 _atualizar_sync_cursor(device_id, sequence_number)

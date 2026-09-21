@@ -277,6 +277,12 @@ class LeituraTelemetria(models.Model):
     timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True)
     # recebido_em = ingested_at: momento em que o backend recebeu/processou a leitura.
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em (ingested_at)', db_index=True)
+    trust_score = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='Trust Score',
+        help_text='Score heuristico 0..1 calculado na ingestao; null indica dado historico nao pontuado.',
+    )
 
     class Meta:
         ordering = ['-timestamp']

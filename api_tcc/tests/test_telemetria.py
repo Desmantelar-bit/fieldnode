@@ -89,6 +89,7 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
         leitura = LeituraTelemetria.objects.get()
         self.assertIsNotNone(leitura.machine)
+        self.assertIsNotNone(leitura.trust_score)
         self.assertEqual(leitura.maquina_id, "COLH-T01")
         self.assertEqual(leitura.machine.external_code, "COLH-T01")
         serialized = LeituraTelemetriaSerializer(leitura).data
