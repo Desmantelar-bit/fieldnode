@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Telemetry } from '@/types/telemetry';
+import { DataHealthBadge } from '@/components/DataHealthBadge';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
 import { PrescricaoButton } from '@/components/PrescricaoButton';
 
@@ -35,9 +36,12 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
             {reading.maquina_id}
           </h2>
         </div>
-        <StatusBadge tone={riskTone(risk)}>
-          {risk}
-        </StatusBadge>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <StatusBadge tone={riskTone(risk)}>
+            {risk}
+          </StatusBadge>
+          <DataHealthBadge dataHealth={reading.data_health} />
+        </div>
       </div>
 
       <dl className="mt-6 grid grid-cols-3 gap-3">

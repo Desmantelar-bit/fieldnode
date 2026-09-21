@@ -6,6 +6,7 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 
+from api_tcc import models
 from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth
 from api_tcc.services.data_health import (
     TRUST_SCORE_EMA_ALPHA,
@@ -55,6 +56,48 @@ def _payload(
         "rpm": rpm,
         "timestamp": timestamp.isoformat().replace("+00:00", "Z"),
     }
+
+
+def _criar_colheitadeira(maquina_id: str):
+    unidade = models.UnidadedeMedida.objects.create(nome=f"Unidade {maquina_id}")
+    marca = models.Marca.objects.create(nome=f"Marca {maquina_id}")
+    modelo = models.Modelo.objects.create(nome=f"Modelo {maquina_id}", marca=marca)
+    combustivel = models.Combustivel.objects.create(tipo="Diesel", porcentagem=100.0)
+    pressao_pneus = models.PressaoPneus.objects.create(
+        pressao=2.5, unidade_de_medida=unidade
+    )
+    altura_corte = models.AlturadoCorte.objects.create(
+        altura=5.0, unidade_de_medida=unidade
+    )
+    pressao_corte = models.PressaodoCorte.objects.create(
+        pressao=30.0, unidade_de_medida=unidade
+    )
+    temp_umi = models.TempUmi_Ambiente.objects.create(temperatura=25.0, umidade=60.0)
+    temp_maquina = models.TemperaturaMaquina.objects.create(
+        temperatura=85.0, maquina=modelo
+    )
+    operario = models.Operario.objects.create(
+        nome=f"Operario {maquina_id}", tempo_de_servico=5, no_banco=True
+    )
+    status_operacao = models.StatusdeOperacao.objects.create(
+        em_operacao=True, tempo_de_operacao=8.0
+    )
+    estado_movimento = models.EstadodeMovimento.objects.create(
+        em_movimento=True, velocidade=6.5
+    )
+    return models.Colheitadeira.objects.create(
+        maquina_id=maquina_id,
+        modelo=modelo,
+        combustivel=combustivel,
+        pressao_pneus=pressao_pneus,
+        altura_do_corte=altura_corte,
+        pressao_do_corte=pressao_corte,
+        temp_umi_ambiente=temp_umi,
+        temperatura_maquina=temp_maquina,
+        operario=operario,
+        status_de_operacao=status_operacao,
+        estado_de_movimento=estado_movimento,
+    )
 
 
 class CalcularTrustScoreTest(SimpleTestCase):
@@ -333,3 +376,21 @@ class MachineDataHealthIntegrationTest(TestCase):
         self.assertIsNone(data["ultima_atualizacao"])
         self.assertEqual(data["leituras_analisadas"], 0)
         self.assertEqual(data["sinais_de_alerta"], {})
+
+    def test_ultimas_leituras_embute_data_health_sem_endpoint_extra(self):
+        _criar_colheitadeira("COLH-HEALTH")
+        registrar_leitura(_payload(message_id="ultimas-health-1"))
+        machine = Machine.objects.get(external_code="COLH-HEALTH")
+
+        response = self.client.get("/api/leituras/ultimas/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        leitura = next(
+            item for item in data if item["maquina_id"] == "COLH-HEALTH"
+        )
+        self.assertEqual(leitura["data_health"]["machine_id"], str(machine.id))
+        self.assertEqual(leitura["data_health"]["external_code"], "COLH-HEALTH")
+        self.assertEqual(leitura["data_health"]["status"], "ok")
+        self.assertIsInstance(leitura["data_health"]["trust_score_medio"], float)
+        self.assertIn("ultimos_motivos", leitura["data_health"]["sinais_de_alerta"])

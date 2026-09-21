@@ -14,6 +14,7 @@ consome ~30% da memória flash disponível. API key simples via header
 """
 import logging
 import math
+import json
 import uuid as uuid_lib
 
 from django.conf import settings
@@ -67,6 +68,39 @@ def _serializar_analise(analise):
         return valor
 
     return normalizar(analise.__dict__)
+
+
+def _serializar_data_health(
+    machine_id,
+    external_code,
+    trust_score_medio,
+    ultima_atualizacao,
+    leituras_analisadas,
+    sinais_de_alerta,
+):
+    if machine_id is None:
+        return None
+
+    try:
+        machine_id = str(uuid_lib.UUID(str(machine_id)))
+    except (TypeError, ValueError, AttributeError):
+        machine_id = str(machine_id)
+
+    if isinstance(sinais_de_alerta, str):
+        try:
+            sinais_de_alerta = json.loads(sinais_de_alerta)
+        except json.JSONDecodeError:
+            sinais_de_alerta = {}
+
+    return {
+        "machine_id": machine_id,
+        "external_code": external_code,
+        "status": "ok" if trust_score_medio is not None else "sem_dados",
+        "trust_score_medio": trust_score_medio,
+        "ultima_atualizacao": ultima_atualizacao,
+        "leituras_analisadas": int(leituras_analisadas or 0),
+        "sinais_de_alerta": sinais_de_alerta or {},
+    }
 
 
 class AnomaliaView(APIView):
@@ -309,9 +343,14 @@ class UltimaLeituraView(APIView):
                     params.append(True)
                 cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
-                           t1.timestamp, t2.total_leituras
+                           t1.timestamp, t2.total_leituras,
+                           t1.machine_id, m_health.external_code,
+                           h.trust_score_medio, h.ultima_atualizacao,
+                           h.leituras_analisadas, h.sinais_de_alerta
                     FROM api_tcc_leituratelemetria t1
                     {demo_join}
+                    LEFT JOIN api_tcc_machine m_health ON t1.machine_id = m_health.id
+                    LEFT JOIN api_tcc_machinedatahealth h ON h.machine_id = t1.machine_id
                     INNER JOIN (
                         SELECT maquina_id, MAX(timestamp) as max_ts
                         FROM api_tcc_leituratelemetria
@@ -331,9 +370,14 @@ class UltimaLeituraView(APIView):
                 params = [True] if demo_publico else []
                 cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
-                           t1.timestamp, t3.total_leituras
+                           t1.timestamp, t3.total_leituras,
+                           t1.machine_id, m_health.external_code,
+                           h.trust_score_medio, h.ultima_atualizacao,
+                           h.leituras_analisadas, h.sinais_de_alerta
                     FROM api_tcc_leituratelemetria t1
                     {demo_join}
+                    LEFT JOIN api_tcc_machine m_health ON t1.machine_id = m_health.id
+                    LEFT JOIN api_tcc_machinedatahealth h ON h.machine_id = t1.machine_id
                     INNER JOIN (
                         SELECT maquina_id, MAX(timestamp) as max_ts
                         FROM api_tcc_leituratelemetria
@@ -361,7 +405,20 @@ class UltimaLeituraView(APIView):
 
         resultado = []
         for row in rows:
-            mid, temp, vib, rpm, ts, total = row
+            (
+                mid,
+                temp,
+                vib,
+                rpm,
+                ts,
+                total,
+                machine_id,
+                external_code,
+                trust_score_medio,
+                health_updated_at,
+                leituras_analisadas,
+                sinais_de_alerta,
+            ) = row
 
             # Classificação de risco usando o serviço de telemetria (centralizado)
             status_dict = calcular_status_risco(temp, vib, rpm)
@@ -383,6 +440,14 @@ class UltimaLeituraView(APIView):
                 'status_risco':  status_dict,
                 'nivel_risco':   nivel,
                 'total_leituras': total,
+                'data_health': _serializar_data_health(
+                    machine_id,
+                    external_code,
+                    trust_score_medio,
+                    health_updated_at,
+                    leituras_analisadas,
+                    sinais_de_alerta,
+                ),
             })
 
         return Response(resultado)
