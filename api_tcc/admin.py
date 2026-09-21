@@ -67,6 +67,31 @@ class MachineDataHealthAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(models.Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "machine",
+        "tipo",
+        "severidade",
+        "status",
+        "trust_score_herdado",
+        "criado_em",
+    )
+    list_filter = ("tipo", "severidade", "status")
+    search_fields = ("machine__external_code",)
+    readonly_fields = (
+        "id",
+        "machine",
+        "leitura_origem",
+        "tipo",
+        "severidade",
+        "trust_score_herdado",
+        "criado_em",
+        "dados_contexto",
+    )
+
+
 admin.site.register(models.UnidadedeMedida)
 admin.site.register(models.Marca)
 admin.site.register(models.Modelo)

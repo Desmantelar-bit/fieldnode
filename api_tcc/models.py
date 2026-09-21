@@ -299,6 +299,74 @@ class LeituraTelemetria(models.Model):
     def __str__(self):
         return f'#{self.id} — {self.device_id}/{self.message_id} — {self.temperatura}°C — {self.timestamp}'
 
+
+class Event(models.Model):
+    """Unidade persistida de algo relevante observado na telemetria."""
+
+    class Tipo(models.TextChoices):
+        TEMP_ALTA = "TEMP_ALTA", "Temperatura alta"
+        VIBRACAO_ALTA = "VIBRACAO_ALTA", "Vibracao alta"
+        ANOMALIA_ML = "ANOMALIA_ML", "Anomalia ML"
+        TENDENCIA_RISCO = "TENDENCIA_RISCO", "Tendencia de risco"
+
+    class Severidade(models.TextChoices):
+        NORMAL = "NORMAL", "Normal"
+        ATENCAO = "ATENCAO", "Atencao"
+        CRITICO = "CRITICO", "Critico"
+
+    class Status(models.TextChoices):
+        ABERTO = "ABERTO", "Aberto"
+        FECHADO = "FECHADO", "Fechado"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    machine = models.ForeignKey(
+        "Machine",
+        on_delete=models.PROTECT,
+        related_name="events",
+        verbose_name="Machine",
+    )
+    leitura_origem = models.ForeignKey(
+        "LeituraTelemetria",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="events",
+        verbose_name="Leitura de origem",
+    )
+    tipo = models.CharField(max_length=40, choices=Tipo.choices, db_index=True)
+    severidade = models.CharField(
+        max_length=20,
+        choices=Severidade.choices,
+        default=Severidade.NORMAL,
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ABERTO,
+        db_index=True,
+    )
+    trust_score_herdado = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Trust Score copiado da leitura que originou o evento.",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    dados_contexto = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        indexes = [
+            models.Index(fields=["machine", "tipo", "status", "-criado_em"]),
+            models.Index(fields=["machine", "severidade", "-criado_em"]),
+        ]
+        verbose_name = "Event"
+        verbose_name_plural = "Events"
+
+    def __str__(self):
+        return f"{self.machine.external_code} {self.tipo} {self.severidade}"
+
+
 class RegistroAnalise(models.Model):
     """Snapshot auditável de uma decisão do pipeline de IA."""
 

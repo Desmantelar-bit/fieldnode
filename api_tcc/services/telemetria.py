@@ -28,6 +28,7 @@ from api_tcc.services.data_health import (
     atualizar_machine_data_health,
     calcular_trust_score,
 )
+from api_tcc.services.eventos import avaliar_leitura
 from api_tcc.services.sensor_limits import LIMITES
 
 logger = logging.getLogger(__name__)
@@ -300,6 +301,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     motivos=trust_motivos,
                     timestamp=leitura.timestamp,
                 )
+                avaliar_leitura(leitura)
             # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
             if sequence_informada:
                 _atualizar_sync_cursor(device_id, sequence_number)
