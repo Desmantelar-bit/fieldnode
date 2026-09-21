@@ -29,7 +29,7 @@ import csv
 import io
 
 
-from api_tcc.models import LeituraTelemetria, Machine, Prescricao
+from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth, Prescricao
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
@@ -152,6 +152,52 @@ class IngestaoTelemetriaView(APIView):
             leituras = leituras.filter(maquina_id=maquina)
         serializer = LeituraTelemetriaSerializer(leituras[:50], many=True)
         return Response(serializer.data)
+
+
+class MachineDataHealthView(APIView):
+    """
+    GET /api/machines/<id>/health/
+
+    Retorna o estado agregado persistido da qualidade da telemetria da Machine.
+    Nao recalcula historico de leituras durante a consulta.
+    """
+
+    def get(self, request, machine_id):
+        try:
+            machine = Machine.objects.get(id=machine_id)
+        except Machine.DoesNotExist:
+            return Response(
+                {"status": "erro", "detalhe": "machine nao encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if _is_public_demo_request(request) and not machine.is_demo:
+            return Response(
+                {"status": "erro", "detalhe": "machine nao disponivel no dataset demo"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        health = MachineDataHealth.objects.filter(machine=machine).first()
+        if health is None:
+            return Response({
+                "machine_id": str(machine.id),
+                "external_code": machine.external_code,
+                "status": "sem_dados",
+                "trust_score_medio": None,
+                "ultima_atualizacao": None,
+                "leituras_analisadas": 0,
+                "sinais_de_alerta": {},
+            })
+
+        return Response({
+            "machine_id": str(machine.id),
+            "external_code": machine.external_code,
+            "status": "ok",
+            "trust_score_medio": health.trust_score_medio,
+            "ultima_atualizacao": health.ultima_atualizacao,
+            "leituras_analisadas": health.leituras_analisadas,
+            "sinais_de_alerta": health.sinais_de_alerta,
+        })
 
 
 class IngestaoLoteView(APIView):

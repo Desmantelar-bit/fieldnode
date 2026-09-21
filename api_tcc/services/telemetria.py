@@ -23,7 +23,11 @@ from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware
 
 from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine, SyncCursor
-from api_tcc.services.data_health import HISTORY_LIMIT, calcular_trust_score
+from api_tcc.services.data_health import (
+    HISTORY_LIMIT,
+    atualizar_machine_data_health,
+    calcular_trust_score,
+)
 from api_tcc.services.sensor_limits import LIMITES
 
 logger = logging.getLogger(__name__)
@@ -284,12 +288,18 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     payload_hash=payload_hash,
                     sync_status="sincronizado",
                 )
-                trust_score, _trust_motivos = calcular_trust_score(
+                trust_score, trust_motivos = calcular_trust_score(
                     leitura,
                     historico_recente,
                 )
                 leitura.trust_score = trust_score
                 leitura.save(force_insert=True)
+                atualizar_machine_data_health(
+                    machine=machine_obj,
+                    trust_score=leitura.trust_score,
+                    motivos=trust_motivos,
+                    timestamp=leitura.timestamp,
+                )
             # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
             if sequence_informada:
                 _atualizar_sync_cursor(device_id, sequence_number)

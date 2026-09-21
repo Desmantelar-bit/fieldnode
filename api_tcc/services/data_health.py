@@ -14,6 +14,9 @@ from datetime import datetime
 from math import isfinite
 from typing import Any, Iterable
 
+from django.db import IntegrityError, transaction
+
+from api_tcc.models import MachineDataHealth
 from api_tcc.services.sensor_limits import LIMITES
 
 
@@ -39,6 +42,20 @@ ABRUPT_CHANGE_RATIO = 0.35
 CONTINUITY_BONUS = 0.04
 ABRUPT_CHANGE_PENALTY = 0.08
 
+TRUST_SCORE_EMA_ALPHA = 0.2
+LOW_TRUST_SCORE_THRESHOLD = 0.75
+
+ALERT_SIGNAL_KEYS = (
+    "primeira_leitura",
+    "gap_temporal",
+    "timestamp_fora_de_ordem",
+    "timestamp_indisponivel",
+    "valores_repetidos",
+    "limite_fisico",
+    "salto_abrupto",
+    "score_baixo",
+)
+
 
 def calcular_trust_score(leitura: Any, historico_recente: Iterable[Any]) -> tuple[float, list[str]]:
     """
@@ -60,6 +77,82 @@ def calcular_trust_score(leitura: Any, historico_recente: Iterable[Any]) -> tupl
     score += _continuidade(leitura, leitura_anterior, motivos)
 
     return round(_clamp(score), 4), motivos
+
+
+def atualizar_machine_data_health(
+    *,
+    machine: Any,
+    trust_score: float | None,
+    motivos: Iterable[str],
+    timestamp: datetime,
+) -> MachineDataHealth | None:
+    """
+    Atualiza o estado agregado da Machine com EMA simples.
+
+    A funcao consome apenas o estado agregado existente + a nova leitura.
+    Nao consulta historico completo e nao recalcula trust_score.
+    """
+    if trust_score is None:
+        return None
+
+    score_atual = round(_clamp(float(trust_score)), 4)
+    motivos_lista = [str(motivo) for motivo in motivos]
+    sinais_atuais = _sinais_de_alerta(motivos_lista, score_atual)
+
+    with transaction.atomic():
+        try:
+            health = (
+                MachineDataHealth.objects
+                .select_for_update()
+                .get(machine=machine)
+            )
+        except MachineDataHealth.DoesNotExist:
+            sinais = _montar_sinais_de_alerta(
+                anteriores={},
+                atuais=sinais_atuais,
+                motivos=motivos_lista,
+            )
+            try:
+                with transaction.atomic():
+                    health, _created = MachineDataHealth.objects.update_or_create(
+                        machine=machine,
+                        defaults={
+                            "trust_score_medio": score_atual,
+                            "ultima_atualizacao": timestamp,
+                            "leituras_analisadas": 1,
+                            "sinais_de_alerta": sinais,
+                        },
+                    )
+                return health
+            except IntegrityError:
+                health = (
+                    MachineDataHealth.objects
+                    .select_for_update()
+                    .get(machine=machine)
+                )
+
+        score_medio = round(
+            TRUST_SCORE_EMA_ALPHA * score_atual
+            + (1 - TRUST_SCORE_EMA_ALPHA) * health.trust_score_medio,
+            4,
+        )
+        health.trust_score_medio = _clamp(score_medio)
+        health.ultima_atualizacao = timestamp
+        health.leituras_analisadas += 1
+        health.sinais_de_alerta = _montar_sinais_de_alerta(
+            anteriores=health.sinais_de_alerta or {},
+            atuais=sinais_atuais,
+            motivos=motivos_lista,
+        )
+        health.save(
+            update_fields=[
+                "trust_score_medio",
+                "ultima_atualizacao",
+                "leituras_analisadas",
+                "sinais_de_alerta",
+            ]
+        )
+        return health
 
 
 def _penalidade_temporal(leitura: Any, anterior: Any | None, motivos: list[str]) -> float:
@@ -188,6 +281,37 @@ def _continuidade(leitura: Any, anterior: Any | None, motivos: list[str]) -> flo
         return CONTINUITY_BONUS
 
     return 0.0
+
+
+def _sinais_de_alerta(motivos: list[str], trust_score: float) -> dict[str, bool]:
+    texto = " | ".join(motivos).lower()
+    return {
+        "primeira_leitura": "primeira leitura" in texto,
+        "gap_temporal": "gap temporal acima" in texto,
+        "timestamp_fora_de_ordem": "fora de ordem" in texto,
+        "timestamp_indisponivel": "timestamp indisponivel" in texto,
+        "valores_repetidos": "repetidos consecutivamente" in texto,
+        "limite_fisico": "limite fisico" in texto,
+        "salto_abrupto": "salto abrupto" in texto,
+        "score_baixo": trust_score < LOW_TRUST_SCORE_THRESHOLD,
+    }
+
+
+def _montar_sinais_de_alerta(
+    *,
+    anteriores: dict[str, Any],
+    atuais: dict[str, bool],
+    motivos: list[str],
+) -> dict[str, Any]:
+    contadores_anteriores = anteriores.get("contadores", {})
+    contadores = {
+        key: int(contadores_anteriores.get(key, 0)) + (1 if atuais.get(key) else 0)
+        for key in ALERT_SIGNAL_KEYS
+    }
+    payload = {key: bool(atuais.get(key, False)) for key in ALERT_SIGNAL_KEYS}
+    payload["contadores"] = contadores
+    payload["ultimos_motivos"] = motivos
+    return payload
 
 
 def _get(obj: Any, field: str) -> Any:

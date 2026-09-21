@@ -92,9 +92,105 @@ A versão 1.0 (legada) continua sendo suportada via fallbacks.
 
 ---
 
+## Anexo S3-T2: Saude agregada de dados por Machine
+
+O endpoint abaixo retorna o estado persistido da confiabilidade da telemetria
+de uma `Machine`. Ele nao recalcula o historico completo durante a consulta.
+
+```http
+GET /api/machines/<machine_id>/health/
+```
+
+### Resposta com health existente
+
+```json
+{
+  "machine_id": "2f2d8c8d-24cf-42e4-9cf1-59a31d0c4f58",
+  "external_code": "CASE-TC5000-01",
+  "status": "ok",
+  "trust_score_medio": 0.84,
+  "ultima_atualizacao": "2026-09-21T18:30:00Z",
+  "leituras_analisadas": 127,
+  "sinais_de_alerta": {
+    "primeira_leitura": false,
+    "gap_temporal": true,
+    "timestamp_fora_de_ordem": false,
+    "timestamp_indisponivel": false,
+    "valores_repetidos": false,
+    "limite_fisico": false,
+    "salto_abrupto": false,
+    "score_baixo": false,
+    "contadores": {
+      "primeira_leitura": 1,
+      "gap_temporal": 4,
+      "timestamp_fora_de_ordem": 0,
+      "timestamp_indisponivel": 0,
+      "valores_repetidos": 2,
+      "limite_fisico": 3,
+      "salto_abrupto": 0,
+      "score_baixo": 5
+    },
+    "ultimos_motivos": [
+      "gap temporal acima da heuristica inicial esperada"
+    ]
+  }
+}
+```
+
+### Machine existente sem health
+
+Ausencia de dados nao e interpretada como telemetria excelente.
+
+```json
+{
+  "machine_id": "2f2d8c8d-24cf-42e4-9cf1-59a31d0c4f58",
+  "external_code": "CASE-TC5000-01",
+  "status": "sem_dados",
+  "trust_score_medio": null,
+  "ultima_atualizacao": null,
+  "leituras_analisadas": 0,
+  "sinais_de_alerta": {}
+}
+```
+
+### Semantica
+
+`trust_score_medio` e um agregado incremental normalizado em `0..1`.
+Ele usa media movel exponencial simples:
+
+```text
+novo_score = alpha * trust_score_da_leitura + (1 - alpha) * score_anterior
+```
+
+O `alpha` atual e `0.2`. Esse valor e uma heuristica operacional: define o
+peso da leitura nova no estado agregado, nao uma probabilidade estatistica.
+
+`leituras_analisadas` contabiliza somente leituras efetivamente incorporadas ao
+agregado. Replays idempotentes retornam duplicata e nao incrementam esse valor.
+
+`ultima_atualizacao` representa o timestamp da ultima leitura considerada pelo
+agregado. `sinais_de_alerta` deriva dos motivos reais gerados pelo trust score
+individual em S3-T1.
+
+### Chamada manual documentada
+
+Exemplo sanitizado para ambiente local:
+
+```bash
+curl -X GET \
+  http://localhost:8000/api/machines/<MACHINE_UUID>/health/
+```
+
+Este endpoint de leitura segue a politica atual dos endpoints publicos do
+prototipo. Quando `DEMO_MODE=True` e a requisicao for anonima, uma Machine real
+nao marcada como `is_demo=True` retorna `404`.
+
+---
+
 ## Histórico de Versões
 
 | Versão | Data       | Alteração                                                             |
 |--------|------------|-----------------------------------------------------------------------|
+| 1.2    | 2026-09-21 | **S3-T2**: `MachineDataHealth`, EMA incremental por Machine e `GET /api/machines/<id>/health/`. |
 | 1.1    | 2026-09-11 | **S1-T5**: Idempotência composta (`device_id`, `message_id`) e SyncCursor (`sequence_number`). |
 | 1.0    | 2026-09-10 | Versão inicial. Idempotência por UUID (`id`). Ranges de validação física. |

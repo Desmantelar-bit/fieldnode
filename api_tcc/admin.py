@@ -49,6 +49,24 @@ class MachineAdmin(admin.ModelAdmin):
     list_filter = ("ativo", "is_demo")
 
 
+@admin.register(models.MachineDataHealth)
+class MachineDataHealthAdmin(admin.ModelAdmin):
+    list_display = (
+        "machine",
+        "trust_score_medio",
+        "leituras_analisadas",
+        "ultima_atualizacao",
+    )
+    search_fields = ("machine__external_code",)
+    readonly_fields = (
+        "machine",
+        "trust_score_medio",
+        "ultima_atualizacao",
+        "leituras_analisadas",
+        "sinais_de_alerta",
+    )
+
+
 admin.site.register(models.UnidadedeMedida)
 admin.site.register(models.Marca)
 admin.site.register(models.Modelo)

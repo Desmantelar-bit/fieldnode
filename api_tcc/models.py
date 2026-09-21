@@ -480,6 +480,50 @@ class Machine(models.Model):
         return self.external_code
 
 
+class MachineDataHealth(models.Model):
+    """
+    Estado agregado atual da qualidade da telemetria de uma Machine.
+
+    S3-T2: atualizado incrementalmente durante a ingestao, sem recalcular
+    historico completo em requests de consulta.
+    """
+
+    machine = models.OneToOneField(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name="data_health",
+        verbose_name="Machine",
+    )
+    trust_score_medio = models.FloatField(
+        default=0.0,
+        verbose_name="Trust Score medio",
+        help_text="EMA normalizada 0..1 calculada a partir das leituras pontuadas.",
+    )
+    ultima_atualizacao = models.DateTimeField(
+        verbose_name="Ultima atualizacao",
+        help_text="Timestamp da ultima leitura considerada no MachineDataHealth.",
+        db_index=True,
+    )
+    leituras_analisadas = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Leituras analisadas",
+        help_text="Quantidade de leituras com trust_score incorporadas ao agregado.",
+    )
+    sinais_de_alerta = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Sinais de alerta",
+        help_text="Sinais derivados dos motivos do trust_score individual.",
+    )
+
+    class Meta:
+        verbose_name = "Machine Data Health"
+        verbose_name_plural = "Machine Data Health"
+
+    def __str__(self):
+        return f"{self.machine.external_code} health={self.trust_score_medio:.4f}"
+
+
 # ---------------------------------------------------------------------------
 # S1-T5 — Cursor de Sincronização
 # ---------------------------------------------------------------------------
