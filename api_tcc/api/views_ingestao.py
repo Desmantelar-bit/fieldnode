@@ -34,6 +34,7 @@ from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth, Prescr
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
+from api_tcc.services.decisions import persistir_decision_da_analise
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
@@ -813,4 +814,7 @@ class PrescricaoView(APIView):
             )
 
         analise = analisar_maquina(maquina_id)
-        return Response(_serializar_analise(analise))
+        decision = persistir_decision_da_analise(analise)
+        payload = _serializar_analise(analise)
+        payload["decision_id"] = str(decision.id)
+        return Response(payload)

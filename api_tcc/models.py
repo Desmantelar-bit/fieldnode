@@ -367,6 +367,85 @@ class Event(models.Model):
         return f"{self.machine.external_code} {self.tipo} {self.severidade}"
 
 
+class Decision(models.Model):
+    """Memoria persistente de uma recomendacao operacional gerada pelo sistema."""
+
+    class Status(models.TextChoices):
+        PENDENTE = "PENDENTE", "Pendente"
+        APROVADA = "APROVADA", "Aprovada"
+        REJEITADA = "REJEITADA", "Rejeitada"
+        EXECUTADA = "EXECUTADA", "Executada"
+        EXPIRADA = "EXPIRADA", "Expirada"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    machine = models.ForeignKey(
+        "Machine",
+        on_delete=models.PROTECT,
+        related_name="decisions",
+        verbose_name="Machine",
+    )
+    event = models.ForeignKey(
+        "Event",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decisions",
+        verbose_name="Event",
+    )
+    texto = models.TextField(verbose_name="Texto da recomendacao")
+    acao_recomendada = models.TextField(verbose_name="Acao recomendada")
+    severidade = models.CharField(
+        max_length=20,
+        choices=Event.Severidade.choices,
+        default=Event.Severidade.NORMAL,
+        db_index=True,
+    )
+    confianca = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Confianca",
+        help_text="Confianca da recomendacao em 0..1; null quando o pipeline atual nao produz score.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDENTE,
+        db_index=True,
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    decidido_por = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decisions_decididas",
+        verbose_name="Decidido por",
+    )
+    decidido_em = models.DateTimeField(null=True, blank=True)
+    outcome_texto = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        indexes = [
+            models.Index(fields=["machine", "status", "-criado_em"]),
+            models.Index(fields=["machine", "severidade", "-criado_em"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(confianca__isnull=True)
+                    | (models.Q(confianca__gte=0.0) & models.Q(confianca__lte=1.0))
+                ),
+                name="decision_confianca_0_1_or_null",
+            )
+        ]
+        verbose_name = "Decision"
+        verbose_name_plural = "Decisions"
+
+    def __str__(self):
+        return f"{self.machine.external_code} {self.severidade} {self.status}"
+
+
 class RegistroAnalise(models.Model):
     """Snapshot auditável de uma decisão do pipeline de IA."""
 

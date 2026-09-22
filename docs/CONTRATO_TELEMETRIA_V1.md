@@ -194,3 +194,44 @@ nao marcada como `is_demo=True` retorna `404`.
 | 1.2    | 2026-09-21 | **S3-T2**: `MachineDataHealth`, EMA incremental por Machine e `GET /api/machines/<id>/health/`. |
 | 1.1    | 2026-09-11 | **S1-T5**: Idempotência composta (`device_id`, `message_id`) e SyncCursor (`sequence_number`). |
 | 1.0    | 2026-09-10 | Versão inicial. Idempotência por UUID (`id`). Ranges de validação física. |
+
+---
+
+## Anexo S4-T2: Decision operacional
+
+`Decision` e a memoria persistente de uma recomendacao operacional gerada pelo
+FieldNode. Ela nao substitui `Event`: `Event` registra uma ocorrencia relevante
+observada na telemetria; `Decision` registra a recomendacao produzida a partir
+da analise atual, opcionalmente associada a um `Event` aberto da mesma
+`Machine`.
+
+Fluxo inicial:
+
+```text
+LeituraTelemetria -> Event opcional -> analise de prescricao -> Decision PENDENTE
+```
+
+`GET /api/prescricoes/?maquina_id=<codigo>` preserva o JSON de analise e adiciona:
+
+```json
+{
+  "decision_id": "uuid-da-decision"
+}
+```
+
+Campos centrais: `machine`, `event`, `texto`, `acao_recomendada`,
+`severidade`, `confianca`, `status`, `criado_em`, `decidido_por`,
+`decidido_em` e `outcome_texto`.
+
+Para evitar duplicacao por refresh, o backend reutiliza uma `Decision` pendente
+equivalente criada nos ultimos 30 minutos. A equivalencia considera `machine`,
+`event`, `texto`, `acao_recomendada`, `severidade` e `status=PENDENTE`.
+Decisions em outros status nao bloqueiam uma nova recomendacao equivalente.
+
+`confianca` fica null enquanto o pipeline atual nao produzir score proprio de
+confianca da recomendacao. Ela nao reutiliza `trust_score`, que mede a qualidade
+do dado de entrada.
+
+Limites atuais: o ciclo completo de aprovacao/execucao/rejeicao ainda nao foi
+implementado; `outcome_texto` depende de registro posterior; a consistencia
+temporal do treinamento da IA segue como divida de S5.

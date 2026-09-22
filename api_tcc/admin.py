@@ -92,6 +92,34 @@ class EventAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(models.Decision)
+class DecisionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "machine",
+        "event",
+        "severidade",
+        "confianca",
+        "status",
+        "criado_em",
+        "decidido_por",
+        "decidido_em",
+    )
+    list_filter = ("severidade", "status", "criado_em")
+    search_fields = ("machine__external_code", "texto", "acao_recomendada")
+    ordering = ("-criado_em",)
+    readonly_fields = (
+        "id",
+        "machine",
+        "event",
+        "texto",
+        "acao_recomendada",
+        "severidade",
+        "confianca",
+        "criado_em",
+    )
+
+
 admin.site.register(models.UnidadedeMedida)
 admin.site.register(models.Marca)
 admin.site.register(models.Modelo)
