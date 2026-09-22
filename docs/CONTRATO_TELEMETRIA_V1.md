@@ -232,6 +232,89 @@ Decisions em outros status nao bloqueiam uma nova recomendacao equivalente.
 confianca da recomendacao. Ela nao reutiliza `trust_score`, que mede a qualidade
 do dado de entrada.
 
-Limites atuais: o ciclo completo de aprovacao/execucao/rejeicao ainda nao foi
-implementado; `outcome_texto` depende de registro posterior; a consistencia
-temporal do treinamento da IA segue como divida de S5.
+Limite atual: a consistencia temporal do treinamento da IA segue como divida de
+S5. O feedback humano passa a ser registrado em S4-T3, mas ainda nao deve ser
+tratado como dataset supervisionado pronto para treino.
+
+---
+
+## Anexo S4-T3: Acao humana sobre Decision
+
+`PATCH /api/decisions/<decision_id>/` registra a acao humana sobre uma
+`Decision`. O endpoint exige autenticacao DRF por token e aceita somente:
+
+```json
+{
+  "status": "APROVADA",
+  "outcome_texto": "Operador autorizou a inspecao."
+}
+```
+
+`status` e obrigatorio. `outcome_texto` e opcional e pode ser `null`.
+Campos como `machine`, `event`, `texto`, `acao_recomendada`, `confianca`,
+`criado_em`, `decidido_por` e `decidido_em` nao sao editaveis por esse endpoint.
+
+### Maquina de estados
+
+| Origem | Destino | Resultado |
+|--------|---------|-----------|
+| `PENDENTE` | `APROVADA` | permitido |
+| `PENDENTE` | `REJEITADA` | permitido |
+| `PENDENTE` | `EXPIRADA` | permitido |
+| `PENDENTE` | `EXECUTADA` | bloqueado |
+| `APROVADA` | `EXECUTADA` | permitido |
+| `APROVADA` | `REJEITADA` | bloqueado |
+| `APROVADA` | `APROVADA` | bloqueado |
+| `REJEITADA` | qualquer outro estado | bloqueado |
+| `EXECUTADA` | qualquer outro estado | bloqueado |
+| `EXPIRADA` | qualquer outro estado | bloqueado |
+
+Estados terminais nesta versao: `REJEITADA`, `EXECUTADA` e `EXPIRADA`.
+
+### Auditoria
+
+Em uma transicao valida, o backend registra `decidido_por` a partir de
+`request.user` e `decidido_em` com timestamp do servidor quando esses campos
+ainda nao existem. Na transicao `APROVADA -> EXECUTADA`, o aprovador original e
+preservado quando ja estiver registrado.
+
+### Resposta de sucesso
+
+`200 OK` retorna a `Decision` atualizada, incluindo `id`, `machine`,
+`machine_external_code`, `event`, `texto`, `acao_recomendada`, `severidade`,
+`confianca`, `status`, `criado_em`, `decidido_por`, `decidido_em` e
+`outcome_texto`.
+
+### Erros esperados
+
+| Caso | HTTP |
+|------|------|
+| Sem token ou token invalido | `401 Unauthorized` |
+| Decision inexistente | `404 Not Found` |
+| Payload invalido ou campo nao permitido | `400 Bad Request` |
+| Transicao invalida | `400 Bad Request` |
+
+### Chamada manual documentada
+
+Exemplo sanitizado para ambiente local:
+
+```bash
+curl -X PATCH \
+  http://localhost:8000/api/decisions/<DECISION_UUID>/ \
+  -H "Authorization: Token <SEU_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "APROVADA",
+    "outcome_texto": "Operador autorizou a inspecao."
+  }'
+```
+
+Fluxo operacional:
+
+```text
+Decision PENDENTE
+        -> PATCH APROVADA
+Decision APROVADA
+        -> PATCH EXECUTADA
+Decision EXECUTADA
+```

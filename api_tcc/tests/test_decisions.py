@@ -1,12 +1,18 @@
 from datetime import timedelta
 import uuid
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from api_tcc.models import Decision, Event, Machine
-from api_tcc.services.decisions import DECISION_DEDUP_WINDOW
+from api_tcc.services.decisions import (
+    DECISION_DEDUP_WINDOW,
+    validar_transicao_decision,
+)
 from api_tcc.services.telemetria import registrar_leitura
 
 
@@ -114,3 +120,201 @@ class DecisionPrescricaoIntegrationTest(TestCase):
         decision = Decision.objects.get(id=response.data["decision_id"])
         self.assertEqual(decision.event, event)
         self.assertEqual(decision.machine, event.machine)
+
+
+class DecisionActionViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user_a = User.objects.create_user(
+            username="operador-a",
+            password="senha-forte-123",
+        )
+        self.user_b = User.objects.create_user(
+            username="operador-b",
+            password="senha-forte-123",
+        )
+        self.token_a = Token.objects.create(user=self.user_a)
+        self.token_b = Token.objects.create(user=self.user_b)
+        self.machine = Machine.objects.create(external_code="COLH-ACTION-01")
+
+    def _auth_as(self, token):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+    def _decision(self, status_atual=Decision.Status.PENDENTE, **kwargs):
+        return Decision.objects.create(
+            machine=self.machine,
+            texto="Temperatura alta detectada.",
+            acao_recomendada="Inspecionar sistema de arrefecimento.",
+            severidade=Event.Severidade.CRITICO,
+            status=status_atual,
+            **kwargs,
+        )
+
+    def test_matriz_de_transicoes_da_decision(self):
+        casos = [
+            (Decision.Status.PENDENTE, Decision.Status.APROVADA, True),
+            (Decision.Status.PENDENTE, Decision.Status.REJEITADA, True),
+            (Decision.Status.PENDENTE, Decision.Status.EXPIRADA, True),
+            (Decision.Status.PENDENTE, Decision.Status.EXECUTADA, False),
+            (Decision.Status.APROVADA, Decision.Status.EXECUTADA, True),
+            (Decision.Status.APROVADA, Decision.Status.REJEITADA, False),
+            (Decision.Status.APROVADA, Decision.Status.APROVADA, False),
+            (Decision.Status.REJEITADA, Decision.Status.APROVADA, False),
+            (Decision.Status.REJEITADA, Decision.Status.EXECUTADA, False),
+            (Decision.Status.EXECUTADA, Decision.Status.APROVADA, False),
+            (Decision.Status.EXECUTADA, Decision.Status.REJEITADA, False),
+            (Decision.Status.EXPIRADA, Decision.Status.APROVADA, False),
+            (Decision.Status.EXPIRADA, Decision.Status.EXECUTADA, False),
+        ]
+
+        for origem, destino, esperado in casos:
+            with self.subTest(origem=origem, destino=destino):
+                self.assertEqual(validar_transicao_decision(origem, destino), esperado)
+
+    def test_aprovacao_valida_registra_auditoria_do_usuario_autenticado(self):
+        decision = self._decision()
+        self._auth_as(self.token_a)
+
+        response = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {"status": Decision.Status.APROVADA},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, Decision.Status.APROVADA)
+        self.assertEqual(decision.decidido_por, self.user_a)
+        self.assertIsNotNone(decision.decidido_em)
+        self.assertEqual(response.data["decidido_por"], self.user_a.id)
+
+    def test_rejeicao_valida_persiste_outcome(self):
+        decision = self._decision()
+        self._auth_as(self.token_a)
+
+        response = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {
+                "status": Decision.Status.REJEITADA,
+                "outcome_texto": "Inspecao manual nao confirmou a condicao.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, Decision.Status.REJEITADA)
+        self.assertEqual(decision.decidido_por, self.user_a)
+        self.assertIsNotNone(decision.decidido_em)
+        self.assertEqual(
+            decision.outcome_texto,
+            "Inspecao manual nao confirmou a condicao.",
+        )
+
+    def test_execucao_valida_preserva_autor_original_da_aprovacao(self):
+        aprovado_em = timezone.now() - timedelta(minutes=5)
+        decision = self._decision(
+            Decision.Status.APROVADA,
+            decidido_por=self.user_a,
+            decidido_em=aprovado_em,
+            outcome_texto="Inspecao autorizada.",
+        )
+        self._auth_as(self.token_b)
+
+        response = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {
+                "status": Decision.Status.EXECUTADA,
+                "outcome_texto": "Filtro substituido durante manutencao.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, Decision.Status.EXECUTADA)
+        self.assertEqual(decision.decidido_por, self.user_a)
+        self.assertEqual(decision.decidido_em, aprovado_em)
+        self.assertEqual(
+            decision.outcome_texto,
+            "Filtro substituido durante manutencao.",
+        )
+
+    def test_transicao_invalida_pendente_para_executada_retorna_400_sem_alterar(self):
+        decision = self._decision(outcome_texto="Texto original.")
+        self._auth_as(self.token_a)
+
+        response = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {"status": Decision.Status.EXECUTADA, "outcome_texto": "Nao salvar."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, Decision.Status.PENDENTE)
+        self.assertIsNone(decision.decidido_por)
+        self.assertIsNone(decision.decidido_em)
+        self.assertEqual(decision.outcome_texto, "Texto original.")
+
+    def test_endpoint_exige_token_valido(self):
+        decision = self._decision()
+
+        sem_token = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {"status": Decision.Status.APROVADA},
+            format="json",
+        )
+        self.assertEqual(sem_token.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.credentials(HTTP_AUTHORIZATION="Token token-invalido")
+        token_invalido = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {"status": Decision.Status.APROVADA},
+            format="json",
+        )
+        self.assertEqual(token_invalido.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cliente_nao_consegue_falsificar_campos_de_auditoria_ou_origem(self):
+        outra_machine = Machine.objects.create(external_code="COLH-OUTRA")
+        decision = self._decision(confianca=0.25)
+        criado_em_original = decision.criado_em
+        self._auth_as(self.token_a)
+
+        response = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {
+                "status": Decision.Status.APROVADA,
+                "decidido_por": self.user_b.id,
+                "confianca": 0.99,
+                "machine": str(outra_machine.id),
+                "criado_em": "2020-01-01T00:00:00Z",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, Decision.Status.PENDENTE)
+        self.assertIsNone(decision.decidido_por)
+        self.assertEqual(decision.confianca, 0.25)
+        self.assertEqual(decision.machine, self.machine)
+        self.assertEqual(decision.criado_em, criado_em_original)
+
+    def test_status_obrigatorio_e_decision_inexistente(self):
+        decision = self._decision()
+        self._auth_as(self.token_a)
+
+        sem_status = self.client.patch(
+            f"/api/decisions/{decision.id}/",
+            {"outcome_texto": "Sem acao."},
+            format="json",
+        )
+        self.assertEqual(sem_status.status_code, status.HTTP_400_BAD_REQUEST)
+
+        inexistente = self.client.patch(
+            f"/api/decisions/{uuid.uuid4()}/",
+            {"status": Decision.Status.APROVADA},
+            format="json",
+        )
+        self.assertEqual(inexistente.status_code, status.HTTP_404_NOT_FOUND)

@@ -24,17 +24,21 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from datetime import datetime
 import csv
 import io
 
 
-from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth, Prescricao
-from api_tcc.api.serializers import LeituraTelemetriaSerializer
+from api_tcc.models import Decision, LeituraTelemetria, Machine, MachineDataHealth, Prescricao
+from api_tcc.api.serializers import (
+    DecisionActionSerializer,
+    DecisionSerializer,
+    LeituraTelemetriaSerializer,
+)
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
-from api_tcc.services.decisions import persistir_decision_da_analise
+from api_tcc.services.decisions import aplicar_acao_decision, persistir_decision_da_analise
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 
 logger = logging.getLogger(__name__)
@@ -791,6 +795,49 @@ class PrescricaoTesteView(APIView):
         ]
         
         return Response(resultado)
+
+
+class DecisionActionView(APIView):
+    """
+    PATCH /api/decisions/<id>/
+
+    Registra a acao humana sobre uma Decision sem permitir edicao generica da
+    recomendacao original.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, decision_id):
+        serializer = DecisionActionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        novo_status = serializer.validated_data["status"]
+        outcome_fornecido = "outcome_texto" in serializer.validated_data
+        outcome_texto = serializer.validated_data.get("outcome_texto")
+
+        try:
+            with transaction.atomic():
+                decision = Decision.objects.select_for_update().get(id=decision_id)
+                aplicar_acao_decision(
+                    decision,
+                    usuario=request.user,
+                    novo_status=novo_status,
+                    outcome_texto_fornecido=outcome_fornecido,
+                    outcome_texto=outcome_texto,
+                )
+        except Decision.DoesNotExist:
+            return Response(
+                {"status": "erro", "detalhe": "Decision nao encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except ValueError as exc:
+            return Response(
+                {"status": "erro", "detalhe": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(DecisionSerializer(decision).data, status=status.HTTP_200_OK)
 
 
 class PrescricaoView(APIView):

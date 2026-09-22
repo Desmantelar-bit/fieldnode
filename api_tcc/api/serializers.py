@@ -366,3 +366,58 @@ class PrescricaoSerializer(serializers.ModelSerializer):
             'id': {'read_only': True},
             'data_geracao': {'read_only': True},
         }
+
+
+class StrictSerializer(serializers.Serializer):
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            raise serializers.ValidationError("Payload precisa ser um objeto JSON.")
+        unknown_fields = set(data) - set(self.fields)
+        if unknown_fields:
+            raise serializers.ValidationError(
+                {field: ["Campo nao permitido."] for field in sorted(unknown_fields)}
+            )
+        return super().to_internal_value(data)
+
+
+class DecisionActionSerializer(StrictSerializer):
+    status = serializers.ChoiceField(choices=models.Decision.Status.choices)
+    outcome_texto = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+
+class DecisionSerializer(serializers.ModelSerializer):
+    machine = serializers.UUIDField(source="machine.id", read_only=True)
+    machine_external_code = serializers.CharField(
+        source="machine.external_code", read_only=True
+    )
+    event = serializers.UUIDField(source="event.id", read_only=True, allow_null=True)
+    decidido_por = serializers.IntegerField(
+        source="decidido_por.id", read_only=True, allow_null=True
+    )
+    decidido_por_username = serializers.CharField(
+        source="decidido_por.username", read_only=True
+    )
+
+    class Meta:
+        model = models.Decision
+        fields = [
+            "id",
+            "machine",
+            "machine_external_code",
+            "event",
+            "texto",
+            "acao_recomendada",
+            "severidade",
+            "confianca",
+            "status",
+            "criado_em",
+            "decidido_por",
+            "decidido_por_username",
+            "decidido_em",
+            "outcome_texto",
+        ]
+        read_only_fields = fields

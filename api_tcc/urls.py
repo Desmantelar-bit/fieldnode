@@ -4,6 +4,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import (
     AnomaliaView,
+    DecisionActionView,
     IngestaoLoteView,
     IngestaoTelemetriaView,
     MachineDataHealthView,
@@ -53,6 +54,7 @@ urlpatterns = [
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
     path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
     path("prescricoes/<str:maquina_id>/", PrescricaoMaquinaView.as_view(), name="prescricao-maquina"),
+    path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),
     path("relatorio/", RelatorioView.as_view(), name="relatorio"),
     path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
