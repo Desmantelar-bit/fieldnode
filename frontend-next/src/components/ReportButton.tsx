@@ -56,6 +56,8 @@ export function ReportButton({ machineId, machines = [], label = 'Extrair relato
     return (
       <div className="flex items-center gap-2">
         <select
+          id="report-export-machine-select"
+          name="machine"
           value={selectedMachineId}
           onChange={(event) => setSelectedMachineId(event.target.value)}
           className="border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200 outline-none transition hover:bg-white/[0.08] focus:border-emerald-300/50"

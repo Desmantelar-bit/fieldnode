@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useId, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -46,8 +46,8 @@ function hasTokenPayload(data: unknown): data is { token: string } {
 
 export default function LoginPage() {
   const router = useRouter();
-  const usernameId = useId();
-  const passwordId = useId();
+  const usernameId = "fieldnode-login-username";
+  const passwordId = "fieldnode-login-password";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -41,7 +41,7 @@ export function ChatFAB({ machines }: ChatFABProps) {
             máquina
             <span className="relative">
               <Tractor aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-field-text3" size={15} />
-              <select value={selectedMachine} onChange={(event) => setSelectedMachine(event.target.value)} className="min-h-11 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-10 pr-9 text-sm font-medium normal-case tracking-normal text-field-text1 outline-none transition hover:border-white/20 focus:border-accent/60">
+              <select id="chat-machine-select" name="machine" value={selectedMachine} onChange={(event) => setSelectedMachine(event.target.value)} className="min-h-11 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-10 pr-9 text-sm font-medium normal-case tracking-normal text-field-text1 outline-none transition hover:border-white/20 focus:border-accent/60">
                 {machineOptions.map((machine) => <option key={machine.maquina_id} value={machine.maquina_id} className="bg-slate-950 text-white">{machine.maquina_id}{machine.modelo?.nome ? ` · ${machine.modelo.nome}` : ''}</option>)}
               </select>
               <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-field-text3" size={15} />

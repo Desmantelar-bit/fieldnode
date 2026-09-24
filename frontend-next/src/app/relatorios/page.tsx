@@ -145,6 +145,8 @@ export default function RelatoriosPage() {
             <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-field-text3">
               máquina
               <select
+                id="report-machine-select"
+                name="machine"
                 value={selectedMachine}
                 onChange={(event) => {
                   setSelectedMachine(event.target.value);
@@ -162,6 +164,8 @@ export default function RelatoriosPage() {
             <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-field-text3">
               período
               <select
+                id="report-period-select"
+                name="period"
                 value={period}
                 onChange={(event) => {
                   setPeriod(Number(event.target.value));
