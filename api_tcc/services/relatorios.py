@@ -3,7 +3,7 @@ import io
 from datetime import datetime, time, timedelta
 from django.http import HttpResponse
 from django.utils import timezone
-from api_tcc.models import LeituraTelemetria, Prescricao, Colheitadeira
+from api_tcc.models import Decision, LeituraTelemetria
 
 def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
     """
@@ -61,11 +61,11 @@ def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
         'rpm_min': min(rpms) if rpms else 0,
     }
 
-    prescricoes = list(Prescricao.objects.filter(
-        colheitadeira__maquina_id=maquina_id,
-        data_geracao__gte=data_inicio,
-        data_geracao__lte=data_fim
-    ).order_by('-data_geracao'))
+    prescricoes = list(Decision.objects.filter(
+        machine__external_code=maquina_id.strip().upper(),
+        criado_em__gte=data_inicio,
+        criado_em__lte=data_fim,
+    ).order_by('-criado_em'))
 
     return {
         'stats': stats,
@@ -160,10 +160,10 @@ def _gerar_relatorio_csv(maquina_id, data_inicio, data_fim, stats, leituras, pre
         for p in prescricoes:
             writer.writerow([
                 p.id,
-                p.titulo,
-                p.descricao,
+                p.acao_recomendada,
+                p.texto,
                 p.status,
-                p.data_geracao.strftime('%d/%m/%Y %H:%M') if p.data_geracao else ''
+                p.criado_em.strftime('%d/%m/%Y %H:%M') if p.criado_em else ''
             ])
         writer.writerow([])  # Linha vazia
     else:
@@ -221,12 +221,12 @@ def _gerar_relatorio_csv_exportar(maquina_id, data_inicio, data_fim, stats, leit
         writer.writerow(['RECOMENDAÇÕES'])
         writer.writerow(['Título', 'Descrição', 'Status', 'Data de Geração'])
         for p in prescricoes:
-            descricao = str(p.descricao).replace('\n', ' ').replace('\r', ' ')
+            descricao = str(p.texto).replace('\n', ' ').replace('\r', ' ')
             writer.writerow([
-                p.titulo,
+                p.acao_recomendada,
                 descricao,
                 p.status,
-                p.data_geracao.strftime('%d/%m/%Y %H:%M') if p.data_geracao else ''
+                p.criado_em.strftime('%d/%m/%Y %H:%M') if p.criado_em else ''
             ])
         writer.writerow([])
     else:
@@ -309,10 +309,10 @@ def _gerar_relatorio_txt(maquina_id, data_inicio, data_fim, stats, leituras, pre
     buf.write("-" * 30 + "\n")
     if prescricoes:
         for i, p in enumerate(prescricoes, 1):
-            buf.write(f"{i}. {p.titulo}\n")
+            buf.write(f"{i}. {p.acao_recomendada}\n")
             buf.write(f"   Status: {p.status}\n")
-            buf.write(f"   Data: {p.data_geracao.strftime('%d/%m/%Y %H:%M') if p.data_geracao else 'N/A'}\n")
-            buf.write(f"   Descrição: {p.descricao}\n")
+            buf.write(f"   Data: {p.criado_em.strftime('%d/%m/%Y %H:%M') if p.criado_em else 'N/A'}\n")
+            buf.write(f"   Descrição: {p.texto}\n")
             buf.write("\n")
     else:
         buf.write("Nenhuma prescrição encontrada para o período.\n")

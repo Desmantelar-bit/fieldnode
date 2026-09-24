@@ -22,7 +22,7 @@ const items = [
 ] as const;
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   function handleLogout() {
     window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);

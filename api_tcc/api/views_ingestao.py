@@ -18,7 +18,7 @@ import json
 import uuid as uuid_lib
 
 from django.conf import settings
-from django.db import IntegrityError, connection, transaction
+from django.db import connection, transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -40,6 +40,14 @@ from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.services.decisions import aplicar_acao_decision, persistir_decision_da_analise
 from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
+from api_tcc.permissions import (
+    MACHINE_WRITE_ROLES,
+    IsAuthenticatedOrPublicDemo,
+    get_machines_for_request,
+    get_machine_for_request,
+    request_can_access_machine,
+    user_can_access_machine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +59,15 @@ def _is_public_demo_request(request) -> bool:
 def _filter_public_demo_leituras(queryset, request):
     if _is_public_demo_request(request):
         return queryset.filter(machine__is_demo=True)
+    if request.user.is_authenticated:
+        return queryset.filter(machine__in=get_machines_for_request(request))
     return queryset
 
 
 def _public_demo_machine_allowed(maquina_id: str | None, request) -> bool:
     if not _is_public_demo_request(request) or not maquina_id:
-        return True
-    external_code = str(maquina_id).strip().upper()
-    return Machine.objects.filter(external_code=external_code, is_demo=True).exists()
+        return bool(request.user.is_authenticated)
+    return get_machine_for_request(request, maquina_id) is not None
 
 
 def _serializar_analise(analise):
@@ -116,6 +125,8 @@ class AnomaliaView(APIView):
     Enfileira detecção de anomalias para processamento em background.
     Resposta rápida evita bloqueio do request por modelos de IA.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
         if not maquina:
@@ -185,6 +196,8 @@ class IngestaoTelemetriaView(APIView):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get(self, request):
+        if not request.user.is_authenticated and not _is_public_demo_request(request):
+            return Response({'detail': 'Autenticação obrigatória.'}, status=status.HTTP_401_UNAUTHORIZED)
         maquina = request.query_params.get('maquina_id')
         leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
         if maquina:
@@ -210,7 +223,7 @@ class MachineDataHealthView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if _is_public_demo_request(request) and not machine.is_demo:
+        if not request_can_access_machine(request, machine):
             return Response(
                 {"status": "erro", "detalhe": "machine nao disponivel no dataset demo"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -287,35 +300,22 @@ class IngestaoLoteView(APIView):
                 resultado['erros'].append({'id': None, 'detalhe': 'item precisa ser um objeto JSON'})
                 continue
 
-            uuid_recebido = item.get('id')
-            try:
-                uuid_normalizado = uuid_lib.UUID(str(uuid_recebido)) if uuid_recebido else None
-            except (TypeError, ValueError, AttributeError):
-                resultado['invalidas'] += 1
-                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['UUID inválido.']}})
-                continue
-
-            if not uuid_normalizado:
-                resultado['invalidas'] += 1
-                resultado['erros'].append({'id': uuid_recebido, 'detalhe': {'id': ['Este campo é obrigatório.']}})
-                continue
-
-            if LeituraTelemetria.objects.filter(id=uuid_normalizado).exists():
-                resultado['duplicadas'] += 1
-                continue
-
-            serializer = LeituraTelemetriaSerializer(data=item)
-            if not serializer.is_valid():
-                resultado['invalidas'] += 1
-                resultado['erros'].append({'id': uuid_recebido, 'detalhe': serializer.errors})
-                continue
-
-            try:
-                with transaction.atomic():
-                    serializer.save(id=uuid_normalizado)
+            status_item, detalhe = registrar_leitura(item)
+            if status_item == "criado":
                 resultado['salvas'] += 1
-            except IntegrityError:
+            elif status_item == "duplicata":
                 resultado['duplicadas'] += 1
+            elif status_item == "invalido":
+                resultado['invalidas'] += 1
+                resultado['erros'].append({
+                    'id': item.get('id'),
+                    'detalhe': detalhe,
+                })
+            else:
+                resultado['erros'].append({
+                    'id': item.get('id'),
+                    'detalhe': 'falha interna ao persistir a leitura',
+                })
 
         return Response(resultado, status=status.HTTP_200_OK)
 
@@ -336,16 +336,20 @@ class UltimaLeituraView(APIView):
     """
 
     def get(self, request):
+        if not request.user.is_authenticated and not _is_public_demo_request(request):
+            return Response({'detail': 'Autenticação obrigatória.'}, status=status.HTTP_401_UNAUTHORIZED)
         maquina = request.query_params.get('maquina_id')
         demo_publico = _is_public_demo_request(request)
 
         with connection.cursor() as cursor:
             if maquina:
-                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id" if demo_publico else ""
-                demo_filter = "AND m.is_demo = %s" if demo_publico else ""
+                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id"
+                demo_filter = "AND m.is_demo = %s" if demo_publico else "AND t1.machine_id IN (SELECT id FROM api_tcc_machine WHERE organization_id IN (SELECT organization_id FROM api_tcc_membership WHERE user_id = %s) AND ativo = 1)"
                 params = [maquina, maquina, maquina]
                 if demo_publico:
                     params.append(True)
+                else:
+                    params.append(request.user.id)
                 cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t2.total_leituras,
@@ -370,9 +374,9 @@ class UltimaLeituraView(APIView):
                     {demo_filter}
                 """, params)
             else:
-                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id" if demo_publico else ""
-                demo_where = "WHERE m.is_demo = %s" if demo_publico else ""
-                params = [True] if demo_publico else []
+                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id"
+                demo_where = "WHERE m.is_demo = %s" if demo_publico else "WHERE m.organization_id IN (SELECT organization_id FROM api_tcc_membership WHERE user_id = %s) AND m.ativo = 1"
+                params = [True] if demo_publico else [request.user.id]
                 cursor.execute(f"""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t3.total_leituras,
@@ -465,6 +469,8 @@ class ManutencaoView(APIView):
     Enfileira análise de manutenção para execução em background.
     Retorna rapidamente para não bloquear o request com modelagem de IA.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         maquina = request.query_params.get('maquina_id')
         if not maquina:
@@ -496,6 +502,8 @@ class MetricasView(APIView):
     Uso: Dashboard / apresentações para demonstrar observabilidade e
     resiliência do sistema em campo.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         from api_tcc.models import TelemetriaInvalida
 
@@ -531,6 +539,8 @@ class StatusMQTTView(APIView):
     10s é escolhido conservadoramente — deixa espaço para atrasos de rede
     mantendo responsividade de detecção de desconexão.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         ultima_leitura = _filter_public_demo_leituras(
             LeituraTelemetria.objects.all(), request
@@ -562,6 +572,8 @@ class RelatorioView(APIView):
     Gera relatório operacional geral do sistema.
     Retorna sempre os campos obrigatórios esperados pelo frontend.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         formato = request.query_params.get('formato', 'json')
         leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
@@ -618,6 +630,8 @@ class RelatorioExportarView(APIView):
     Exportação CSV séria com delimitador ;, filtros de máquina e período,
     e colunas de resumo/recomendação.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         maquina_id = request.query_params.get('maquina_id')
         data_inicio = request.query_params.get('data_inicio')
@@ -664,69 +678,6 @@ class RelatorioExportarView(APIView):
         )
 
 
-def _recomendacao_da_analise(analise):
-    """Converte o resultado do pipeline em (titulo, descricao, status)."""
-    if analise.status == 'NORMAL':
-        return (
-            'Operação Normal',
-            'Todos os parâmetros dentro dos limites esperados. Nenhuma ação necessária.',
-            'concluida',
-        )
-    if analise.status == 'ATENCAO':
-        return (
-            'Atenção — Inspeção Preventiva',
-            analise.recomendacao or 'Recomenda-se inspeção preventiva em breve.',
-            'pendente',
-        )
-    return (
-        'Crítico — Intervenção Imediata',
-        analise.recomendacao or 'Intervenção imediata recomendada antes da próxima operação.',
-        'pendente',
-    )
-
-
-def _gerar_prescricoes(maquina_id: str) -> list:
-    """
-    Garante ao menos uma recomendação para exibir.
-
-    Se a máquina tem cadastro (Colheitadeira ativa), persiste a prescrição no
-    banco — get_or_create evita duplicar a mesma recomendação. Se não tem
-    cadastro mas possui telemetria, devolve uma recomendação virtual para não
-    deixar a tela de 'Sem dados'.
-    """
-    from api_tcc.models import Colheitadeira
-
-    try:
-        analise = analisar_maquina(maquina_id)
-    except Exception:
-        logger.exception("Falha ao analisar %s para prescrição", maquina_id)
-        return []
-
-    titulo, descricao, status = _recomendacao_da_analise(analise)
-    colheitadeira = Colheitadeira.objects.filter(maquina_id=maquina_id, ativo=True).first()
-
-    if colheitadeira is not None:
-        prescricao, _criada = Prescricao.objects.get_or_create(
-            colheitadeira=colheitadeira,
-            titulo=titulo,
-            status=status,
-            defaults={'descricao': descricao},
-        )
-        if not prescricao.descricao:
-            prescricao.descricao = descricao
-            prescricao.save(update_fields=['descricao'])
-        return [prescricao]
-
-    return [{
-        'id': 0,
-        'maquina_id': maquina_id,
-        'titulo': titulo,
-        'descricao': descricao,
-        'status': status,
-        'data_geracao': timezone.now(),
-    }]
-
-
 def _serializar_prescricao(p) -> dict:
     if isinstance(p, dict):
         return p
@@ -745,8 +696,10 @@ class PrescricaoListView(APIView):
     GET /api/prescricoes/lista/?maquina_id=COLH-01
 
     Lista o histórico de prescrições geradas para a máquina.
-    Se não houver nenhuma, gera uma na hora via pipeline e retorna.
+    Mantida temporariamente como leitura histórica; novas decisões usam Event/Decision.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
 
     def get(self, request):
         maquina_id = request.query_params.get("maquina_id")
@@ -754,47 +707,31 @@ class PrescricaoListView(APIView):
             return Response(
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"}, status=400
             )
-        if not _public_demo_machine_allowed(maquina_id, request):
+        machine = get_machine_for_request(request, maquina_id)
+        if machine is None:
             return Response([], status=200)
 
         prescricoes = list(
-            Prescricao.objects.filter(colheitadeira__maquina_id=maquina_id).order_by("-data_geracao")
+            Prescricao.objects.filter(
+                colheitadeira_id=machine.colheitadeira_id,
+            ).order_by("-data_geracao")
         )
-
-        if not prescricoes:
-            prescricoes = _gerar_prescricoes(maquina_id)
-
-        return Response([_serializar_prescricao(p) for p in prescricoes])
+        response = Response([_serializar_prescricao(p) for p in prescricoes])
+        response["Deprecation"] = "true"
+        response["Sunset"] = "2026-12-31"
+        return response
 
 
 class PrescricaoTesteView(APIView):
     """View simplificada para testar prescrições"""
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     
     def get(self, request):
-        maquina_id = request.query_params.get('maquina_id', 'DESCONHECIDA')
-        if not _public_demo_machine_allowed(maquina_id, request):
-            return Response([], status=200)
-        
-        resultado = [
-            {
-                "id": 1,
-                "maquina_id": maquina_id,
-                "titulo": "Verificar Sistema de Arrefecimento",
-                "descricao": "Temperatura média elevada detectada nas últimas leituras. Recomenda-se verificar radiador e sistema de refrigeração.",
-                "status": "pendente",
-                "data_geracao": timezone.now().isoformat()
-            },
-            {
-                "id": 2,
-                "maquina_id": maquina_id,
-                "titulo": "Manutenção Preventiva do Motor",
-                "descricao": "Análise dos dados indica necessidade de verificação dos filtros de ar e óleo. Sistema operando dentro dos parâmetros.",
-                "status": "pendente", 
-                "data_geracao": timezone.now().isoformat()
-            }
-        ]
-        
-        return Response(resultado)
+        return Response(
+            {"status": "erro", "detalhe": "rota de teste desativada; use Event/Decision"},
+            status=status.HTTP_410_GONE,
+        )
 
 
 class DecisionActionView(APIView):
@@ -819,6 +756,15 @@ class DecisionActionView(APIView):
         try:
             with transaction.atomic():
                 decision = Decision.objects.select_for_update().get(id=decision_id)
+                if not user_can_access_machine(
+                    request.user,
+                    decision.machine,
+                    write=True,
+                ):
+                    return Response(
+                        {"status": "erro", "detalhe": "sem permissao para esta machine"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
                 aplicar_acao_decision(
                     decision,
                     usuario=request.user,
@@ -847,6 +793,8 @@ class PrescricaoView(APIView):
     Retorna array de prescrições para a máquina especificada.
     Usa os campos reais do banco: titulo, descricao, status, data_geracao.
     """
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         maquina_id = request.query_params.get('maquina_id')
         if not maquina_id:

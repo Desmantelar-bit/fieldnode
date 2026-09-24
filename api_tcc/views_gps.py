@@ -2,7 +2,8 @@ import random
 from django.conf import settings
 from django.http import JsonResponse
 from .models import LeituraTelemetria, Colheitadeira
-from django.views.decorators.http import require_GET
+from .permissions import IsAuthenticatedOrPublicDemo, get_machines_for_request
+from rest_framework.decorators import api_view, permission_classes
 from django.utils import timezone
 from datetime import timedelta
 
@@ -21,7 +22,8 @@ DEMO_ROUTE = [
 
 MODELS_DEMO = ['TC5000', 'CR9000', 'BC8800', 'TX7000', 'AF9000', 'W5000', 'MX3000', 'FH7800']
 
-@require_GET
+@api_view(["GET"])
+@permission_classes([IsAuthenticatedOrPublicDemo])
 def gps_demo(request):
     maquina_id_param = request.GET.get('maquina_id')
     route = []
@@ -61,12 +63,17 @@ def get_maquinas_posicao(request):
     maquina_id_param = request.GET.get('maquina_id')
     user = getattr(request, "user", None)
     demo_publico = bool(settings.DEMO_MODE and not getattr(user, "is_authenticated", False))
+    if not getattr(user, "is_authenticated", False) and not demo_publico:
+        return JsonResponse({"detail": "Autenticação obrigatória."}, status=401)
+    maquinas_permitidas = get_machines_for_request(request)
     if maquina_id_param:
         maquinas = Colheitadeira.objects.filter(
-            maquina_id=maquina_id_param, ativo=True
+            maquina_id=maquina_id_param, ativo=True, machine__in=maquinas_permitidas
         ).select_related('modelo', 'status_de_operacao')
     else:
-        maquinas = Colheitadeira.objects.filter(ativo=True).select_related('modelo', 'status_de_operacao')
+        maquinas = Colheitadeira.objects.filter(
+            ativo=True, machine__in=maquinas_permitidas
+        ).select_related('modelo', 'status_de_operacao')
 
     agora = timezone.now()
     resultado = []

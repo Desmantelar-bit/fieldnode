@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from api_tcc import models
 from api_tcc.api import serializers
+from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machines_for_request
 
 
 def _make_viewset(model, serializer, descriptions, queryset=None, soft_delete_field=None):
@@ -40,6 +41,7 @@ def _make_viewset(model, serializer, descriptions, queryset=None, soft_delete_fi
         {
             'queryset': queryset if queryset is not None else model.objects.all(),
             'serializer_class': serializer,
+            'permission_classes': [IsAuthenticatedOrPublicDemo],
             'list': list,
             'create': create,
             'retrieve': retrieve,
@@ -88,7 +90,13 @@ class ColheitadeiraViewSet(viewsets.ModelViewSet):
         demo_mode = getattr(settings, 'DEMO_MODE', False)
         if demo_mode and not self.request.user.is_authenticated:
             qs = qs.filter(machine__is_demo=True)
+        elif self.request.user.is_authenticated:
+            qs = qs.filter(machine__in=get_machines_for_request(self.request))
+        else:
+            return qs.none()
         return qs
+
+    permission_classes = [IsAuthenticatedOrPublicDemo]
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

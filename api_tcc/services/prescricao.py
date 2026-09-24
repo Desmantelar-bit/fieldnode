@@ -1,3 +1,9 @@
+"""Deprecated legacy prescription service.
+
+New operational intelligence is persisted through Event and Decision. This
+module remains only for historical callers and is not used by API routes.
+"""
+
 from api_tcc.models import LeituraTelemetria, Prescricao, Colheitadeira
 
 def analisar_telemetria_e_gerar_prescricoes(maquina_id):

@@ -103,7 +103,7 @@ class PermissaoCRUDTest(TestCase):
                 response = self.client.post(url, payload, format="json")
                 self.assert_write_blocked(response)
 
-    def test_get_sem_auth_continua_publico_nos_cruds_de_leitura(self):
+    def test_get_sem_auth_bloqueia_cruds_de_leitura(self):
         for url in [
             reverse("colheitadeira-list"),
             reverse("operario-list"),
@@ -111,7 +111,7 @@ class PermissaoCRUDTest(TestCase):
         ]:
             with self.subTest(url=url):
                 response = self.client.get(url)
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertIn(response.status_code, WRITE_BLOCKED_STATUS_CODES)
 
     def test_delete_sem_auth_e_bloqueado(self):
         response = self.client.delete(reverse("marca-detail", args=[self.marca.id]))

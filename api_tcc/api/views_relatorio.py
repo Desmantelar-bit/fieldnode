@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from django.conf import settings
 from api_tcc.models import Colheitadeira, LeituraTelemetria, Machine, RegistroAnalise
+from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machine_for_request
 
 
 def _is_demo_publico(request) -> bool:
@@ -20,6 +21,8 @@ def _is_demo_publico(request) -> bool:
 
 class RelatorioExportarView(APIView):
     """Gera um relatório .xlsx com resumo, telemetria e eventos de IA."""
+
+    permission_classes = [IsAuthenticatedOrPublicDemo]
 
     content_type = (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -32,16 +35,15 @@ class RelatorioExportarView(APIView):
         if not maquina_id:
             return HttpResponse('Parâmetro "maquina_id" é obrigatório', status=400)
 
-        if _is_demo_publico(request):
-            if not Machine.objects.filter(external_code=maquina_id.strip().upper(), is_demo=True).exists():
-                return HttpResponse("Máquina não encontrada", status=404)
+        machine = get_machine_for_request(request, maquina_id)
+        if machine is None:
+            return HttpResponse("Máquina não encontrada", status=404)
 
         if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
             return HttpResponse("Máquina não encontrada", status=404)
 
         leituras_qs = LeituraTelemetria.objects.filter(maquina_id=maquina_id)
-        if _is_demo_publico(request):
-            leituras_qs = leituras_qs.filter(machine__is_demo=True)
+        leituras_qs = leituras_qs.filter(machine=machine)
         leituras = leituras_qs.order_by("timestamp")
         analises = RegistroAnalise.objects.filter(maquina_id=maquina_id).order_by(
             "criado_em"

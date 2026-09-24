@@ -3,11 +3,12 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from django.db import connection
+from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 
 from api_tcc import models
-from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth
+from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth, Membership, Organization
 from api_tcc.services.data_health import (
     TRUST_SCORE_EMA_ALPHA,
     atualizar_machine_data_health,
@@ -273,6 +274,15 @@ class MachineDataHealthServiceTest(TestCase):
 
 
 class MachineDataHealthIntegrationTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="health-reader")
+        self.organization = Organization.objects.create(nome="Health Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.organization,
+            role="viewer",
+        )
+
     def test_dez_leituras_consecutivas_atualizam_health_unico_sem_custo_crescente(self):
         base_ts = _dt(10)
         scores_observados = []
@@ -344,6 +354,9 @@ class MachineDataHealthIntegrationTest(TestCase):
     def test_endpoint_retorna_contrato_do_health_persistido(self):
         registrar_leitura(_payload(message_id="endpoint-1"))
         machine = Machine.objects.get(external_code="COLH-HEALTH")
+        machine.organization = self.organization
+        machine.save(update_fields=["organization"])
+        self.client.force_login(self.user)
 
         response = self.client.get(f"/api/machines/{machine.id}/health/")
 
@@ -366,6 +379,9 @@ class MachineDataHealthIntegrationTest(TestCase):
 
     def test_endpoint_machine_existente_sem_health_nao_inventa_score(self):
         machine = Machine.objects.create(external_code="COLH-SEM-DADOS")
+        machine.organization = self.organization
+        machine.save(update_fields=["organization"])
+        self.client.force_login(self.user)
 
         response = self.client.get(f"/api/machines/{machine.id}/health/")
 
@@ -381,6 +397,9 @@ class MachineDataHealthIntegrationTest(TestCase):
         _criar_colheitadeira("COLH-HEALTH")
         registrar_leitura(_payload(message_id="ultimas-health-1"))
         machine = Machine.objects.get(external_code="COLH-HEALTH")
+        machine.organization = self.organization
+        machine.save(update_fields=["organization"])
+        self.client.force_login(self.user)
 
         response = self.client.get("/api/leituras/ultimas/")
 

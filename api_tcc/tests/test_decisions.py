@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api_tcc.models import Decision, Event, Machine
+from api_tcc.models import Decision, Event, Machine, Membership, Organization
 from api_tcc.services.decisions import (
     DECISION_DEDUP_WINDOW,
     validar_transicao_decision,
@@ -30,6 +30,17 @@ def _payload(maquina_id: str, temperatura: float, vibracao: float, rpm: int, min
 class DecisionPrescricaoIntegrationTest(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="decision-reader",
+            password="senha-forte-123",
+        )
+        self.organization = Organization.objects.create(nome="Org Decision Reader")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.organization,
+            role="viewer",
+        )
+        self.client.force_authenticate(user=self.user)
 
     def _registrar_janela_critica(self, maquina_id="COLH-DEC-01"):
         for minuto in range(3):
@@ -42,7 +53,10 @@ class DecisionPrescricaoIntegrationTest(TestCase):
                     minuto=minuto,
                 )
             )
-        return Machine.objects.get(external_code=maquina_id)
+        machine = Machine.objects.get(external_code=maquina_id)
+        machine.organization = self.organization
+        machine.save(update_fields=["organization"])
+        return machine
 
     def test_prescricao_persiste_decision_e_retorna_decision_id(self):
         machine = self._registrar_janela_critica()
@@ -135,7 +149,21 @@ class DecisionActionViewTest(TestCase):
         )
         self.token_a = Token.objects.create(user=self.user_a)
         self.token_b = Token.objects.create(user=self.user_b)
-        self.machine = Machine.objects.create(external_code="COLH-ACTION-01")
+        self.organization = Organization.objects.create(nome="Org Action")
+        Membership.objects.create(
+            user=self.user_a,
+            organization=self.organization,
+            role="admin",
+        )
+        Membership.objects.create(
+            user=self.user_b,
+            organization=self.organization,
+            role="member",
+        )
+        self.machine = Machine.objects.create(
+            external_code="COLH-ACTION-01",
+            organization=self.organization,
+        )
 
     def _auth_as(self, token):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
@@ -276,7 +304,10 @@ class DecisionActionViewTest(TestCase):
         self.assertEqual(token_invalido.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_cliente_nao_consegue_falsificar_campos_de_auditoria_ou_origem(self):
-        outra_machine = Machine.objects.create(external_code="COLH-OUTRA")
+        outra_machine = Machine.objects.create(
+            external_code="COLH-OUTRA",
+            organization=Organization.objects.create(nome="Outra Org"),
+        )
         decision = self._decision(confianca=0.25)
         criado_em_original = decision.criado_em
         self._auth_as(self.token_a)

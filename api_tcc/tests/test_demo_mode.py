@@ -121,10 +121,7 @@ class DemoModeTelemetriaTest(TestCase):
         self.assertEqual(leituras_reais, [])
 
     @override_settings(DEMO_MODE=False)
-    def test_demo_mode_false_mantem_contrato_publico_atual_de_leitura(self):
+    def test_demo_mode_false_exige_autenticacao_para_leitura(self):
         response = self.client.get(self.url, HTTP_HOST="127.0.0.1")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        maquinas = {item["maquina_id"] for item in response.data}
-        self.assertIn(self.machine_demo.external_code, maquinas)
-        self.assertIn(self.machine_real.external_code, maquinas)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

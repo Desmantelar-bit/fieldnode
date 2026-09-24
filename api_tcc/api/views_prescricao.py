@@ -10,6 +10,8 @@ from django.conf import settings
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.ia.explicacao_llm import gerar_explicacao_natural
 from api_tcc.models import Machine
+from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machine_for_request
+from api_tcc.services.decisions import persistir_decision_da_analise
 
 logger = logging.getLogger("api_tcc.api")
 
@@ -51,15 +53,18 @@ class PrescricaoView(APIView):
     de quebras reais que não está disponível. O objetivo é a recomendação preditiva/preventiva.
     """
 
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request, maquina_id):
-        if not _demo_machine_allowed(maquina_id, request):
+        if get_machine_for_request(request, maquina_id) is None:
             return Response(
-                {"status": "erro", "detalhe": "máquina não disponível no dataset demo"},
+                {"status": "erro", "detalhe": "máquina não disponível para este usuário"},
                 status=status.HTTP_404_NOT_FOUND,
             )
         try:
             resultado = analisar_maquina(maquina_id)
             metricas_seguras = _valor_json_seguro(resultado.metricas)
+            decision = persistir_decision_da_analise(resultado)
         except Exception as exc:
             logger.exception(
                 "Erro ao processar prescricao para maquina %s: %s",
@@ -81,6 +86,7 @@ class PrescricaoView(APIView):
                 "metricas": metricas_seguras,
                 "recomendacao": resultado.recomendacao,
                 "recomendacao_tecnica": resultado.recomendacao,
+                "decision_id": str(decision.id),
                 "explicacao_operador": explicacao["texto"],
                 "fonte_explicacao": explicacao["fonte"],
                 "gerado_em": timezone.now().isoformat(),

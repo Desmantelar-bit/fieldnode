@@ -26,6 +26,7 @@ export const AnalisePrescricaoSchema = z.object({
     'fallback_determinístico',
     'determinístico',
   ]),
+  decision_id: z.string().uuid(),
   gerado_em: z.string().min(1),
 });
 
