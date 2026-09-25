@@ -92,7 +92,12 @@ export default function LoginPage() {
       }
 
       window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
-      router.replace("/dashboard");
+      document.cookie = `fieldnode_token=${data.token}; path=/; SameSite=Lax`;
+      const requestedNext = new URLSearchParams(window.location.search).get("next");
+      const next = requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+        ? requestedNext
+        : "/dashboard";
+      router.replace(next);
       router.refresh();
     } catch (err) {
       setError(

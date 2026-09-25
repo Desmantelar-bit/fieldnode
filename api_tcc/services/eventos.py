@@ -38,6 +38,23 @@ def avaliar_leitura(leitura: LeituraTelemetria) -> list[Event]:
     return eventos
 
 
+def criar_evento_anomalia_estatistica(leitura, resultado) -> Event:
+    return Event.objects.create(
+        machine=leitura.machine,
+        leitura_origem=leitura,
+        tipo=Event.Tipo.ANOMALIA_ESTATISTICA,
+        severidade=Event.Severidade.CRITICO,
+        status=Event.Status.ABERTO,
+        trust_score_herdado=leitura.trust_score,
+        dados_contexto={
+            "anomaly_score": resultado.anomaly_score,
+            "detection_method": resultado.detection_method,
+            "contributing_feature": resultado.contributing_feature,
+            "explanation": resultado.explanation,
+        },
+    )
+
+
 def _criar_evento_se_nao_suprimido(
     *,
     leitura: LeituraTelemetria,

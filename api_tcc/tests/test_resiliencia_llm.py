@@ -9,10 +9,12 @@ from unittest.mock import patch
 
 import requests
 from django.test import TestCase
+from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 
 from api_tcc.ia import explicacao_llm
 from api_tcc.ia.pipeline import ResultadoAnalise
+from api_tcc.models import Machine, Membership, Organization
 
 
 class _RespostaLentaHandler(BaseHTTPRequestHandler):
@@ -33,6 +35,17 @@ class _RespostaLentaHandler(BaseHTTPRequestHandler):
 
 class ResilienciaLLMTestCase(TestCase):
     def setUp(self):
+        self.user = User.objects.create_user(username="llm-teste")
+        self.organization = Organization.objects.create(nome="Tenant LLM")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.organization,
+            role="admin",
+        )
+        Machine.objects.create(
+            external_code="MAQUINA-TESTE-01",
+            organization=self.organization,
+        )
         # O breaker é global em memória; cada cenário deve começar isolado.
         explicacao_llm._falhas_consecutivas = 0
         explicacao_llm._ultima_falha_ts = 0
@@ -127,7 +140,9 @@ class ResilienciaLLMTestCase(TestCase):
             "fonte": "fallback_determinístico",
         }
 
-        resposta = APIClient().get("/api/prescricoes/maquina-teste-01/")
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        resposta = client.get("/api/prescricoes/maquina-teste-01/")
 
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.data["fonte_explicacao"], "fallback_determinístico")

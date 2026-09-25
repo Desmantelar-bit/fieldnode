@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import { resolveApiUrl } from "@/services/telemetryService";
+import { resolveApiUrl, getStoredAuthToken } from "@/services/telemetryService";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
 import type { EstadoRequisicao } from "@/types/api";
@@ -293,9 +293,13 @@ export default function MapClient({
       }
 
       try {
+        const token = getStoredAuthToken();
         const response = await fetch(`${API_URL}/maquinas/posicao/`, {
           cache: "no-store",
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            ...(token ? { Authorization: `Token ${token}` } : {}),
+          },
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();

@@ -1,24 +1,44 @@
-import { AppShell } from '@/components/AppShell';
-import { EmptyState, ErrorState } from '@/components/EmptyState';
-import { MetricCard } from '@/components/MetricCard';
-import { StatusBadge } from '@/components/StatusBadge';
-import { telemetryService } from '@/services/telemetryService';
+"use client";
 
-export default async function OperatorsPage() {
-  let operators;
+import { useEffect, useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { EmptyState, ErrorState } from "@/components/EmptyState";
+import { MetricCard } from "@/components/MetricCard";
+import { StatusBadge } from "@/components/StatusBadge";
+import { telemetryService } from "@/services/telemetryService";
+import type { Operator } from "@/types/telemetry";
 
-  try {
-    operators = await telemetryService.getOperators();
-  } catch {
+export default function OperatorsPage() {
+  const [operators, setOperators] = useState<Operator[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    telemetryService
+      .getOperators()
+      .then(setOperators)
+      .catch(() => setError("A API de operarios nao respondeu. Parece pouco, mas sem gente no banco a maquina vira enfeite caro."));
+  }, []);
+
+  if (error) {
     return (
       <AppShell active="/operarios" eyebrow="Equipe" title="Operarios">
-        <ErrorState title="Nao consegui carregar os operarios." message="A API de operarios nao respondeu. Parece pouco, mas sem gente no banco a maquina vira enfeite caro." />
+        <ErrorState title="Nao consegui carregar os operarios." message={error} />
       </AppShell>
     );
   }
 
-  const active = operators.filter((operator) => operator.no_banco).length;
-  const averageYears = operators.length ? operators.reduce((sum, operator) => sum + operator.tempo_de_servico, 0) / operators.length : 0;
+  if (operators === null) {
+    return (
+      <AppShell active="/operarios" eyebrow="Equipe" title="Operarios">
+        <div className="animate-pulse text-sm text-field-text3">Carregando...</div>
+      </AppShell>
+    );
+  }
+
+  const active = operators.filter((o) => o.no_banco).length;
+  const averageYears = operators.length
+    ? operators.reduce((sum, o) => sum + o.tempo_de_servico, 0) / operators.length
+    : 0;
 
   return (
     <AppShell active="/operarios" eyebrow="Equipe" title="Operarios">
@@ -45,7 +65,7 @@ export default async function OperatorsPage() {
                       <p className="mt-1 text-sm text-slate-400">{operator.tempo_de_servico} anos de servico</p>
                     </div>
                   </div>
-                  <StatusBadge tone={operator.no_banco ? 'normal' : 'warning'}>{operator.no_banco ? 'No banco' : 'Fora'}</StatusBadge>
+                  <StatusBadge tone={operator.no_banco ? "normal" : "warning"}>{operator.no_banco ? "No banco" : "Fora"}</StatusBadge>
                 </div>
               </article>
             ))}

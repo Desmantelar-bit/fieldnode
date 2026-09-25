@@ -66,6 +66,7 @@ class DecisionPrescricaoIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("decision_id", response.data)
         decision = Decision.objects.get(id=response.data["decision_id"])
+        self.assertEqual(response.data["decision_status"], decision.status)
         self.assertEqual(decision.machine, machine)
         self.assertEqual(decision.status, Decision.Status.PENDENTE)
         self.assertEqual(decision.severidade, Event.Severidade.CRITICO)

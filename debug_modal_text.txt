@@ -1,0 +1,186 @@
+FN
+LOCAL
+
+OPERACAO
+
+Maquinas agricolas
+
+MONITORADAS
+
+10
+
+com leitura recente
+
+ALERTAS
+
+0
+
+0 criticos, 0 em atencao
+
+TEMP MEDIA
+
+84.7C
+
+entre leituras recentes
+
+COLHEITADEIRA
+
+COLH-01
+NORMAL
+DADO INSTAVEL
+75%
+TEMP
+95C
+VIB
+0.8g
+RPM
+2100
+Ver Detalhes
+Ver Decisão
+Prescrição Operacional
+
+COLH-01
+
+×
+RECOMENDAÇÃO ATUAL
+ATENCAO
+
+Recomenda-se inspeção preventiva. Motivo: temperatura acima de 85°C.
+
+Conduta técnica: Recomenda-se inspeção preventiva. Motivo: temperatura acima de 85°C.
+
+Recomendação segura (modo offline) · 25/09/2026, 09:00:15
+
+STATUS DA DECISÃO
+
+PENDENTE
+Observação opcional
+Aprovar ação
+Rejeitar
+Fechar
+
+COLHEITADEIRA
+
+COLH-02
+NORMAL
+SEM HEALTH
+TEMP
+78.3C
+VIB
+0.36g
+RPM
+2019
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-03
+NORMAL
+SEM HEALTH
+TEMP
+79.2C
+VIB
+0.47g
+RPM
+1559
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-04
+NORMAL
+SEM HEALTH
+TEMP
+69.5C
+VIB
+0.27g
+RPM
+1603
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-05
+ALERTA
+SEM HEALTH
+TEMP
+97.2C
+VIB
+0.93g
+RPM
+1707
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-06
+NORMAL
+SEM HEALTH
+TEMP
+74.9C
+VIB
+0.77g
+RPM
+1465
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-07
+NORMAL
+SEM HEALTH
+TEMP
+92.2C
+VIB
+0.58g
+RPM
+1920
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-08
+NORMAL
+SEM HEALTH
+TEMP
+83.1C
+VIB
+0.41g
+RPM
+1866
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-09
+NORMAL
+SEM HEALTH
+TEMP
+86.9C
+VIB
+0.51g
+RPM
+2111
+Ver Detalhes
+Ver Decisão
+
+COLHEITADEIRA
+
+COLH-10
+NORMAL
+SEM HEALTH
+TEMP
+90.8C
+VIB
+0.54g
+RPM
+1587
+Ver Detalhes
+Ver Decisão

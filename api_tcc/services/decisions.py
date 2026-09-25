@@ -92,6 +92,25 @@ def persistir_decision_da_analise(analise) -> Decision:
         )
 
 
+def persistir_decision_da_anomalia(machine, event, resultado) -> Decision:
+    detalhes = {
+        "explanation": resultado.explanation,
+        "contributing_feature": resultado.contributing_feature,
+        "detection_method": resultado.detection_method,
+        "anomaly_score": resultado.anomaly_score,
+    }
+    return Decision.objects.create(
+        machine=machine,
+        event=event,
+        texto=resultado.explanation,
+        acao_recomendada="Investigar a leitura e validar o sensor antes de intervir.",
+        severidade=Event.Severidade.CRITICO,
+        confianca=resultado.anomaly_score,
+        detalhes=detalhes,
+        status=Decision.Status.PENDENTE,
+    )
+
+
 def _normalizar_severidade(status: str) -> str:
     if status in Event.Severidade.values:
         return status

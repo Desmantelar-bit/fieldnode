@@ -50,21 +50,16 @@ def gps_demo(request):
 
     return JsonResponse(route, safe=False)
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticatedOrPublicDemo])
 def get_maquinas_posicao(request):
     """
     Retorna a última localização e status de todas as colheitadeiras ou de uma específica.
 
     Parâmetro GET opcional: maquina_id (ID textual da colheitadeira, ex: COLH-01)
-
-    A busca usa o identificador textual (maquina_id) para filtrar tanto a máquina
-    quanto a telemetria relacionada. O status online/offline é determinado pela
-    data de recebimento da última leitura (recebido_em).
     """
     maquina_id_param = request.GET.get('maquina_id')
-    user = getattr(request, "user", None)
-    demo_publico = bool(settings.DEMO_MODE and not getattr(user, "is_authenticated", False))
-    if not getattr(user, "is_authenticated", False) and not demo_publico:
-        return JsonResponse({"detail": "Autenticação obrigatória."}, status=401)
+    demo_publico = bool(settings.DEMO_MODE and not request.user.is_authenticated)
     maquinas_permitidas = get_machines_for_request(request)
     if maquina_id_param:
         maquinas = Colheitadeira.objects.filter(

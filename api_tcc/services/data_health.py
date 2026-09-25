@@ -85,6 +85,7 @@ def atualizar_machine_data_health(
     trust_score: float | None,
     motivos: Iterable[str],
     timestamp: datetime,
+    anomalia_detectada: bool = False,
 ) -> MachineDataHealth | None:
     """
     Atualiza o estado agregado da Machine com EMA simples.
@@ -120,6 +121,7 @@ def atualizar_machine_data_health(
                             "trust_score_medio": score_atual,
                             "ultima_atualizacao": timestamp,
                             "leituras_analisadas": 1,
+                            "anomalias_detectadas": 1 if anomalia_detectada else 0,
                             "sinais_de_alerta": sinais,
                         },
                     )
@@ -139,6 +141,8 @@ def atualizar_machine_data_health(
         health.trust_score_medio = _clamp(score_medio)
         health.ultima_atualizacao = timestamp
         health.leituras_analisadas += 1
+        if anomalia_detectada:
+            health.anomalias_detectadas += 1
         health.sinais_de_alerta = _montar_sinais_de_alerta(
             anteriores=health.sinais_de_alerta or {},
             atuais=sinais_atuais,
@@ -149,6 +153,7 @@ def atualizar_machine_data_health(
                 "trust_score_medio",
                 "ultima_atualizacao",
                 "leituras_analisadas",
+                "anomalias_detectadas",
                 "sinais_de_alerta",
             ]
         )

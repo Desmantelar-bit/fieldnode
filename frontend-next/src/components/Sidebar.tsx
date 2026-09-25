@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { glassPill } from "@/lib/design-tokens";
-import { AUTH_TOKEN_STORAGE_KEY } from "@/services/telemetryService";
+import { clearStoredAuthToken } from "@/services/telemetryService";
 
 const items = [
   { icon: LayoutGrid, href: "/dashboard", label: "Dashboard" },
@@ -25,7 +25,7 @@ export function Sidebar() {
   const pathname = usePathname() ?? "";
 
   function handleLogout() {
-    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    clearStoredAuthToken();
     window.location.assign("/login");
   }
 

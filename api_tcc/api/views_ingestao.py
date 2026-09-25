@@ -812,4 +812,5 @@ class PrescricaoView(APIView):
         decision = persistir_decision_da_analise(analise)
         payload = _serializar_analise(analise)
         payload["decision_id"] = str(decision.id)
+        payload["decision_status"] = decision.status
         return Response(payload)

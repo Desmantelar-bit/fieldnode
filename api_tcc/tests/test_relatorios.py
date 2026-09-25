@@ -4,11 +4,13 @@ from datetime import datetime
 from io import BytesIO
 from time import monotonic
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
 from rest_framework import status
+from rest_framework.test import APIClient
 
 from api_tcc.models import (
     AlturadoCorte,
@@ -26,6 +28,9 @@ from api_tcc.models import (
     TemperaturaMaquina,
     TempUmi_Ambiente,
     UnidadedeMedida,
+    Machine,
+    Membership,
+    Organization,
 )
 
 
@@ -60,12 +65,21 @@ class RelatorioExportarBordaTestCase(TestCase):
         cls.estado_movimento = EstadodeMovimento.objects.create(
             em_movimento=False, velocidade=0
         )
+        cls.organization = Organization.objects.create(nome="Tenant Relatorios")
+        cls.user = User.objects.create_user(username="relatorios-teste")
+        Membership.objects.create(
+            user=cls.user,
+            organization=cls.organization,
+            role="admin",
+        )
 
     def setUp(self):
         self.url = reverse("relatorio-exportar")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
     def criar_maquina(self, maquina_id):
-        return Colheitadeira.objects.create(
+        colheitadeira = Colheitadeira.objects.create(
             modelo=self.modelo,
             maquina_id=maquina_id,
             combustivel=self.combustivel,
@@ -77,6 +91,11 @@ class RelatorioExportarBordaTestCase(TestCase):
             operario=self.operario,
             status_de_operacao=self.status_operacao,
             estado_de_movimento=self.estado_movimento,
+        )
+        return Machine.objects.create(
+            external_code=maquina_id.upper(),
+            organization=self.organization,
+            colheitadeira=colheitadeira,
         )
 
     def obter_planilha(self, response):
@@ -118,11 +137,12 @@ class RelatorioExportarBordaTestCase(TestCase):
 
     def test_maquina_com_uma_leitura_e_evento_gera_xlsx_compativel(self):
         maquina_id = "maquina-unitaria-01"
-        self.criar_maquina(maquina_id)
+        machine = self.criar_maquina(maquina_id)
         instante = timezone.make_aware(datetime(2026, 8, 21, 10, 30))
         import uuid
         LeituraTelemetria.objects.create(
             maquina_id=maquina_id,
+            machine=machine,
             device_id=maquina_id,
             message_id=str(uuid.uuid4()),
             temperatura=70.0,
@@ -150,13 +170,14 @@ class RelatorioExportarBordaTestCase(TestCase):
 
     def test_performance_com_cinco_mil_leituras(self):
         maquina_id = "maquina-bulk-01"
-        self.criar_maquina(maquina_id)
+        machine = self.criar_maquina(maquina_id)
         instante = timezone.now()
         import uuid
         LeituraTelemetria.objects.bulk_create(
             [
                 LeituraTelemetria(
                     maquina_id=maquina_id,
+                    machine=machine,
                     device_id=maquina_id,
                     message_id=str(uuid.uuid4()),
                     temperatura=75.0 + (indice % 15),

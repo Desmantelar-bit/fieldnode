@@ -307,6 +307,7 @@ class Event(models.Model):
         TEMP_ALTA = "TEMP_ALTA", "Temperatura alta"
         VIBRACAO_ALTA = "VIBRACAO_ALTA", "Vibracao alta"
         ANOMALIA_ML = "ANOMALIA_ML", "Anomalia ML"
+        ANOMALIA_ESTATISTICA = "ANOMALIA_ESTATISTICA", "Anomalia estatistica"
         TENDENCIA_RISCO = "TENDENCIA_RISCO", "Tendencia de risco"
 
     class Severidade(models.TextChoices):
@@ -423,6 +424,7 @@ class Decision(models.Model):
     )
     decidido_em = models.DateTimeField(null=True, blank=True)
     outcome_texto = models.TextField(null=True, blank=True)
+    detalhes = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-criado_em"]
@@ -661,6 +663,10 @@ class MachineDataHealth(models.Model):
         blank=True,
         verbose_name="Sinais de alerta",
         help_text="Sinais derivados dos motivos do trust_score individual.",
+    )
+    anomalias_detectadas = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Anomalias detectadas",
     )
 
     class Meta:

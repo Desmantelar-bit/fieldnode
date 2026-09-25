@@ -87,6 +87,7 @@ class PrescricaoView(APIView):
                 "recomendacao": resultado.recomendacao,
                 "recomendacao_tecnica": resultado.recomendacao,
                 "decision_id": str(decision.id),
+                "decision_status": decision.status,
                 "explicacao_operador": explicacao["texto"],
                 "fonte_explicacao": explicacao["fonte"],
                 "gerado_em": timezone.now().isoformat(),

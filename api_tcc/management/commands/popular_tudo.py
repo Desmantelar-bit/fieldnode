@@ -1,9 +1,10 @@
+from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from api_tcc.models import (
     UnidadedeMedida, Marca, Modelo, Combustivel, PressaoPneus,
     AlturadoCorte, PressaodoCorte, TempUmi_Ambiente, TemperaturaMaquina,
     Transbordo, StatusdeOperacao, EstadodeMovimento, Operario, Colheitadeira,
-    LeituraTelemetria
+    LeituraTelemetria, Organization, Membership, Machine
 )
 import random
 from datetime import datetime, timedelta
@@ -32,6 +33,18 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write('[INFO] Populando banco de dados...')
+
+        # Garante que existe um superusuário admin
+        admin_user, _ = User.objects.get_or_create(
+            username='admin',
+            defaults={'is_staff': True, 'is_superuser': True},
+        )
+        if not admin_user.has_usable_password():
+            admin_user.set_password('admin')
+            admin_user.save()
+
+        org, _ = Organization.objects.get_or_create(nome='Demo')
+        Membership.objects.get_or_create(user=admin_user, organization=org, defaults={'role': 'admin'})
 
         unidade, _ = UnidadedeMedida.objects.get_or_create(nome='bar')
         marca_case, _ = Marca.objects.get_or_create(nome='CASE')
@@ -101,6 +114,22 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'  [OK] Colheitadeira {maquina_id} criada')
 
+            machine, _ = Machine.objects.get_or_create(
+                external_code=maquina_id.strip().upper(),
+                defaults={
+                    'organization': org,
+                    'colheitadeira': colheitadeira,
+                    'ativo': True,
+                    'is_demo': True,
+                },
+            )
+            if machine.organization is None:
+                machine.organization = org
+                machine.save(update_fields=['organization'])
+            if machine.colheitadeira is None:
+                machine.colheitadeira = colheitadeira
+                machine.save(update_fields=['colheitadeira'])
+
         base = make_aware(datetime.now())
         leituras_criadas = 0
         for i in range(NUM_MAQUINAS):
@@ -115,6 +144,7 @@ class Command(BaseCommand):
                 vib = round(random.uniform(0.15, 0.95), 2)
                 rpm = random.randint(1300, 2300)
 
+                machine = Machine.objects.filter(external_code=maquina_id.strip().upper()).first()
                 leitura, created = LeituraTelemetria.objects.get_or_create(
                     maquina_id=maquina_id,
                     timestamp=ts,
@@ -124,6 +154,9 @@ class Command(BaseCommand):
                         'rpm': rpm,
                         'latitude': lat,
                         'longitude': lng,
+                        'machine': machine,
+                        'device_id': maquina_id,
+                        'message_id': f'{maquina_id}-{j}',
                     },
                 )
                 if created:

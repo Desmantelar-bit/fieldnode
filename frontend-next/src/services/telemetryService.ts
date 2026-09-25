@@ -6,6 +6,7 @@ import {
   type Telemetry,
   type TelemetryInput,
   type AnalisePrescricao,
+  type Decision,
   type Prescricao,
   type Relatorio,
 } from '@/types/telemetry';
@@ -14,6 +15,7 @@ import {
   ListaLeiturasTelemetriaSchema,
   ListaPosicoesMaquinasSchema,
   AnalisePrescricaoSchema,
+  DecisionSchema,
   ListaPrescricoesSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
@@ -40,7 +42,7 @@ export function resolveApiUrl(): string {
     const clientUrl =
       process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-    return normalizeApiUrl(clientUrl || "/api");
+    return normalizeApiUrl(clientUrl || "http://172.26.80.1:8000/api");
   }
 
   const configuredUrl =
@@ -59,9 +61,20 @@ export function getStoredAuthToken(): string {
   return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
 
+export async function getServerAuthToken(): Promise<string> {
+  try {
+    const { cookies } = await import("next/headers");
+    const jar = await cookies();
+    return jar.get("fieldnode_token")?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function clearStoredAuthToken(): void {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    document.cookie = "fieldnode_token=; path=/; max-age=0; SameSite=Lax";
   }
 }
 
@@ -72,7 +85,8 @@ function redirectToLoginOnAuthFailure(response: Response): void {
     window.location.pathname !== "/login"
   ) {
     clearStoredAuthToken();
-    window.location.replace("/login");
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.replace(`/login?next=${encodeURIComponent(next)}`);
   }
 }
 
@@ -173,10 +187,14 @@ export const telemetryService = {
     );
   },
 
-  async getLatestReadings(): Promise<Telemetry[]> {
+  async getLatestReadings(serverToken?: string): Promise<Telemetry[]> {
+    const headers = serverToken
+      ? new Headers({ Accept: "application/json", Authorization: `Token ${serverToken}` })
+      : apiHeaders({ Accept: "application/json" });
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/leituras/ultimas/`, {
-        headers: apiHeaders({ Accept: "application/json" }),
+        cache: "no-store",
+        headers,
         signal,
       }),
     );
@@ -288,6 +306,34 @@ export const telemetryService = {
       data,
       "getAnalisePrescricao",
     );
+  },
+
+  async updateDecision(
+    decisionId: string,
+    status: Decision["status"],
+    outcomeTexto?: string,
+  ): Promise<Decision> {
+    if (!decisionId) {
+      throw new Error("A prescriÃ§Ã£o nÃ£o possui uma Decision associada.");
+    }
+
+    const payload: { status: Decision["status"]; outcome_texto?: string } = { status };
+    if (outcomeTexto?.trim()) payload.outcome_texto = outcomeTexto.trim();
+
+    const response = await withTimeout((signal) =>
+      fetch(`${API_URL}/decisions/${encodeURIComponent(decisionId)}/`, {
+        method: "PATCH",
+        cache: "no-store",
+        headers: apiHeaders({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify(payload),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, "updateDecision:");
+    return validateApiContract(DecisionSchema, data, "updateDecision");
   },
 
   async getRelatorio(options?: {

@@ -29,6 +29,9 @@ from api_tcc.services.data_health import (
     calcular_trust_score,
 )
 from api_tcc.services.eventos import avaliar_leitura
+from api_tcc.services.eventos import criar_evento_anomalia_estatistica
+from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
+from api_tcc.services.decisions import persistir_decision_da_anomalia
 from api_tcc.services.sensor_limits import LIMITES
 
 logger = logging.getLogger(__name__)
@@ -294,14 +297,40 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     historico_recente,
                 )
                 leitura.trust_score = trust_score
+                anomaly_result = detect_anomaly(
+                    machine_obj.external_code,
+                    {
+                        "temperatura": leitura.temperatura,
+                        "vibracao": leitura.vibracao,
+                        "rpm": leitura.rpm,
+                    },
+                )
                 leitura.save(force_insert=True)
+                transaction.on_commit(
+                    lambda: REGISTRY.record_reading(
+                        machine_obj.external_code,
+                        {
+                            "temperatura": leitura.temperatura,
+                            "vibracao": leitura.vibracao,
+                            "rpm": leitura.rpm,
+                        },
+                    )
+                )
                 atualizar_machine_data_health(
                     machine=machine_obj,
                     trust_score=leitura.trust_score,
                     motivos=trust_motivos,
                     timestamp=leitura.timestamp,
+                    anomalia_detectada=anomaly_result.is_anomaly,
                 )
                 avaliar_leitura(leitura)
+                if anomaly_result.is_anomaly and anomaly_result.anomaly_score >= 0.70:
+                    event = criar_evento_anomalia_estatistica(leitura, anomaly_result)
+                    persistir_decision_da_anomalia(
+                        machine_obj,
+                        event,
+                        anomaly_result,
+                    )
             # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
             if sequence_informada:
                 _atualizar_sync_cursor(device_id, sequence_number)

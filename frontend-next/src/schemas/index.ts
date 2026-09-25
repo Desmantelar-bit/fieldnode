@@ -16,9 +16,12 @@ export {
 } from './maquinas';
 export {
   AnalisePrescricaoSchema,
+  DecisionSchema,
+  DecisionStatusSchema,
   ListaPrescricoesSchema,
   PrescricaoSchema,
   type AnalisePrescricao,
+  type Decision,
   type Prescricao,
 } from './prescricoes';
 export {

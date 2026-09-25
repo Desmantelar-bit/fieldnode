@@ -13,6 +13,7 @@ dependência de servidor em execução durante CI/CD.
 Para rodar:
     python manage.py test api_tcc.tests
 """
+from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.conf import settings
@@ -31,6 +32,9 @@ from api_tcc.models import (
     StatusdeOperacao,
     EstadodeMovimento,
     Prescricao,
+    Machine,
+    Membership,
+    Organization,
 )
 from api_tcc.services.telemetria import validar_payload, registrar_leitura
 import uuid
@@ -106,6 +110,11 @@ def _criar_maquina_teste(maquina_id: str):
     if colheitadeira.maquina_id != maquina_id:
         colheitadeira.maquina_id = maquina_id
         colheitadeira.save(update_fields=["maquina_id"])
+    organization, _ = Organization.objects.get_or_create(nome="Tenant Teste")
+    Machine.objects.update_or_create(
+        external_code=maquina_id,
+        defaults={"organization": organization, "colheitadeira": colheitadeira},
+    )
     return colheitadeira
 
 
@@ -244,6 +253,14 @@ class EndpointIngestaoTest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username=f"endpoint-{uuid.uuid4()}")
+        for organization in Organization.objects.all():
+            Membership.objects.create(
+                user=self.user,
+                organization=organization,
+                role="admin",
+            )
+        self.client.force_authenticate(user=self.user)
         self.headers = {"HTTP_X_API_KEY": getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")}
 
     def test_ingestao_valida_retorna_201(self):
@@ -339,6 +356,10 @@ class IAResilienciaTest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username=f"ia-{uuid.uuid4()}")
+        for organization in Organization.objects.all():
+            Membership.objects.create(user=self.user, organization=organization, role="admin")
+        self.client.force_authenticate(user=self.user)
 
     def test_anomalias_sem_dados_retorna_normal_sem_metricas(self):
         response = self.client.get("/api/anomalias/?maquina_id=MAQUINA-INEXISTENTE")
@@ -370,6 +391,10 @@ class MetricasTest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username=f"metrics-{uuid.uuid4()}")
+        for organization in Organization.objects.all():
+            Membership.objects.create(user=self.user, organization=organization, role="admin")
+        self.client.force_authenticate(user=self.user)
 
     def test_metricas_retorna_200_com_campos_esperados(self):
         # Criar algumas leituras válidas

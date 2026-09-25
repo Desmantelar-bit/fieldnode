@@ -219,6 +219,10 @@ LeituraTelemetria -> Event opcional -> analise de prescricao -> Decision PENDENT
 }
 ```
 
+Para o offcanvas operacional, a mesma resposta tambem inclui
+`decision_status` com o status persistido da Decision. O frontend usa esses
+dois campos estruturados, sem inferir estado pelo texto da recomendacao.
+
 Campos centrais: `machine`, `event`, `texto`, `acao_recomendada`,
 `severidade`, `confianca`, `status`, `criado_em`, `decidido_por`,
 `decidido_em` e `outcome_texto`.
@@ -318,3 +322,9 @@ Decision APROVADA
         -> PATCH EXECUTADA
 Decision EXECUTADA
 ```
+
+No frontend Next.js, a prescricao e exibida no modal operacional existente.
+`PENDENTE` permite aprovar ou rejeitar; `APROVADA` permite marcar como
+executada; estados terminais apenas exibem o status. Sem sessao, a tentativa
+de acao redireciona para `/login` e preserva o caminho de retorno. A resposta
+do PATCH e a fonte de verdade para atualizar o modal, sem reload da pagina.
