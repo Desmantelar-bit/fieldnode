@@ -5,10 +5,13 @@ Nenhum outro módulo de IA deve consultar o banco diretamente. Tudo passa por aq
 """
 from dataclasses import dataclass
 from typing import Optional
+import logging
 import math
 import pandas as pd
 from django.db.models import QuerySet
 from api_tcc.ia.deteccao_multivariada import calcular_score_anomalia
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -120,6 +123,11 @@ def analisar_maquina(
     O QUE NÃO CALCULA: Não prevê a data/hora de falha mecânica, nem a probabilidade calibrada 
     de quebra iminente, pois não utiliza dataset rotulado de falhas históricas.
     """
+    logger.debug(
+        "Classificando risco operacional por thresholds determinísticos e Isolation Forest; "
+        "não representa probabilidade calibrada de falha. maquina_id=%s",
+        maquina_id,
+    )
     df = carregar_janela(maquina_id)
     features = calcular_features(df)
     ultima_leitura = df.iloc[0].to_dict() if not df.empty else None

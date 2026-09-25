@@ -17,6 +17,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.conf import settings
+from unittest.mock import patch
 from api_tcc.models import (
     LeituraTelemetria,
     Colheitadeira,
@@ -37,6 +38,7 @@ from api_tcc.models import (
     Organization,
 )
 from api_tcc.services.telemetria import validar_payload, registrar_leitura
+from api_tcc.ia.pipeline import ResultadoAnalise
 import uuid
 
 
@@ -372,6 +374,24 @@ class IAResilienciaTest(TestCase):
         response = self.client.get("/api/manutencao/")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["status"], "erro")
+
+    @patch("api_tcc.api.views_ingestao.analisar_maquina")
+    def test_manutencao_retorna_metodologia_da_analise(self, analisar_maquina):
+        analisar_maquina.return_value = ResultadoAnalise(
+            maquina_id="MAQUINA-01",
+            status="NORMAL",
+            motivos=[],
+            metricas={},
+            recomendacao=None,
+        )
+
+        response = self.client.get("/api/manutencao/?maquina_id=MAQUINA-01")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["metodologia"],
+            "hibrido_regras_thresholds_e_isolation_forest",
+        )
 
 
 # ──────────────────────────────────────────────────────────────
