@@ -18,6 +18,7 @@ class ResultadoAnalise:
     motivos: list[str]
     metricas: dict
     recomendacao: Optional[str]
+    metodologia: str = "hibrido_regras_thresholds_e_isolation_forest"
 
 
 def carregar_janela(maquina_id: str, limite: int = 500) -> pd.DataFrame:
@@ -110,7 +111,15 @@ def _valor_json_seguro(valor):
 def analisar_maquina(
     maquina_id: str, salvar_historico: bool = False
 ) -> ResultadoAnalise:
-    """Ponto de entrada único. Qualquer view ou management command chama SÓ isso."""
+    """
+    Ponto de entrada único para classificação de risco operacional.
+    
+    O QUE CALCULA: Classifica o estado da máquina como NORMAL, ATENCAO ou CRITICO com base em 
+    limiares determinísticos de sensores e sinais de anomalia não supervisionada (Isolation Forest).
+    
+    O QUE NÃO CALCULA: Não prevê a data/hora de falha mecânica, nem a probabilidade calibrada 
+    de quebra iminente, pois não utiliza dataset rotulado de falhas históricas.
+    """
     df = carregar_janela(maquina_id)
     features = calcular_features(df)
     ultima_leitura = df.iloc[0].to_dict() if not df.empty else None

@@ -82,6 +82,7 @@ class PrescricaoView(APIView):
             {
                 "maquina_id": resultado.maquina_id,
                 "status": resultado.status,
+                "metodologia": resultado.metodologia,
                 "motivos": resultado.motivos,
                 "metricas": metricas_seguras,
                 "recomendacao": resultado.recomendacao,
