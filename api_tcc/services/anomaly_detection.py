@@ -9,12 +9,11 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from api_tcc.models import LeituraTelemetria
-
+from api_tcc.ia.model_registry import registry
 
 FEATURES = ("temperatura", "vibracao", "rpm")
 MINIMUM_TRAINING_READINGS = 100
 ANOMALY_THRESHOLD = 0.70
-
 
 @dataclass(frozen=True)
 class AnomalyResult:
@@ -24,7 +23,6 @@ class AnomalyResult:
     contributing_feature: str
     explanation: str
 
-
 @dataclass
 class _DetectorState:
     features: list[list[float]]
@@ -32,7 +30,6 @@ class _DetectorState:
     training_scores: np.ndarray | None = None
     scale_mean: np.ndarray | None = None
     scale_std: np.ndarray | None = None
-
 
 class AnomalyDetectorRegistry:
     """Process-local registry; models are trained once per machine lifecycle."""
@@ -68,12 +65,10 @@ class AnomalyDetectorRegistry:
             history = np.asarray(state.features, dtype=float)
             state.features.append(_feature_vector(reading, history))
 
-
 REGISTRY = AnomalyDetectorRegistry()
 
-
 def detect_anomaly(machine_id: str, current_reading: dict) -> AnomalyResult:
-    """Return a normalized anomaly result without loading models from disk."""
+    """Return a normalized anomaly result, prioritizing persisted models."""
     with REGISTRY._lock:
         state = REGISTRY.get_or_create(machine_id)
         history = np.asarray(state.features, dtype=float)
@@ -82,10 +77,18 @@ def detect_anomaly(machine_id: str, current_reading: dict) -> AnomalyResult:
         if len(history) < MINIMUM_TRAINING_READINGS:
             result = _detect_with_zscore(vector, history)
         else:
+            persisted = registry.load_model(machine_id)
+            if persisted:
+                model, metadata = persisted
+                state.model = model
+                state.scale_mean = np.asarray(metadata['scale_mean'])
+                state.scale_std = np.asarray(metadata['scale_std'])
+                X_scaled = (history - state.scale_mean) / state.scale_std
+                state.training_scores = state.model.decision_function(X_scaled)
+
             result = _detect_with_isolation_forest(vector, history, state)
 
         return result
-
 
 def _feature_vector(reading: dict, history: np.ndarray) -> list[float]:
     means = history.mean(axis=0) if len(history) else np.zeros(len(FEATURES))
@@ -95,7 +98,6 @@ def _feature_vector(reading: dict, history: np.ndarray) -> list[float]:
         else float(means[index])
         for index, feature in enumerate(FEATURES)
     ]
-
 
 def _detect_with_zscore(vector: list[float], history: np.ndarray) -> AnomalyResult:
     if len(history) < 2:
@@ -111,11 +113,10 @@ def _detect_with_zscore(vector: list[float], history: np.ndarray) -> AnomalyResu
     feature = FEATURES[index]
     direction = "acima" if vector[index] >= means[index] else "abaixo"
     explanation = (
-        f"{feature} {z_score:.1f}x {direction} do desvio padrão histórico "
-        f"(Atual: {vector[index]:.2f}, Média: {means[index]:.2f})"
+        f"{feature} {z_score:.1f}x {direction} do desvio padrao historico "
+        f"(Atual: {vector[index]:.2f}, Media: {means[index]:.2f})"
     )
     return _result(score >= ANOMALY_THRESHOLD, score, "COLD_START_ZSCORE", feature, explanation)
-
 
 def _detect_with_isolation_forest(
     vector: list[float], history: np.ndarray, state: _DetectorState
@@ -150,8 +151,8 @@ def _detect_with_isolation_forest(
     index = int(np.argmax(np.abs((np.asarray(vector) - means) / deviations)))
     feature = FEATURES[index]
     explanation = (
-        f"Isolation Forest identificou padrão atípico em {feature} "
-        f"(Atual: {vector[index]:.2f}, Média: {means[index]:.2f})"
+        f"Isolation Forest identificou padrao atipico em {feature} "
+        f"(Atual: {vector[index]:.2f}, Media: {means[index]:.2f})"
     )
     return _result(
         normalized >= ANOMALY_THRESHOLD,
@@ -160,7 +161,6 @@ def _detect_with_isolation_forest(
         feature,
         explanation,
     )
-
 
 def _result(is_anomaly, score, method, feature, explanation) -> AnomalyResult:
     return AnomalyResult(
