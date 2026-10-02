@@ -110,3 +110,24 @@ class AnomalyPersistenceTest(TransactionTestCase):
         required_keys = ['treinado_em', 'contamination', 'n_amostras', 'versao', 'scale_mean', 'scale_std']
         for key in required_keys:
             self.assertIn(key, meta)
+
+    def test_missing_model_bootstraps_once_and_persists_artifact(self):
+        machine = Machine.objects.create(external_code=self.machine_id)
+        for i in range(100):
+            LeituraTelemetria.objects.create(
+                machine=machine,
+                device_id=f"dev-bootstrap-{i}",
+                message_id=f"msg-bootstrap-{i}",
+                temperatura=70.0 + (i % 5),
+                vibracao=0.4,
+                rpm=1800.0,
+                timestamp="2026-09-25T10:00:00Z",
+            )
+
+        first = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 500.0})
+        with patch("api_tcc.services.anomaly_detection.IsolationForest.fit") as mock_fit:
+            second = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 500.0})
+
+        self.assertIsNotNone(registry.get_model_path(self.machine_id))
+        self.assertEqual(first, second)
+        mock_fit.assert_not_called()
