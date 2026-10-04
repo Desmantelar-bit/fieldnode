@@ -41,6 +41,17 @@ export const AnalisePrescricaoSchema = z.object({
 
 export type AnalisePrescricao = z.infer<typeof AnalisePrescricaoSchema>;
 
+export const AnomaliaAnaliseSchema = z.object({
+  maquina_id: z.string().min(1),
+  status: z.enum(["NORMAL", "ATENCAO", "CRITICO"]),
+  motivos: z.array(z.string()),
+  metricas: z.record(z.string(), z.unknown()),
+  recomendacao: z.string().nullable(),
+  metodologia: z.string().min(1),
+});
+
+export type AnomaliaAnalise = z.infer<typeof AnomaliaAnaliseSchema>;
+
 export const DecisionSchema = z.object({
   id: z.string().uuid(),
   status: DecisionStatusSchema,

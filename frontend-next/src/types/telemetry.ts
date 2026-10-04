@@ -4,13 +4,14 @@ import {
   ListaColheitadeirasSchema,
   ListaPosicoesMaquinasSchema,
   PosicaoMaquinaSchema,
+  AnomaliaAnaliseSchema,
   AnalisePrescricaoSchema,
   DecisionSchema,
   PrescricaoSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
   TelemetrySchema,
-} from '@/schemas';
+} from "@/schemas";
 
 export {
   ColheitadeiraSchema as MachineFleetSchema,
@@ -25,7 +26,7 @@ export {
 
 export const OperatorSchema = z.object({
   id: z.coerce.number(),
-  nome: z.string().default('Operario sem nome'),
+  nome: z.string().default("Operario sem nome"),
   tempo_de_servico: z.coerce.number().default(0),
   no_banco: z.boolean().default(false),
 });
@@ -36,6 +37,7 @@ export type Machine = z.infer<typeof ColheitadeiraSchema>;
 export type MachinePosition = z.infer<typeof PosicaoMaquinaSchema>;
 export type Operator = z.infer<typeof OperatorSchema>;
 export type Prescricao = z.infer<typeof PrescricaoSchema>;
+export type AnomaliaAnalise = z.infer<typeof AnomaliaAnaliseSchema>;
 export type AnalisePrescricao = z.infer<typeof AnalisePrescricaoSchema>;
 export type Decision = z.infer<typeof DecisionSchema>;
 export type Relatorio = z.infer<typeof RelatorioResumoSchema>;

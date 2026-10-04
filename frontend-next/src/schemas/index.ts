@@ -15,15 +15,17 @@ export {
   type PosicaoMaquina,
 } from './maquinas';
 export {
+  AnomaliaAnaliseSchema,
   AnalisePrescricaoSchema,
   DecisionSchema,
   DecisionStatusSchema,
   ListaPrescricoesSchema,
   PrescricaoSchema,
+  type AnomaliaAnalise,
   type AnalisePrescricao,
   type Decision,
   type Prescricao,
-} from './prescricoes';
+} from "./prescricoes";
 export {
   RelatorioResumoSchema,
   type RelatorioResumo,

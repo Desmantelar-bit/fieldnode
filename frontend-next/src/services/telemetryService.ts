@@ -5,22 +5,24 @@ import {
   type Operator,
   type Telemetry,
   type TelemetryInput,
+  type AnomaliaAnalise,
   type AnalisePrescricao,
   type Decision,
   type Prescricao,
   type Relatorio,
-} from '@/types/telemetry';
+} from "@/types/telemetry";
 import {
   ListaColheitadeirasSchema,
   ListaLeiturasTelemetriaSchema,
   ListaPosicoesMaquinasSchema,
+  AnomaliaAnaliseSchema,
   AnalisePrescricaoSchema,
   DecisionSchema,
   ListaPrescricoesSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
-} from '@/schemas';
-import type { z } from 'zod';
+} from "@/schemas";
+import type { z } from "zod";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -189,7 +191,10 @@ export const telemetryService = {
 
   async getLatestReadings(serverToken?: string): Promise<Telemetry[]> {
     const headers = serverToken
-      ? new Headers({ Accept: "application/json", Authorization: `Token ${serverToken}` })
+      ? new Headers({
+          Accept: "application/json",
+          Authorization: `Token ${serverToken}`,
+        })
       : apiHeaders({ Accept: "application/json" });
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/leituras/ultimas/`, {
@@ -308,6 +313,21 @@ export const telemetryService = {
     );
   },
 
+  async getAnomalias(machineId: string): Promise<AnomaliaAnalise> {
+    const response = await withTimeout((signal) =>
+      fetch(
+        `${API_URL}/anomalias/?maquina_id=${encodeURIComponent(machineId)}`,
+        {
+          cache: "no-store",
+          headers: apiHeaders({ Accept: "application/json" }),
+          signal,
+        },
+      ),
+    );
+    const data = await handleResponse(response, "getAnomalias:");
+    return validateApiContract(AnomaliaAnaliseSchema, data, "getAnomalias");
+  },
+
   async updateDecision(
     decisionId: string,
     status: Decision["status"],
@@ -317,7 +337,9 @@ export const telemetryService = {
       throw new Error("A prescriÃ§Ã£o nÃ£o possui uma Decision associada.");
     }
 
-    const payload: { status: Decision["status"]; outcome_texto?: string } = { status };
+    const payload: { status: Decision["status"]; outcome_texto?: string } = {
+      status,
+    };
     if (outcomeTexto?.trim()) payload.outcome_texto = outcomeTexto.trim();
 
     const response = await withTimeout((signal) =>
