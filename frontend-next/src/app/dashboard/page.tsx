@@ -1,61 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { telemetryService } from "@/services/telemetryService";
 import { AppShell } from "@/components/AppShell";
 import { ChatFAB } from "@/components/ChatFAB";
-import { ErrorState } from "@/components/EmptyState";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/FeedbackStates";
 import { FleetGrid } from "@/components/FleetGrid";
 import { FleetMap } from "@/components/FleetMap";
+import { MetricCard } from "@/components/MetricCard";
 import { ReportButton } from "@/components/ReportButton";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import { SparklineCard } from "@/components/SparklineCard";
-import type { Machine } from "@/types/telemetry";
-
-const dadosRpm = [
-  { valor: 1750 },
-  { valor: 1800 },
-  { valor: 1820 },
-  { valor: 1790 },
-  { valor: 1850 },
-  { valor: 1820 },
-];
-
-const dadosTemperatura = [
-  { valor: 72 },
-  { valor: 74 },
-  { valor: 76 },
-  { valor: 79 },
-  { valor: 82 },
-  { valor: 78 },
-];
-
-const dadosVibracao = [
-  { valor: 1.8 },
-  { valor: 2.0 },
-  { valor: 1.9 },
-  { valor: 2.2 },
-  { valor: 2.1 },
-  { valor: 2.1 },
-];
+import type { Machine, Telemetry } from "@/types/telemetry";
 
 export default function DashboardPage() {
   const [machines, setMachines] = useState<Machine[] | null>(null);
+  const [readings, setReadings] = useState<Telemetry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [readingsError, setReadingsError] = useState(false);
 
-  useEffect(() => {
+  const carregarFrota = useCallback(() => {
+    setMachines(null);
+    setError(null);
     telemetryService
       .getFleetStatus()
       .then(setMachines)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Falha ao carregar dados do dashboard.")
-      );
+      .catch((err: unknown) => {
+        console.error("[FieldNode] dashboard: falha ao carregar frota", err);
+        setError("Não foi possível carregar os dados da frota.");
+      });
   }, []);
+
+  const carregarLeituras = useCallback(() => {
+    setReadings(null);
+    setReadingsError(false);
+    telemetryService
+      .getLatestReadings()
+      .then(setReadings)
+      .catch((err: unknown) => {
+        console.error(
+          "[FieldNode] dashboard: falha ao carregar telemetria",
+          err,
+        );
+        setReadingsError(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    carregarFrota();
+    carregarLeituras();
+  }, [carregarFrota, carregarLeituras]);
 
   if (error) {
     return (
-      <AppShell active="/dashboard" eyebrow="FieldNode" title="Central de Operações">
-        <ErrorState title="Dashboard indisponivel" message={error} />
+      <AppShell
+        active="/dashboard"
+        eyebrow="FieldNode"
+        title="Central de Operações"
+      >
+        <ErrorState
+          title="Dashboard indisponível"
+          message={error}
+          onRetry={carregarFrota}
+        />
       </AppShell>
     );
   }
@@ -75,29 +85,53 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <p className="mb-8 text-sm text-field-text3">Monitoramento multivariado da frota em tempo real.</p>
+      <p className="mb-8 text-sm text-field-text3">
+        Monitoramento multivariado da frota em tempo real.
+      </p>
 
       {machines === null ? (
         <SkeletonGrid />
       ) : (
         <div className="space-y-6">
-          <section aria-label="Indicadores operacionais" className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-12">
-            <div className="md:col-span-4">
-              <SparklineCard titulo="RPM Médio" valor={1820} dados={dadosRpm} status="normal" />
-            </div>
-            <div className="md:col-span-4">
-              <SparklineCard
-                titulo="Temperatura do Motor"
-                valor={78}
-                unidade="°C"
-                dados={dadosTemperatura}
-                status="atencao"
+          {readings === null ? (
+            <LoadingState mensagem="Carregando indicadores de telemetria..." />
+          ) : readingsError ? (
+            <ErrorState
+              title="Indicadores indisponíveis"
+              message="Não foi possível carregar as leituras de telemetria."
+              onRetry={carregarLeituras}
+            />
+          ) : readings.length === 0 ? (
+            <EmptyState
+              title="Nenhuma leitura de telemetria encontrada."
+              message="Os indicadores operacionais serão exibidos quando houver leituras disponíveis."
+            />
+          ) : (
+            <section
+              aria-label="Indicadores operacionais"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+            >
+              <MetricCard
+                label="RPM médio"
+                value={Math.round(
+                  readings.reduce((sum, reading) => sum + reading.rpm, 0) /
+                    readings.length,
+                )}
+                helper={`média de ${readings.length} leituras recentes`}
               />
-            </div>
-            <div className="md:col-span-4">
-              <SparklineCard titulo="Vibração do Rotor" valor={2.1} dados={dadosVibracao} status="normal" />
-            </div>
-          </section>
+              <MetricCard
+                label="Temperatura média"
+                value={`${(readings.reduce((sum, reading) => sum + reading.temperatura, 0) / readings.length).toFixed(1)} °C`}
+                helper={`média de ${readings.length} leituras recentes`}
+                tone="amber"
+              />
+              <MetricCard
+                label="Vibração média"
+                value={`${(readings.reduce((sum, reading) => sum + reading.vibracao, 0) / readings.length).toFixed(2)} g`}
+                helper={`média de ${readings.length} leituras recentes`}
+              />
+            </section>
+          )}
           <FleetGrid machines={machines} />
           <FleetMap />
           <ChatFAB machines={machines} />

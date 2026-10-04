@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test:ui-states": "node tests/ui_states_test.js"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
