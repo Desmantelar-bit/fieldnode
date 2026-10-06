@@ -208,7 +208,7 @@ REST_FRAMEWORK = {
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
 
-# Configuração de logging para deduplicação e correlação (S7-T2)
+# Configuração de logging para deduplicação e correlação (S7-T2, S7-T3)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -219,8 +219,14 @@ LOGGING = {
         },
     },
     'formatters': {
+        # S7-T3: JSON estruturado — uma linha por evento, UTF-8 legível
+        # Formatter registrado em api_tcc.correlation.JSONFormatter.
+        # Consome record.correlation_id já injetado pelo CorrelationFilter (S7-T2).
+        'json': {
+            '()': 'api_tcc.correlation.JSONFormatter',
+        },
+        # Mantido para compatibilidade/desenvolvimento caso precise alternar
         'verbose': {
-            # correlation_id adicionado pelo CorrelationFilter — não exige extra={} manual
             'format': '{levelname} {asctime} {module} correlation_id={correlation_id} {message}',
             'style': '{',
         },
@@ -230,13 +236,15 @@ LOGGING = {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'fieldnode.log',
-            'formatter': 'verbose',
+            # S7-T3: JSON estruturado no arquivo de log
+            'formatter': 'json',
             'filters': ['correlation'],
         },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            # S7-T3: JSON estruturado no stdout (compatível com Docker)
+            'formatter': 'json',
             'filters': ['correlation'],
         },
     },
@@ -245,6 +253,14 @@ LOGGING = {
             'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': True,
+        },
+        # S7-T3: mqtt_listen usa __name__ = management.commands.mqtt_listen
+        # que não está sob 'api_tcc' no namespace do logger.
+        # Registrado explicitamente para garantir JSON nos logs do worker MQTT.
+        'api_tcc.management.commands.mqtt_listen': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }

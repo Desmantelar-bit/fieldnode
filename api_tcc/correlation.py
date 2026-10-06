@@ -27,9 +27,12 @@ Preparado para S7-T3 (JSON logging):
   pode consumir esse campo sem alterar o middleware.
 """
 
+import json
 import logging
+import traceback
 import uuid
 from contextvars import ContextVar
+from datetime import timezone
 from typing import Optional
 
 # ──────────────────────────────────────────────────────────────
@@ -143,3 +146,105 @@ def _sanitize_external_id(raw: str) -> Optional[str]:
 def new_correlation_id() -> str:
     """Gera um UUID4 como correlation ID."""
     return str(uuid.uuid4())
+
+
+# ──────────────────────────────────────────────────────────────
+# JSON Formatter (S7-T3)
+# Produz exatamente uma linha JSON por evento de log.
+#
+# Contrato:
+#   - campos mínimos: timestamp, level, logger, message, correlation_id
+#   - correlation_id: None (JSON null) quando fora de contexto gerenciado
+#   - message: record.getMessage() — interpola argumentos de formatação
+#   - exception: incluída como objeto estruturado quando presente,
+#                serializada como string para não quebrar a garantia
+#                de uma linha por evento
+#   - campos extras: qualquer chave adicionada via extra={} é preservada
+#                    desde que não conflite com campos reservados do LogRecord
+#   - ensure_ascii=False: preserva caracteres Unicode (português) legíveis
+#
+# Campos reservados do LogRecord que são omitidos intencionalmente:
+#   args, exc_info, exc_text, stack_info, msg, created, relativeCreated,
+#   msecs, thread, threadName, processName, pathname, lineno, filename,
+#   funcName, module, process, levelno, name (exposto como "logger").
+# ──────────────────────────────────────────────────────────────
+
+# Atributos nativos do LogRecord — não devem ser copiados cegamente para o JSON.
+_LOGRECORD_RESERVED = frozenset({
+    "args", "created", "exc_info", "exc_text", "filename", "funcName",
+    "levelname", "levelno", "lineno", "message", "module", "msecs", "msg",
+    "name", "pathname", "process", "processName", "relativeCreated",
+    "stack_info", "taskName", "thread", "threadName",
+    # campos injetados pelo CorrelationFilter — tratados explicitamente
+    "correlation_id",
+})
+
+
+class JSONFormatter(logging.Formatter):
+    """
+    Formata cada LogRecord como uma linha JSON válida.
+
+    Integra com S7-T2: lê ``record.correlation_id`` já injetado pelo
+    CorrelationFilter — nunca gera um novo UUID.
+
+    O campo ``correlation_id`` vem do CorrelationFilter como string ``"null"``
+    quando fora de contexto (compatibilidade com o formatter de texto).
+    Este formatter converte ``"null"`` → ``None`` para produzir JSON null real.
+
+    Campos adicionais definidos via ``extra={"maquina_id": 12}`` são
+    preservados desde que não conflitem com os campos reservados acima.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        # ── Timestamp ISO 8601 com timezone ───────────────────────────────
+        # datetime.fromtimestamp com tz=timezone.utc garante timezone-aware,
+        # depois convertemos para o timezone local do processo via astimezone().
+        from datetime import datetime
+        ts = datetime.fromtimestamp(record.created, tz=timezone.utc).astimezone()
+        timestamp = ts.isoformat(timespec="milliseconds")
+
+        # ── correlation_id: "null" (string do CorrelationFilter) → None ───
+        raw_cid = getattr(record, "correlation_id", None)
+        correlation_id = None if (raw_cid is None or raw_cid == "null") else raw_cid
+
+        # ── Mensagem: interpola argumentos de formatação ───────────────────
+        # record.getMessage() resolve "máquina %s" % (12,) → "máquina 12"
+        message = record.getMessage()
+
+        payload: dict = {
+            "timestamp": timestamp,
+            "level": record.levelname,
+            "logger": record.name,
+            "message": message,
+            "correlation_id": correlation_id,
+        }
+
+        # ── Campos extras definidos via extra={} ───────────────────────────
+        # Preserva apenas chaves que não conflitem com campos reservados
+        # e que sejam JSON-serializáveis de forma razoável.
+        for key, value in vars(record).items():
+            if key not in _LOGRECORD_RESERVED and not key.startswith("_"):
+                try:
+                    # Testa serializabilidade sem incluir no payload ainda
+                    json.dumps(value, ensure_ascii=False)
+                    payload[key] = value
+                except (TypeError, ValueError):
+                    # Valor não serializável: inclui como string
+                    payload[key] = str(value)
+
+        # ── Exceção: estruturada, serializada como string para manter 1 linha
+        if record.exc_info:
+            exc_type, exc_value, exc_tb = record.exc_info
+            tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+            payload["exception"] = {
+                "type": exc_type.__name__ if exc_type else None,
+                "message": str(exc_value) if exc_value else None,
+                # Traceback como string única — garante 1 linha JSON por evento
+                "traceback": tb_str.rstrip("\n"),
+            }
+        elif record.exc_text:
+            # exc_text já foi formatado (ex: via formatException anterior)
+            payload["exception"] = {"traceback": record.exc_text}
+
+        # ── Serialização: uma linha, Unicode legível ───────────────────────
+        return json.dumps(payload, ensure_ascii=False, default=str)

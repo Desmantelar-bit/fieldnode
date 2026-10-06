@@ -115,9 +115,11 @@ class Command(BaseCommand):
 
         try:
             client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
-            self.stdout.write('[MQTT] Iniciando loop... (Ctrl+C para parar)')
+            # S7-T3: migrado de self.stdout.write para logger para manter
+            # toda a saída no mesmo stream JSON estruturado.
+            logger.info('worker iniciado — aguardando mensagens MQTT (Ctrl+C para parar)')
             client.loop_forever()
         except KeyboardInterrupt:
-            self.stdout.write('[MQTT] Encerrado.')
+            logger.info('worker encerrado pelo operador (KeyboardInterrupt)')
         except Exception as e:
-            self.stderr.write(f'[MQTT] Erro fatal: {e}')
+            logger.exception('erro fatal no worker MQTT: %s', e)
