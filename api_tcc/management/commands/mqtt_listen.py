@@ -27,6 +27,7 @@ import logging
 from django.core.management.base import BaseCommand
 import paho.mqtt.client as mqtt
 from api_tcc.services.telemetria import registrar_leitura
+from api_tcc.correlation import set_correlation_id, reset_correlation_id, new_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -37,43 +38,70 @@ TOPICO      = 'fieldnode/#'   # escuta tudo que começa com fieldnode/
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print(f'[MQTT] Conectado ao broker. Escutando tópico: {TOPICO}')
+        logger.info('[MQTT] Conectado ao broker. Escutando tópico: %s', TOPICO)
         client.subscribe(TOPICO)
     else:
-        print(f'[MQTT] Falha na conexão. Código: {rc}')
+        logger.error('[MQTT] Falha na conexão. Código: %d', rc)
 
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print(f'[MQTT] Desconectado inesperadamente. Tentando reconectar...')
+        logger.warning('[MQTT] Desconectado inesperadamente. Tentando reconectar...')
         try:
             client.reconnect()
         except Exception as e:
-            print(f'[MQTT] Falha na reconexão: {e}')
+            logger.error('[MQTT] Falha na reconexão: %s', e)
 
 
 def on_message(client, userdata, msg):
+    """
+    Processa uma mensagem MQTT.
+
+    Correlation ID (S7-T2):
+      O UUID da leitura é definido como correlation_id ANTES de chamar
+      registrar_leitura, de modo que todos os logs do processamento
+      daquela mensagem carregam o mesmo identificador.
+
+      Precedência:
+        1. payload["id"]         — UUID explícito enviado pelo ESP32
+        2. payload["message_id"] — campo de idempotência explícito
+        3. UUID gerado aqui      — fallback para payloads legados sem ID
+
+      O contexto é resetado ao final do processamento desta mensagem,
+      evitando que o ID vaze para a próxima mensagem recebida.
+    """
+    # Extrair o identificador da leitura antes do processamento
     try:
         payload = json.loads(msg.payload.decode('utf-8'))
-        print(f'[MQTT] Mensagem recebida em {msg.topic}: {payload}')
-
-        # Usa o service layer para registrar a leitura
-        # Isso garante deduplicação, validação de range e logging consistente
-        resultado, detalhe = registrar_leitura(payload)
-        
-        if resultado == "criado":
-            print(f'[MQTT] Salvo: {detalhe}')
-        elif resultado == "duplicata":
-            print(f'[MQTT] Duplicata ignorada: {detalhe}')
-        elif resultado == "invalido":
-            print(f'[MQTT] Rejeitado — {detalhe}')
-        else:
-            print(f'[MQTT] Resultado: {resultado} - {detalhe}')
-            
     except json.JSONDecodeError as e:
-        print(f'[MQTT] Erro ao decodificar JSON: {e}')
+        logger.error('[MQTT] Erro ao decodificar JSON em %s: %s', msg.topic, e)
+        return
+
+    reading_id = (
+        str(payload.get("id") or "").strip()
+        or str(payload.get("message_id") or "").strip()
+        or new_correlation_id()
+    )
+
+    token = set_correlation_id(reading_id)
+    try:
+        logger.info('[MQTT] Mensagem recebida em %s', msg.topic)
+
+        resultado, detalhe = registrar_leitura(payload)
+
+        if resultado == "criado":
+            logger.info('[MQTT] Leitura salva: %s', detalhe)
+        elif resultado == "duplicata":
+            logger.info('[MQTT] Duplicata ignorada: %s', detalhe)
+        elif resultado == "invalido":
+            logger.warning('[MQTT] Payload rejeitado — %s', detalhe)
+        else:
+            logger.error('[MQTT] Resultado inesperado: %s — %s', resultado, detalhe)
+
     except Exception as e:
-        print(f'[MQTT] Erro ao processar mensagem: {e}')
+        logger.exception('[MQTT] Erro ao processar mensagem: %s', e)
+    finally:
+        reset_correlation_id(token)
 
 
 class Command(BaseCommand):

@@ -90,6 +90,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    # S7-T2: correlation ID — deve vir logo após CORS para cobrir todo o pipeline
+    'api_tcc.middleware.CorrelationIDMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -206,13 +208,20 @@ REST_FRAMEWORK = {
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
 
-# Configuração de logging para deduplicação
+# Configuração de logging para deduplicação e correlação (S7-T2)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        # S7-T2: injeta correlation_id em todo LogRecord automaticamente
+        'correlation': {
+            '()': 'api_tcc.correlation.CorrelationFilter',
+        },
+    },
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
+            # correlation_id adicionado pelo CorrelationFilter — não exige extra={} manual
+            'format': '{levelname} {asctime} {module} correlation_id={correlation_id} {message}',
             'style': '{',
         },
     },
@@ -222,11 +231,13 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'fieldnode.log',
             'formatter': 'verbose',
+            'filters': ['correlation'],
         },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['correlation'],
         },
     },
     'loggers': {
