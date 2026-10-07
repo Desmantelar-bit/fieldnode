@@ -63,12 +63,19 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "same-origin"
 
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    # S7-T4: SECURE_SSL_REDIRECT só faz sentido atrás de um proxy HTTPS real.
+    # Em Docker local sem TLS, redirecionar HTTP→HTTPS quebra tudo.
+    # A variável SECURE_SSL deve ser explicitamente True para ativar.
+    _secure_ssl = env_config("SECURE_SSL", default=False, cast=bool)
+    SECURE_SSL_REDIRECT = _secure_ssl
+    # Cookie seguros e HSTS só fazem sentido com HTTPS real.
+    # Em Docker local (HTTP puro) mantemos False para não bloquear sessões.
+    SESSION_COOKIE_SECURE = _secure_ssl
+    CSRF_COOKIE_SECURE = _secure_ssl
+    if _secure_ssl:
+        SECURE_HSTS_SECONDS = 31536000
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
@@ -185,6 +192,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+# S7-T4: necessário para collectstatic funcionar fora de DEBUG=True (Gunicorn/Docker)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Arquivos de media (modelos .pkl gerados dinamicamente, uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

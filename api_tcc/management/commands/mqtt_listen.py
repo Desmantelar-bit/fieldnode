@@ -24,6 +24,7 @@
 
 import json
 import logging
+import os
 from django.core.management.base import BaseCommand
 import paho.mqtt.client as mqtt
 from api_tcc.services.telemetria import registrar_leitura
@@ -31,8 +32,10 @@ from api_tcc.correlation import set_correlation_id, reset_correlation_id, new_co
 
 logger = logging.getLogger(__name__)
 
-BROKER_HOST = 'localhost'
-BROKER_PORT = 1883 
+# S7-T4: lidos do ambiente para permitir uso em Docker (serviço "mosquitto")
+# sem hardcoding de localhost. Valores padrão preservam comportamento local.
+BROKER_HOST = os.environ.get('MQTT_BROKER', 'localhost')
+BROKER_PORT = int(os.environ.get('MQTT_PORT', '1883'))
 TOPICO      = 'fieldnode/#'   # escuta tudo que começa com fieldnode/
 
 

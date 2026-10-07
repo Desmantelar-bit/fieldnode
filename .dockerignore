@@ -1,35 +1,84 @@
-# Frontend e suas dependências
+# =============================================================================
+# FieldNode — .dockerignore
+#
+# Exclui artefatos locais desnecessários para o build da imagem Docker.
+# ATENÇÃO: media/models/ é intencionalmente mantido porque contém
+# isolation_forest_v1.pkl (api_tcc/ia/modelos/) necessário na imagem.
+# Os .pkl gerados em runtime (media/models/*.pkl) são montados via volume.
+# =============================================================================
+
+# Controle de versão
+.git/
+.gitignore
+
+# Segredos — nunca entram na imagem
+.env
+.env.*
+.env.docker
+.env.local
+
+# Ambientes virtuais Python
+.venv/
+venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Cache de testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend (não faz parte da imagem do backend)
 frontend-next/
 frontend/
 frontend_antigo/
 node_modules/
 .next/
 
-# Python
-.venv/
-venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Banco local de desenvolvimento
+db.sqlite3
+*.sqlite3.bak
+*.sqlite3.pre-*.bak
 
-# Arquivos do sistema
-.git/
-.gitignore
-.env
-.env.local
+# Logs
 *.log
+fieldnode.log
+fieldnode_demo_evidence.log
+fieldnode_docker.log
+
+# Arquivos de evidência/screenshots de desenvolvimento
+*.png
+*.html
+debug_*.txt
+debug_*.html
+
+# Arquivos estáticos gerados (serão gerados por collectstatic no container)
+staticfiles/
+
+# IDE e sistema
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 
-# Docker e IDE
-docker-compose*.yml
-Dockerfile*
-.dockerignore
-.vscode/
-.idea/
+# Kiro/worktrees locais
+.kiro/
+.kilo/
+.nanocoder/
 
-# Testes e scripts pesados (opcional, mas economiza espaço)
-scripts/
-tests/
+# Documentação de artefatos de desenvolvimento
+CHECKLIST_*.md
+BLOCO_*.md
+DEMO.md
+faq_banca.md
+evidence_*.png
+admin_*.png
+debug_*.png

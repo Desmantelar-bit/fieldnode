@@ -99,22 +99,101 @@ flowchart LR
 
 ---
 
-## Setup Rápido (Docker — recomendado)
+## Execução com Docker (recomendado)
+
+**Pré-requisito:** Docker instalado. Nenhum Python, MySQL ou Mosquitto local necessário.
+
+### 1. Clonar e configurar variáveis
+
+```bash
+git clone <repositório>
+cd fieldnode
+cp .env.example .env
+```
+
+Edite o `.env` e preencha no mínimo:
+
+| Variável | O que colocar |
+| --- | --- |
+| `SECRET_KEY` | Chave secreta Django (veja comentário no .env.example) |
+| `FIELDNODE_API_KEY` | UUID para autenticação de ingestão |
+| `DB_PASSWORD` | Senha do usuário MySQL |
+| `DB_ROOT_PASSWORD` | Senha do root MySQL |
+
+### 2. Subir os serviços
 
 ```bash
 docker compose up --build
 ```
 
-| Serviço | URL |
-| --- | --- |
-| Dashboard | http://127.0.0.1:3000/dashboard |
-| API health | http://127.0.0.1:8000/api/health/ |
-| Swagger | http://127.0.0.1:8000/swagger/ |
+Aguarde os healthchecks: `db (healthy)`, `mosquitto (healthy)`, `web (healthy)`.
 
-Popular banco com dados de demonstração:
+### 3. Executar migrations
+
+```bash
+docker compose exec web python manage.py migrate
+```
+
+### 4. (Opcional) Popular com dados de demonstração
 
 ```bash
 docker compose exec web python manage.py popular_tudo
+```
+
+### 5. Acessar
+
+| O quê | URL |
+| --- | --- |
+| Dashboard | [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) |
+| API health | [http://127.0.0.1:8000/api/health/](http://127.0.0.1:8000/api/health/) |
+| Swagger | [http://127.0.0.1:8000/swagger/](http://127.0.0.1:8000/swagger/) |
+
+> O frontend Next.js **não é incluído** na composição Docker padrão do backend.
+> Para rodar o dashboard Next.js junto, execute `cd frontend-next && npm ci && npm run dev`
+> e configure `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api` no `.env`.
+
+### Comandos úteis
+
+```bash
+# Logs de todos os serviços
+docker compose logs -f
+
+# Logs só do worker MQTT
+docker compose logs -f worker
+
+# Status dos serviços e healthchecks
+docker compose ps
+
+# Entrar no container web
+docker compose exec web bash
+
+# Parar sem apagar volumes
+docker compose down
+
+# Parar e apagar volumes (inclusive banco — cuidado)
+docker compose down -v
+```
+
+### Serviços
+
+| Serviço | Descrição | Porta |
+| --- | --- | --- |
+| `web` | Django + Gunicorn | 8000 |
+| `worker` | mqtt_listen (MQTT → banco) | — |
+| `mosquitto` | Broker MQTT | 1883 |
+| `db` | MySQL 8 | 3307 (host) |
+
+### Testar fluxo MQTT
+
+```bash
+# Publicar uma leitura via broker containerizado
+docker compose exec mosquitto mosquitto_pub \
+  -h localhost -p 1883 \
+  -t "fieldnode/COLH-01/leitura" \
+  -m '{"id":"550e8400-e29b-41d4-a716-446655440001","maquina_id":"COLH-01","temperatura":78.5,"vibracao":0.42,"rpm":1850,"timestamp":"2026-10-06T12:00:00Z"}'
+
+# Verificar nos logs do worker
+docker compose logs worker --tail=10
 ```
 
 ---

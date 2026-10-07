@@ -1,79 +1,156 @@
+# =============================================================================
+# FieldNode — docker-compose.yml
+#
+# Quatro serviços:
+#   db         MySQL 8 com healthcheck real
+#   mosquitto  Broker MQTT com healthcheck via mosquitto_sub
+#   web        Django + Gunicorn (porta 8000)
+#   worker     python manage.py mqtt_listen
+#
+# Uso:
+#   cp .env.example .env
+#   # edite .env (SECRET_KEY, FIELDNODE_API_KEY, senhas)
+#   docker compose up --build
+#   docker compose exec web python manage.py migrate
+#
+# Para popular dados de demonstração após migrate:
+#   docker compose exec web python manage.py popular_tudo
+# =============================================================================
+
 services:
+
+  # ── banco ─────────────────────────────────────────────────────────────────
   db:
     image: mysql:8.0-debian
-    platform: linux/amd64
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
-    environment:
-      MYSQL_DATABASE: ${DB_NAME:-fieldnode_db}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-troque-esta-senha-local}
-      MYSQL_ROOT_HOST: "%"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        : "$${DB_PASSWORD:?DB_PASSWORD is required}"
+        export MYSQL_DATABASE="$${DB_NAME:-fieldnode_db}"
+        export MYSQL_USER="$${DB_USER:-fieldnode_user}"
+        export MYSQL_PASSWORD="$${DB_PASSWORD}"
+        export MYSQL_ROOT_PASSWORD="$${DB_ROOT_PASSWORD:-$${DB_PASSWORD}}"
+        exec docker-entrypoint.sh mysqld
     ports:
+      # Expõe no host apenas para diagnóstico local (ex: DBeaver/TablePlus).
+      # Remova esta seção se não quiser acesso externo ao banco.
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      # Valida que o MySQL está realmente pronto para conexões, não só que o
+      # processo iniciou. mysqladmin ping falha até o InnoDB estar pronto.
+      # Usa root porque MYSQL_USER só é criado ao final do init script.
+      test:
+        - "CMD-SHELL"
+        - "mysqladmin ping -h 127.0.0.1 -u root --password=\"$$MYSQL_ROOT_PASSWORD\""
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ── broker MQTT ───────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data/
+    healthcheck:
+      # mosquitto_sub com -C 1 conecta e aguarda uma mensagem;
+      # com -W 2 (timeout) prova que o broker aceita conexões.
+      test:
+        - "CMD-SHELL"
+        - "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 2 || exit 1"
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 10s
 
+  # ── web (Django + Gunicorn) ───────────────────────────────────────────────
   web:
-    build: .
-    command: >-
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8000"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             gunicorn setup.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 2
+               --timeout 120
+               --access-logfile -
+               --error-logfile -"
     env_file:
       - .env
     environment:
-      SECRET_KEY: ${SECRET_KEY:?configure SECRET_KEY no arquivo .env}
-      FIELDNODE_API_KEY: ${FIELDNODE_API_KEY:?configure FIELDNODE_API_KEY no arquivo .env}
-      DEMO_MODE: ${DEMO_MODE:-False}
-      DEBUG: ${DEBUG:-False}
-      USE_SQLITE: ${USE_SQLITE:-False}
-      DB_NAME: ${DB_NAME:-fieldnode_db}
-      DB_USER: ${DB_USER:-root}
-      DB_PASSWORD: ${DB_PASSWORD:-troque-esta-senha-local}
+      DB_ROOT_PASSWORD: ""
+      USE_SQLITE: "False"
       DB_HOST: db
-      DB_PORT: ${DB_PORT:-3306}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-127.0.0.1,localhost,web}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-    volumes:
-      - .:/app
+      DB_PORT: "3306"
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: "1883"
+      # Garante que cookies seguros e HSTS não sejam ativados sem HTTPS real
+      SECURE_SSL: "False"
     ports:
       - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
-      interval: 15s
-      timeout: 10s
-      retries: 8
-      start_period: 30s
+    volumes:
+      # Modelos ML gerados em runtime persistem entre deploys
+      - media_models:/app/media/models
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # Verifica que a aplicação Django está saudável, não apenas que o
+      # processo Gunicorn está rodando. Usa o endpoint /api/health/ (S7-T1).
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8000/api/health/'); import json; d = json.loads(r.read()); exit(0 if d.get('status') == 'ok' else 1)\""
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 40s
 
-  frontend:
-    image: node:22-bookworm
-    platform: linux/amd64
-    working_dir: /app
+  # ── worker (mqtt_listen) ──────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: python manage.py mqtt_listen
     env_file:
       - .env
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000/api}
-      FIELDNODE_SERVER_API_URL: ${FIELDNODE_SERVER_API_URL:-http://web:8000/api}
-      NEXT_PUBLIC_FIELDNODE_SERVER_API_URL: ${NEXT_PUBLIC_FIELDNODE_SERVER_API_URL:-http://127.0.0.1:8000/api}
+      DB_ROOT_PASSWORD: ""
+      USE_SQLITE: "False"
+      DB_HOST: db
+      DB_PORT: "3306"
+      # Resolve "mosquitto" pelo DNS interno do Compose — nunca localhost
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: "1883"
+      SECURE_SSL: "False"
     volumes:
-      - ./frontend-next:/app
-      - frontend_node_modules:/app/node_modules
-    ports:
-      - "3000:3000"
-    entrypoint: >
-      sh -c "if [ ! -x /app/node_modules/.bin/next ]; then npm install --legacy-peer-deps; fi; rm -rf /app/.next || true; npm run dev -- --hostname 0.0.0.0"
+      - media_models:/app/media/models
     depends_on:
-      - web
+      db:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
 
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
+  # Dados do MySQL persistem entre docker compose down/up
   mysql_data:
-  frontend_node_modules:
+  # Modelos .pkl gerados pelo pipeline de IA persistem entre deploys
+  media_models:
+  # Persistência de sessão do Mosquitto
+  mosquitto_data:
