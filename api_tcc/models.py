@@ -498,6 +498,41 @@ class TelemetriaInvalida(models.Model):
         return f'{self.maquina_id} — {self.motivo_rejeicao[:60]} — {self.recebido_em}'
 
 
+class DeadLetterEntry(models.Model):
+    """Falha inesperada de processamento que precisa ser inspecionada.
+
+    Diferente de ``TelemetriaInvalida``, esta tabela não representa rejeição de
+    payload. Ela registra uma leitura elegível que falhou em uma etapa
+    downstream, sem implementar retry ou reprocessamento.
+    """
+
+    class Contexto(models.TextChoices):
+        VALIDACAO = "VALIDACAO", "Validação"
+        EVENTO = "EVENTO", "Evento"
+        DECISAO = "DECISAO", "Decisão"
+        SYNC = "SYNC", "Sincronização"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    contexto = models.CharField(max_length=20, choices=Contexto.choices, db_index=True)
+    payload_referencia = models.JSONField(default=dict)
+    motivo = models.CharField(max_length=500)
+    tentativas = models.PositiveIntegerField(default=1)
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    resolvido = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["resolvido", "-criado_em"]
+        indexes = [
+            models.Index(fields=["resolvido", "-criado_em"]),
+            models.Index(fields=["contexto", "-criado_em"]),
+        ]
+        verbose_name = "Entrada da Dead Letter Queue"
+        verbose_name_plural = "Entradas da Dead Letter Queue"
+
+    def __str__(self):
+        return f"{self.contexto} — {self.motivo[:80]} — {self.criado_em}"
+
+
 class Prescricao(models.Model):
     STATUS_CHOICES = (
         ("pendente", "Pendente"),

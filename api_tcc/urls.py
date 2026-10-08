@@ -18,6 +18,7 @@ from api_tcc.api.views_ingestao import (
     RelatorioView,
 )
 from api_tcc.api.views_health import HealthView
+from api_tcc.api.views_dlq import DeadLetterEntryListView
 from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
@@ -49,6 +50,7 @@ urlpatterns = [
     path("metricas/", MetricasView.as_view(), name="metricas"),
     path("machines/<uuid:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
     path("health/", HealthView.as_view(), name="api-health"),
+    path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),

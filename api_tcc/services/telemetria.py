@@ -22,7 +22,7 @@ from datetime import datetime
 from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware
 
-from api_tcc.models import LeituraTelemetria, Colheitadeira, Machine, SyncCursor
+from api_tcc.models import DeadLetterEntry, LeituraTelemetria, Colheitadeira, Machine, SyncCursor
 from api_tcc.services.data_health import (
     HISTORY_LIMIT,
     atualizar_machine_data_health,
@@ -32,6 +32,7 @@ from api_tcc.services.eventos import avaliar_leitura
 from api_tcc.services.eventos import criar_evento_anomalia_estatistica
 from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
 from api_tcc.services.decisions import persistir_decision_da_anomalia
+from api_tcc.services.dlq import registrar_falha_dlq
 from api_tcc.services.sensor_limits import LIMITES
 
 logger = logging.getLogger(__name__)
@@ -361,6 +362,16 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             )
             return "duplicata", str(existente.id)
         except LeituraTelemetria.DoesNotExist:
+            registrar_falha_dlq(
+                contexto=DeadLetterEntry.Contexto.VALIDACAO,
+                payload_referencia={
+                    "device_id": device_id,
+                    "message_id": message_id,
+                    "sequence_number": sequence_number,
+                    "maquina_id": maquina_id_normalizado,
+                },
+                motivo="falha inesperada de integridade ao salvar leitura",
+            )
             logger.exception(
                 "IntegrityError inesperado ao salvar leitura. device=%s msg=%s",
                 device_id,
@@ -369,12 +380,26 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             return "erro", "conflito de integridade ao salvar a leitura"
 
     except Exception as exc:
-        logger.error(
-            "Falha inesperada ao salvar leitura. device=%s | erro: %s",
-            device_id,
-            str(exc),
-            exc_info=True,
+        registrar_falha_dlq(
+            contexto=getattr(exc, "_dlq_contexto", DeadLetterEntry.Contexto.VALIDACAO),
+            payload_referencia=getattr(
+                exc,
+                "_dlq_referencia",
+                {
+                    "device_id": device_id,
+                    "message_id": message_id,
+                    "sequence_number": sequence_number,
+                    "maquina_id": maquina_id_normalizado,
+                },
+            ),
+            motivo=f"falha inesperada ao registrar/processar leitura: {exc}",
         )
+        if not getattr(exc, "_dlq_logado", False):
+            logger.exception(
+                "Falha inesperada ao salvar leitura. device=%s | erro: %s",
+                device_id,
+                str(exc),
+            )
         return "erro", str(exc)
 
 

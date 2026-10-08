@@ -1,9 +1,13 @@
 from datetime import timedelta
+import logging
 
 from django.db import transaction
 from django.utils import timezone
 
-from api_tcc.models import Decision, Event, Machine
+from api_tcc.models import DeadLetterEntry, Decision, Event, Machine
+from api_tcc.services.dlq import registrar_falha_dlq
+
+logger = logging.getLogger(__name__)
 
 
 DECISION_DEDUP_WINDOW = timedelta(minutes=30)
@@ -54,42 +58,51 @@ def persistir_decision_da_analise(analise) -> Decision:
     O pipeline atual nao produz confianca numerica propria. Por isso, confianca
     fica null em vez de reutilizar trust_score ou fabricar um score artificial.
     """
-    machine, _created = Machine.objects.get_or_create(
-        external_code=str(analise.maquina_id).strip().upper()
-    )
-    severidade = _normalizar_severidade(analise.status)
-    texto = _texto_recomendacao(analise)
-    acao_recomendada = _acao_recomendada(analise, texto)
-    event = _event_aberto_recente(machine, severidade)
-    janela_inicio = timezone.now() - DECISION_DEDUP_WINDOW
+    try:
+        machine, _created = Machine.objects.get_or_create(
+            external_code=str(analise.maquina_id).strip().upper()
+        )
+        severidade = _normalizar_severidade(analise.status)
+        texto = _texto_recomendacao(analise)
+        acao_recomendada = _acao_recomendada(analise, texto)
+        event = _event_aberto_recente(machine, severidade)
+        janela_inicio = timezone.now() - DECISION_DEDUP_WINDOW
 
-    with transaction.atomic():
-        existente = (
-            Decision.objects.select_for_update()
-            .filter(
+        with transaction.atomic():
+            existente = (
+                Decision.objects.select_for_update()
+                .filter(
+                    machine=machine,
+                    event=event,
+                    texto=texto,
+                    acao_recomendada=acao_recomendada,
+                    severidade=severidade,
+                    status=Decision.Status.PENDENTE,
+                    criado_em__gte=janela_inicio,
+                )
+                .order_by("-criado_em")
+                .first()
+            )
+            if existente is not None:
+                return existente
+
+            return Decision.objects.create(
                 machine=machine,
                 event=event,
                 texto=texto,
                 acao_recomendada=acao_recomendada,
                 severidade=severidade,
+                confianca=None,
                 status=Decision.Status.PENDENTE,
-                criado_em__gte=janela_inicio,
             )
-            .order_by("-criado_em")
-            .first()
+    except Exception as exc:
+        registrar_falha_dlq(
+            contexto=DeadLetterEntry.Contexto.DECISAO,
+            payload_referencia={"maquina_id": str(getattr(analise, "maquina_id", "desconhecida"))},
+            motivo=f"falha inesperada ao gerar Decision: {exc}",
         )
-        if existente is not None:
-            return existente
-
-        return Decision.objects.create(
-            machine=machine,
-            event=event,
-            texto=texto,
-            acao_recomendada=acao_recomendada,
-            severidade=severidade,
-            confianca=None,
-            status=Decision.Status.PENDENTE,
-        )
+        logger.exception("Falha inesperada ao gerar Decision. maquina_id=%s", getattr(analise, "maquina_id", None))
+        raise
 
 
 def persistir_decision_da_anomalia(machine, event, resultado) -> Decision:
