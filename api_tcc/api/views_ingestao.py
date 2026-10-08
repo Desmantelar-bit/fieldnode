@@ -30,7 +30,7 @@ import csv
 import io
 
 
-from api_tcc.models import Decision, LeituraTelemetria, Machine, MachineDataHealth, Prescricao
+from api_tcc.models import Decision, LeituraTelemetria, Machine, MachineDataHealth, Prescricao, SyncCursor
 from api_tcc.api.serializers import (
     DecisionActionSerializer,
     DecisionSerializer,
@@ -180,11 +180,19 @@ class IngestaoTelemetriaView(APIView):
 
         if resultado == "criado":
             analise = analisar_maquina(request.data.get("maquina_id"))
-            return Response({'status': 'ok', 'id': detalhe, 'ia': _serializar_analise(analise)},
-                            status=status.HTTP_201_CREATED)
+            return Response({
+                'status': 'ok',
+                'id': detalhe,
+                **self._ack_payload(detalhe),
+                'ia': _serializar_analise(analise),
+            }, status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
-            return Response({'status': 'duplicata ignorada', 'id': detalhe},
+            return Response({
+                'status': 'duplicata ignorada',
+                'id': detalhe,
+                **self._ack_payload(detalhe),
+            },
                             status=status.HTTP_200_OK)
 
         if resultado == "invalido":
@@ -194,6 +202,21 @@ class IngestaoTelemetriaView(APIView):
         # resultado == "erro" — falha inesperada de banco
         return Response({'status': 'erro', 'detalhes': 'falha interna — verifique logs'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @staticmethod
+    def _ack_payload(leitura_id: str | None) -> dict:
+        """Expõe apenas os dados necessários para um ACK verificável no edge."""
+        if not leitura_id:
+            return {}
+        leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        cursor = SyncCursor.objects.filter(device_id=leitura.device_id).first()
+        return {
+            'message_id': leitura.message_id,
+            'device_id': leitura.device_id,
+            'sequence_number': leitura.sequence_number,
+            'payload_hash': leitura.payload_hash,
+            'sync_cursor': cursor.last_acked_sequence if cursor else 0,
+        }
 
     def get(self, request):
         if not request.user.is_authenticated and not _is_public_demo_request(request):

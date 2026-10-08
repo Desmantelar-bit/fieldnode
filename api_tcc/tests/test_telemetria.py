@@ -204,6 +204,23 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(response.data["status"], "duplicata ignorada")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
 
+    def test_ingestao_retorna_ack_verificavel_para_o_edge(self):
+        payload = _payload(
+            device_id="EDGE-ACK-01",
+            message_id="edge-msg-001",
+            sequence_number=7,
+            maquina_id="EDGE-ACK-01",
+        )
+        response = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+        leitura = LeituraTelemetria.objects.get()
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["device_id"], leitura.device_id)
+        self.assertEqual(response.data["message_id"], leitura.message_id)
+        self.assertEqual(response.data["sequence_number"], 7)
+        self.assertEqual(response.data["payload_hash"], leitura.payload_hash)
+        self.assertEqual(response.data["sync_cursor"], 7)
+
 
 class SchemaVersionTest(TestCase):
     def test_payload_sem_schema_version_injeta_versao_e_registra_warning(self):
