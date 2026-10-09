@@ -34,6 +34,7 @@ from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
 from api_tcc.services.decisions import persistir_decision_da_anomalia
 from api_tcc.services.dlq import registrar_falha_dlq
 from api_tcc.services.sensor_limits import LIMITES
+from api_tcc.services.normalizacao import registrar_e_normalizar
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +234,10 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     # source / transport: origem e protocolo de transporte
     source = str(dados.get("source") or "api").strip()[:50]
     transport = str(dados.get("transport") or "http").strip()[:50]
+    manufacturer = str(dados.get("manufacturer") or "fieldnode_simulator_v1").strip()[:100]
+    source_protocol_simulado = str(
+        dados.get("source_protocol_simulado") or transport
+    ).strip()[:80]
 
     # payload_hash para rastreabilidade
     payload_hash = _computar_payload_hash(dados)
@@ -307,6 +312,20 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     },
                 )
                 leitura.save(force_insert=True)
+                for raw_parameter, raw_value, unit in (
+                    ("temperatura", leitura.temperatura, "C"),
+                    ("vibracao", leitura.vibracao, "g"),
+                    ("rpm", float(leitura.rpm), "rpm"),
+                ):
+                    registrar_e_normalizar(
+                        machine=machine_obj,
+                        manufacturer=manufacturer,
+                        raw_parameter=raw_parameter,
+                        raw_value=raw_value,
+                        unit=unit,
+                        source_protocol_simulado=source_protocol_simulado,
+                        payload_original=dados,
+                    )
                 transaction.on_commit(
                     lambda: REGISTRY.record_reading(
                         machine_obj.external_code,

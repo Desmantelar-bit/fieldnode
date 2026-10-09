@@ -673,6 +673,117 @@ class Machine(models.Model):
     def __str__(self):
         return self.external_code
 
+    def capabilities(self, manufacturer=None):
+        """Retorna os parametros canonicos mapeados para esta maquina.
+
+        O fabricante pode vir do payload de origem. Sem ele, usamos a marca
+        cadastrada no modelo da Machine, quando existir.
+        """
+        fabricante = manufacturer
+        if not fabricante and self.modelo_id:
+            fabricante = self.modelo.marca.nome
+        if not fabricante:
+            return []
+        return list(
+            FabricanteMapping.objects.filter(
+                manufacturer=fabricante,
+                ativo=True,
+            )
+            .values_list("canonical_parameter", flat=True)
+            .distinct()
+            .order_by("canonical_parameter")
+        )
+
+
+class FabricanteMapping(models.Model):
+    """Adaptador versionado de um nome bruto para o modelo canonico.
+
+    Os nomes de fabricante desta v0.1 sao identificadores de adaptadores
+    simulados. Eles nao representam integracao oficial com protocolos fisicos.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    manufacturer = models.CharField(max_length=100, db_index=True)
+    raw_parameter = models.CharField(max_length=100)
+    canonical_parameter = models.CharField(max_length=100, db_index=True)
+    unit_conversion_factor = models.FloatField(default=1.0)
+    mapping_version = models.CharField(max_length=50)
+    confidence = models.FloatField(default=1.0)
+    ativo = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manufacturer", "raw_parameter", "mapping_version"],
+                name="uniq_fabricante_raw_mapping_version",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["manufacturer", "raw_parameter", "ativo"]),
+        ]
+        ordering = ["manufacturer", "raw_parameter", "-mapping_version"]
+
+    def __str__(self):
+        return f"{self.manufacturer}:{self.raw_parameter} -> {self.canonical_parameter} ({self.mapping_version})"
+
+
+class RawTelemetry(models.Model):
+    """Registro bruto, imutavel do ponto de vista do adaptador."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.PROTECT,
+        related_name="raw_telemetries",
+    )
+    manufacturer = models.CharField(max_length=100, db_index=True)
+    raw_parameter = models.CharField(max_length=100, db_index=True)
+    raw_value = models.FloatField()
+    unit = models.CharField(max_length=30, blank=True, default="")
+    source_protocol_simulado = models.CharField(max_length=80)
+    recebido_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    payload_original = models.JSONField(default=dict)
+    quality = models.CharField(max_length=40, default="raw")
+
+    class Meta:
+        ordering = ["-recebido_em"]
+        indexes = [
+            models.Index(fields=["machine", "-recebido_em"]),
+            models.Index(fields=["manufacturer", "raw_parameter"]),
+        ]
+
+    def __str__(self):
+        return f"{self.machine} / {self.manufacturer}:{self.raw_parameter}={self.raw_value}"
+
+
+class CanonicalTelemetry(models.Model):
+    """Representacao canonica consumivel pelos proximos estagios do dominio."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    raw_telemetry = models.ForeignKey(
+        RawTelemetry,
+        on_delete=models.PROTECT,
+        related_name="canonical_telemetries",
+    )
+    canonical_parameter = models.CharField(max_length=100, db_index=True)
+    value = models.FloatField()
+    unit = models.CharField(max_length=30, blank=True, default="")
+    quality = models.CharField(max_length=40, default="mapped")
+    mapping_version = models.CharField(max_length=50)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["raw_telemetry", "canonical_parameter"],
+                name="uniq_canonical_per_raw_parameter",
+            ),
+        ]
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"{self.canonical_parameter}={self.value} ({self.mapping_version})"
+
 
 class MachineDataHealth(models.Model):
     """
