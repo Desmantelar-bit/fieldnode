@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.ia.explicacao_llm import gerar_explicacao_natural
-from api_tcc.models import Machine
+from api_tcc.models import Decision, Machine
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machine_for_request
 from api_tcc.services.decisions import persistir_decision_da_analise
 
@@ -65,6 +65,17 @@ class PrescricaoView(APIView):
             resultado = analisar_maquina(maquina_id)
             metricas_seguras = _valor_json_seguro(resultado.metricas)
             decision = persistir_decision_da_analise(resultado)
+            agentic_decision = (
+                Decision.objects.filter(
+                    machine=decision.machine,
+                    status=Decision.Status.PENDENTE,
+                    detalhes__metodologia="agentic_llm_poc",
+                )
+                .order_by("-criado_em")
+                .first()
+            )
+            if agentic_decision is not None:
+                decision = agentic_decision
         except Exception as exc:
             logger.exception(
                 "Erro ao processar prescricao para maquina %s: %s",
@@ -76,17 +87,24 @@ class PrescricaoView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        explicacao = gerar_explicacao_natural(resultado)
+        if decision.detalhes.get("metodologia") == "agentic_llm_poc":
+            explicacao = {"texto": decision.texto, "fonte": "agentic_llm_poc"}
+            metodologia = "agentic_llm_poc"
+            recomendacao = decision.texto
+        else:
+            explicacao = gerar_explicacao_natural(resultado)
+            metodologia = resultado.metodologia
+            recomendacao = resultado.recomendacao
 
         return Response(
             {
                 "maquina_id": resultado.maquina_id,
                 "status": resultado.status,
-                "metodologia": resultado.metodologia,
+                "metodologia": metodologia,
                 "motivos": resultado.motivos,
                 "metricas": metricas_seguras,
-                "recomendacao": resultado.recomendacao,
-                "recomendacao_tecnica": resultado.recomendacao,
+                "recomendacao": recomendacao,
+                "recomendacao_tecnica": decision.acao_recomendada,
                 "decision_id": str(decision.id),
                 "decision_status": decision.status,
                 "explicacao_operador": explicacao["texto"],

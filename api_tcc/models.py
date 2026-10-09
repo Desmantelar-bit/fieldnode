@@ -520,6 +520,7 @@ class DeadLetterEntry(models.Model):
         VALIDACAO = "VALIDACAO", "Validação"
         EVENTO = "EVENTO", "Evento"
         DECISAO = "DECISAO", "Decisão"
+        AGENTIC_LLM = "AGENTIC_LLM", "Agentic LLM"
         SYNC = "SYNC", "Sincronização"
 
     id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)

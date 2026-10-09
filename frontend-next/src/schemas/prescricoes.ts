@@ -59,6 +59,7 @@ export const DecisionSchema = z.object({
   decidido_por_username: z.string().nullable().optional(),
   decidido_em: z.string().nullable(),
   outcome_texto: z.string().nullable(),
+  metodologia: z.string().nullable().optional(),
 });
 
 export type Decision = z.infer<typeof DecisionSchema>;

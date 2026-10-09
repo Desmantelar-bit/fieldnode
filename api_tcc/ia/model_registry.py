@@ -50,7 +50,8 @@ class ModelRegistry:
         if not trained_at:
             raise ValueError("metadata.treinado_em é obrigatório")
         try:
-            timestamp = datetime.fromisoformat(trained_at).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            iso_value = trained_at[:-1] + "+00:00" if trained_at.endswith("Z") else trained_at
+            timestamp = datetime.fromisoformat(iso_value).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         except ValueError as exc:
             raise ValueError("metadata.treinado_em deve ser um timestamp ISO-8601") from exc
         path = self.models_dir / f"anomaly_{token}_{timestamp}.pkl"

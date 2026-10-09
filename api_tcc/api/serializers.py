@@ -390,6 +390,7 @@ class DecisionActionSerializer(StrictSerializer):
 
 
 class DecisionSerializer(serializers.ModelSerializer):
+    metodologia = serializers.SerializerMethodField()
     machine = serializers.UUIDField(source="machine.id", read_only=True)
     machine_external_code = serializers.CharField(
         source="machine.external_code", read_only=True
@@ -419,5 +420,9 @@ class DecisionSerializer(serializers.ModelSerializer):
             "decidido_por_username",
             "decidido_em",
             "outcome_texto",
+            "metodologia",
         ]
         read_only_fields = fields
+
+    def get_metodologia(self, obj):
+        return obj.detalhes.get("metodologia") if isinstance(obj.detalhes, dict) else None
