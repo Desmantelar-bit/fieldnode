@@ -138,6 +138,10 @@ class EdgeBuffer:
             ).fetchall())
         return rows
 
+    def transfer_candidates(self) -> list[sqlite3.Row]:
+        """Retorna cópias persistidas que podem ser levadas por um Data Mule."""
+        return self.pending()
+
     def cursor(self) -> int:
         row = self.connection.execute(
             "SELECT last_acked_sequence FROM edge_cursor WHERE device_id = ?", (self.device_id,)
@@ -267,7 +271,7 @@ class EdgeClient:
         return False
 
 
-def generate_payload(device_id: str, sequence_number: int, index: int) -> dict[str, Any]:
+def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador") -> dict[str, Any]:
     if index % 10 == 0:
         temperature, vibration = 115.0, 2.0
     elif index % 3 == 0:
@@ -278,7 +282,7 @@ def generate_payload(device_id: str, sequence_number: int, index: int) -> dict[s
         "id": str(uuid.uuid4()), "device_id": device_id, "message_id": str(uuid.uuid4()),
         "sequence_number": sequence_number, "maquina_id": device_id, "timestamp": utc_now(),
         "temperatura": temperature, "vibracao": vibration, "rpm": 1800,
-        "source": "simulador", "transport": "http", "schema_version": "1.1",
+        "source": source, "transport": "http", "schema_version": "1.1",
     }
 
 
