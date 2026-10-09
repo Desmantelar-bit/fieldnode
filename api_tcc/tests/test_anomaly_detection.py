@@ -44,6 +44,9 @@ class AnomalyDetectionTest(TransactionTestCase):
         decision = Decision.objects.get(event=event)
         self.assertEqual(event.dados_contexto["detection_method"], "COLD_START_ZSCORE")
         self.assertTrue(event.dados_contexto["anomaly_score"] >= 0.70)
+        self.assertIsNotNone(event.priority_score)
+        self.assertGreaterEqual(float(event.priority_score), 0.0)
+        self.assertLessEqual(float(event.priority_score), 1.0)
         self.assertEqual(decision.confianca, event.dados_contexto["anomaly_score"])
         self.assertIn("explanation", decision.detalhes)
         self.assertEqual(

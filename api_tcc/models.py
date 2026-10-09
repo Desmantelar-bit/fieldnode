@@ -352,6 +352,16 @@ class Event(models.Model):
         blank=True,
         help_text="Trust Score copiado da leitura que originou o evento.",
     )
+    priority_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text=(
+            "Prioridade heurística 0..1 calculada no momento da ocorrência; "
+            "NULL indica evento histórico sem dados suficientes para reconstrução."
+        ),
+    )
     criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
     dados_contexto = models.JSONField(default=dict, blank=True)
 
