@@ -12,10 +12,10 @@ Três diferenças estruturais, não de marketing:
 Soluções como Solinftec e JD Operations Center dependem de conectividade celular contínua ou Wi-Fi na sede. O FieldNode foi projetado para o cenário inverso: a rede é a exceção, não a regra. O Service Worker (`frontend-next/public/sw.js`) intercepta chamadas de telemetria quando o browser perde conexão e enfileira via `QUEUE_TELEMETRY`. Quando a rede volta, a fila drena automaticamente para `/api/telemetria/`. No lado do simulador de campo, `scripts/simular_mqtt.py` detecta `Connection refused` no broker MQTT e entra em modo fallback HTTP sem intervenção humana — demonstrado com `MQTT_PORT=1884 DEMO_CYCLES=1`.
 
 **Hardware agnóstico e sem lock-in.**
-Soluções de grandes fabricantes são proprietárias: o sensor só funciona com o software deles, o software só funciona com o hardware deles. O FieldNode usa ESP32 (~R$ 50 por nó) e protocolo MQTT padrão. Qualquer máquina com porta serial ou CAN-bus pode ser instrumentada. O backend aceita qualquer `maquina_id` — a validação em `api_tcc/services/telemetria.py` não exige que a máquina esteja pré-cadastrada no banco para aceitar telemetria.
+Soluções de grandes fabricantes são proprietárias: o sensor só funciona com o software deles, o software só funciona com o hardware deles. O FieldNode foi projetado para aceitar telemetria de qualquer fonte que respeite o contrato de dados — o backend aceita qualquer `maquina_id` e a validação em `api_tcc/services/telemetria.py` não exige que a máquina esteja pré-cadastrada no banco. A integração com ESP32 e protocolo MQTT padrão é a direção de hardware planejada; o checkout atual demonstra o protocolo com simulador Python, não com firmware físico.
 
 **Custo de implantação.**
-Um nó ESP32 com sensor de temperatura, vibração e GPS custa menos de R$ 150. Módulos telemétricos proprietários de fabricantes como John Deere custam entre R$ 2.000 e R$ 8.000 por máquina, com contrato de assinatura anual. Para frotas de pequenos e médios produtores, isso é a diferença entre implantar ou não implantar.
+Um nó ESP32 com sensor de temperatura, vibração e GPS custa menos de R$ 150 — estimativa de componentes de prateleira, não custo validado em protótipo montado. Módulos telemétricos proprietários de fabricantes como John Deere custam entre R$ 2.000 e R$ 8.000 por máquina, com contrato de assinatura anual. Para frotas de pequenos e médios produtores, isso é a diferença entre implantar ou não implantar.
 
 ---
 
@@ -40,7 +40,7 @@ Sim. A resiliência offline tem três camadas independentes:
 `scripts/simular_mqtt.py` tenta conectar ao broker MQTT. Se receber `Connection refused`, entra em `loop_fallback_api()` e envia diretamente para `/api/telemetria/` via HTTP com coordenadas GPS reais. O sistema não para — degrada para o protocolo mais simples disponível.
 
 **Camada 3 — Deduplicação UUID no backend.**
-O UUID é gerado no dispositivo antes do envio (`str(uuid.uuid4())` no simulador, equivalente no firmware ESP32). Se a rede cair após o servidor receber mas antes de confirmar, o dispositivo reenvia o mesmo pacote. O backend detecta a duplicata em `registrar_leitura()` de `api_tcc/services/telemetria.py`:
+O UUID é gerado antes do envio (`str(uuid.uuid4())` no simulador Python; o equivalente em firmware ESP32 é a direção planejada, não implementada neste checkout). Se a rede cair após o servidor receber mas antes de confirmar, o cliente reenvia o mesmo pacote. O backend detecta a duplicata em `registrar_leitura()` de `api_tcc/services/telemetria.py`:
 
 ```python
 if uuid_recebido and LeituraTelemetria.objects.filter(id=uuid_recebido).exists():
@@ -85,13 +85,13 @@ O mapa exibe um banner "Modo Demo - Rota Simulada" com rota pré-definida sobre 
 
 ---
 
-## 5. Por que UUID no sensor e não ID sequencial gerado pelo banco?
+## 5. Por que UUID no cliente e não ID sequencial gerado pelo banco?
 
-O `seq_id` existe e é visível na API — mas é gerado pelo banco após a gravação, não pelo sensor.
+O `seq_id` existe e é visível na API — mas é gerado pelo banco após a gravação, não pelo cliente.
 
-O problema com ID sequencial para deduplicação: se o ESP32 envia o pacote, a rede cai antes da confirmação chegar, e o firmware reenvia — o banco não tem como saber que é o mesmo pacote. Geraria dois registros com IDs diferentes para a mesma leitura física.
+O problema com ID sequencial para deduplicação: se o cliente envia o pacote, a rede cai antes da confirmação chegar, e ele reenvia — o banco não tem como saber que é o mesmo pacote. Geraria dois registros com IDs diferentes para a mesma leitura.
 
-O UUID é gerado no dispositivo antes do envio. O banco usa o UUID como chave primária (`UUIDField(primary_key=True)`). Reenvios do mesmo pacote são detectados por `filter(id=uuid_recebido).exists()` antes de qualquer `INSERT`. O `seq_id` é gerado sequencialmente no `save()` do modelo e serve para consultas ordenadas por humanos e para o frontend exibir histórico em ordem.
+O UUID é gerado no cliente antes do envio (no simulador Python; em hardware físico como ESP32, a mesma estratégia se aplica — implementação em firmware é etapa futura). O banco usa o UUID como chave primária (`UUIDField(primary_key=True)`). Reenvios do mesmo pacote são detectados por `filter(id=uuid_recebido).exists()` antes de qualquer `INSERT`. O `seq_id` é gerado sequencialmente no `save()` do modelo e serve para consultas ordenadas por humanos e para o frontend exibir histórico em ordem.
 
 ---
 
@@ -99,7 +99,7 @@ O UUID é gerado no dispositivo antes do envio. O banco usa o UUID como chave pr
 
 Três decisões conscientes, proporcionais ao contexto de protótipo acadêmico:
 
-**API Key no header.** Todo `POST /api/telemetria/` exige `X-API-Key` validado em `views_ingestao.py`. O ESP32 não suporta JWT nativamente sem biblioteca que consome ~30% da memória flash disponível. API key simples é o equilíbrio correto entre segurança e limitação de hardware.
+**API Key no header.** Todo `POST /api/telemetria/` exige `X-API-Key` validado em `views_ingestao.py`. A integração com ESP32 é a direção planejada de hardware; neste checkout, a ingestão é demonstrada via simulador Python e curl. API key simples é o equilíbrio correto entre segurança e simplicidade de integração para o estágio atual.
 
 **Segredos fora do repositório.** `.env` está no `.gitignore`. O repositório contém apenas `.env.example` com placeholders. `SECRET_KEY` e `FIELDNODE_API_KEY` nunca foram commitados.
 

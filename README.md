@@ -11,7 +11,7 @@ Next.js. Versões legadas e scaffolds não utilizados foram removidos da base.
 
 ```mermaid
 graph TD
-    ESP32["ESP32 / Sensor de Campo"]
+    SOURCE["Fonte de telemetria / simulador"]
     MQTT["Broker MQTT\n(localhost:1883)"]
     SIM["scripts/simular_mqtt.py\n(fallback HTTP se broker cair)"]
     API["API Django 5.2\n:8000"]
@@ -21,7 +21,7 @@ graph TD
     SW["Service Worker\n(cache + fila offline)"]
     USER["Navegador"]
 
-    ESP32 -->|"MQTT publish"| MQTT
+    SOURCE -->|"MQTT publish"| MQTT
     MQTT -->|"mqtt_listen.py"| API
     SIM -->|"POST /api/telemetria/"| API
     API -->|"UUID dedup + persist"| DB
@@ -39,12 +39,12 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    participant ESP as ESP32
+    participant SOURCE as Fonte de telemetria
     participant API as Django API
     participant DB as Banco
     participant IA as Fila IA
 
-    ESP->>API: POST /api/telemetria/ (UUID + X-API-Key)
+    SOURCE->>API: POST /api/telemetria/ (UUID + X-API-Key)
     API->>API: valida API key
     API->>API: valida payload (range de sensores)
     API->>DB: UUID já existe?
@@ -92,7 +92,7 @@ flowchart LR
 | Frontend | Next.js 15 + React + Tailwind CSS |
 | Banco | MySQL 8 em Docker / SQLite em desenvolvimento |
 | IA | scikit-learn (Isolation Forest + Random Forest) |
-| Hardware | ESP32, ESP-NOW, simuladores MQTT |
+| Hardware e transporte | Simuladores MQTT e cliente Python de bancada; ESP32/ESP-NOW permanecem como integração física a validar |
 | Offline | Service Worker com fila de telemetria |
 | Docs API | Swagger em `/swagger/` |
 | Testes | Django TestCase + pytest |

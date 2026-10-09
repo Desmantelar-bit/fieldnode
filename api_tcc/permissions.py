@@ -74,7 +74,15 @@ class HasMachineAccess(BasePermission):
 
 
 class IsAuthenticatedOrPublicDemo(BasePermission):
-    """Allow anonymous access only to the explicitly isolated demo dataset."""
+    """Allow anonymous read-only access to the explicitly isolated demo dataset.
+
+    Write methods (POST, PUT, PATCH, DELETE) always require authentication,
+    regardless of DEMO_MODE. Anonymous access is restricted to safe HTTP methods.
+    """
+
+    SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 
     def has_permission(self, request, view):
+        if request.method not in self.SAFE_METHODS:
+            return bool(request.user.is_authenticated)
         return bool(request.user.is_authenticated or is_public_demo_request(request))

@@ -203,7 +203,7 @@ O que a banca vê:
 ## Resumo do Fluxo
 
 ```
-ESP32 / curl  →  POST /api/telemetria/  →  deduplicação UUID  →  banco
+curl / simulador Python  →  POST /api/telemetria/  →  deduplicação UUID  →  banco
                                                                     ↓
                                                           IA agenda em background
                                                                     ↓
@@ -221,7 +221,7 @@ dashboard  ←  GET /api/leituras/ultimas/  ←  status_risco calculado
 ## Perguntas Frequentes da Banca
 
 **Por que UUID e não ID sequencial?**
-O ESP32 gera o UUID antes de enviar. Se a rede cair e ele reenviar, o servidor detecta a duplicata pelo UUID e ignora — sem dado duplicado no banco. O `seq_id` existe para consultas ordenadas por humanos.
+O simulador Python gera o UUID antes de enviar. Se a rede cair e ele reenviar, o servidor detecta a duplicata pelo UUID e ignora — sem dado duplicado no banco. O `seq_id` existe para consultas ordenadas por humanos. Em hardware físico (ESP32 ou similar), a mesma estratégia se aplica; a implementação em firmware é etapa de desenvolvimento futura.
 
 **O que acontece se o broker MQTT cair?**
 O simulador detecta `Connection refused` e entra em modo fallback HTTP, enviando direto para `/api/telemetria/`. Demonstrado em `scripts/simular_mqtt.py` com `MQTT_PORT=1884 DEMO_CYCLES=1`.

@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 from api_tcc import models
 
 
+@override_settings(DEMO_MODE=False)
 class TokenAuthTest(TestCase):
     def setUp(self):
         self.client = APIClient()

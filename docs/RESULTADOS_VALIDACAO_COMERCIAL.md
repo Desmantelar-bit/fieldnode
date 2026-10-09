@@ -247,7 +247,7 @@ Os resultados aqui não devem ser tratados como evidência estatística. Três c
 
 **Critério S2-T5 de validação comercial:** satisfeito — pelo menos uma conversa real foi realizada com potenciais stakeholders, com conteúdo sobre operação, problema, processo e necessidade.
 
-**Endpoints de escrita protegidos:** 100% — POST/PUT/PATCH/DELETE bloqueados sem token (validado por `test_permissions` e `test_auth`, 14 testes verdes).
+**Endpoints de escrita protegidos:** 100% — POST/PUT/PATCH/DELETE bloqueados sem token (validado por `test_permissions` e `test_auth`, 18 testes verdes, incluindo 4 testes explícitos com `DEMO_MODE=True`).
 
 **Próximo passo comercial:** identificar contato acionável em usina ou operação agrícola no MS para conversa com usuário final operacional (supervisor de campo, gestor de frota), não apenas com especialistas de fabricante/plataforma.
 
@@ -257,26 +257,31 @@ Os resultados aqui não devem ser tratados como evidência estatística. Três c
 
 Verificado no código em `api_tcc/api/views_ingestao.py`, `views_gps.py`, `views_relatorio.py`, `views_prescricao.py` e `viewsets.py`.
 
-| Endpoint | Anônimo | Filtro `is_demo` aplicado | Mecanismo |
-|---|---|---|---|
-| `GET /api/leituras/ultimas/` | sim | sim | SQL raw com `INNER JOIN api_tcc_machine m AND m.is_demo = %s` |
-| `GET /api/telemetria/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` |
-| `GET /api/metricas/` | sim | sim | `_filter_public_demo_leituras(...)` + invalidas zeradas |
-| `GET /api/status-mqtt/` | sim | sim | `_filter_public_demo_leituras(...).order_by('-recebido_em').first()` |
-| `GET /api/relatorio/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` |
-| `GET /api/relatorio/exportar/` (xlsx) | sim | sim | `leituras_qs.filter(machine__is_demo=True)` + bloqueia máquina não-demo |
-| `GET /api/maquinas/posicao/` | sim | sim | `leituras.filter(machine__is_demo=True)` quando `demo_publico` |
-| `GET /api/anomalias/` | sim | sim | `_public_demo_machine_allowed()` — bloqueia máquina não-demo |
-| `GET /api/manutencao/` | sim | sim | `_public_demo_machine_allowed()` |
-| `GET /api/prescricoes/` | sim | sim | `_public_demo_machine_allowed()` |
-| `GET /api/prescricoes/lista/` | sim | sim | `_public_demo_machine_allowed()` → retorna `[]` |
-| `GET /api/prescricoes/<maquina_id>/` | sim | sim | `_demo_machine_allowed()` em `views_prescricao.py` |
-| `GET /api/colheitadeira/` | sim | sim | `ColheitadeiraViewSet.get_queryset()` filtra `machine__is_demo=True` |
+| Endpoint | Anônimo | Filtro `is_demo` aplicado | Mecanismo | Teste |
+|---|---|---|---|---|
+| `GET /api/leituras/ultimas/` | sim | sim | SQL raw com `INNER JOIN api_tcc_machine m AND m.is_demo = %s` | `DemoModeTelemetriaTest` (3 testes) |
+| `GET /api/telemetria/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` | `DemoModeIsolamentoEndpointsTest` |
+| `GET /api/metricas/` | sim | sim | `_filter_public_demo_leituras(...)` + invalidas zeradas | `DemoModeIsolamentoEndpointsTest` |
+| `GET /api/status-mqtt/` | sim | sim | `_filter_public_demo_leituras(...).order_by('-recebido_em').first()` | `DemoModeIsolamentoEndpointsTest` |
+| `GET /api/relatorio/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` | `DemoModeIsolamentoEndpointsTest` |
+| `GET /api/relatorio/exportar/` (xlsx) | sim | sim | `leituras_qs.filter(machine__is_demo=True)` + bloqueia máquina não-demo | não requer filtro de machine (filtra por maquina_id explícito) |
+| `GET /api/maquinas/posicao/` | sim | sim | `leituras.filter(machine__is_demo=True)` quando `demo_publico` | não requer filtro de machine (usa `get_machines_for_request`) |
+| `GET /api/anomalias/` | sim | sim | `_public_demo_machine_allowed()` — bloqueia máquina não-demo | não requer filtro de machine (requer `maquina_id` explícito) |
+| `GET /api/manutencao/` | sim | sim | `_public_demo_machine_allowed()` | não requer filtro de machine (requer `maquina_id` explícito) |
+| `GET /api/prescricoes/` | sim | sim | `_public_demo_machine_allowed()` | não requer filtro de machine (requer `maquina_id` explícito) |
+| `GET /api/prescricoes/lista/` | sim | sim | `_public_demo_machine_allowed()` → retorna `[]` | não requer filtro de machine (requer `maquina_id` explícito) |
+| `GET /api/prescricoes/<maquina_id>/` | sim | sim | `_demo_machine_allowed()` em `views_prescricao.py` | não requer filtro de machine (requer `maquina_id` explícito) |
+| `GET /api/colheitadeira/` | sim | sim | `ColheitadeiraViewSet.get_queryset()` filtra `machine__is_demo=True` | `DemoModeIsolamentoEndpointsTest` |
+
+**Endpoints que não filtram por `machine__is_demo` diretamente** (anomalias, manutencao, prescricoes): recebem `maquina_id` como parâmetro obrigatório e verificam via `_public_demo_machine_allowed()` / `get_machine_for_request()` se a machine existe e é demo. O isolamento é garantido pela verificação de acesso, não por filtro de queryset — comportamento correto para endpoints que operam sobre uma única máquina.
 
 **Escrita com DEMO_MODE=True (sem token):**
 
-- `POST /api/colheitadeira/` → 401/403 (DRF IsAuthenticated via router)
-- `POST /api/telemetria/` → 401 (X-API-Key obrigatória, independente de DEMO_MODE)
-- Todos os outros POST/PUT/PATCH/DELETE → 401/403
+- `POST /api/colheitadeira/` → 401/403 (validado por `PermissaoEscritaEmDemoModeTest`)
+- `POST /api/telemetria/` → 401 (X-API-Key obrigatória, independente de DEMO_MODE; validado por `DemoModeEscritaBloqueadaTest`)
+- `PATCH /api/decisions/<id>/` → 401/403 (validado por `DemoModeEscritaBloqueadaTest`)
+- Todos os outros POST/PUT/PATCH/DELETE → 401/403 (validado por `PermissaoEscritaEmDemoModeTest`)
 
 **Filtro no banco, não pós-serialização:** confirmado. Nenhuma view consulta todos os dados e filtra em Python. O filtro `is_demo` é aplicado no queryset/SQL antes de qualquer serialização.
+
+**Nota sobre `DEMO_MODE` no ambiente de testes:** os testes usam `@override_settings(DEMO_MODE=True/False)` explícito em todos os cenários relevantes. O valor do `.env` local não interfere nos resultados.

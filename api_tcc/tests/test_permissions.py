@@ -1,7 +1,7 @@
 import base64
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -68,6 +68,7 @@ def _criar_colheitadeira(maquina_id="COLH-PERM-01"):
     )
 
 
+@override_settings(DEMO_MODE=False)
 class PermissaoCRUDTest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -155,3 +156,51 @@ class PermissaoCRUDTest(TestCase):
 
         self.assert_write_blocked(response)
         self.assertFalse(models.Marca.objects.filter(nome="Marca Credencial Invalida").exists())
+
+
+@override_settings(DEMO_MODE=True)
+class PermissaoEscritaEmDemoModeTest(TestCase):
+    """Garante que DEMO_MODE=True não libera escrita para usuários anônimos."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.marca = models.Marca.objects.create(nome="Marca Demo Existente")
+        self.operario = models.Operario.objects.create(
+            nome="Operario Demo",
+            tempo_de_servico=2,
+            no_banco=True,
+        )
+
+    def test_post_anonimo_bloqueado_em_demo_mode(self):
+        for url, payload in [
+            (reverse("marca-list"), {"nome": "Marca Indevida"}),
+            (reverse("operario-list"), {"nome": "Op Indevido", "tempo_de_servico": 1, "no_banco": True}),
+        ]:
+            with self.subTest(url=url):
+                response = self.client.post(url, payload, format="json")
+                self.assertIn(response.status_code, {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN})
+
+    def test_patch_anonimo_bloqueado_em_demo_mode(self):
+        response = self.client.patch(
+            reverse("operario-detail", args=[self.operario.id]),
+            {"nome": "Alterado em demo"},
+            format="json",
+        )
+        self.assertIn(response.status_code, {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN})
+        self.operario.refresh_from_db()
+        self.assertEqual(self.operario.nome, "Operario Demo")
+
+    def test_delete_anonimo_bloqueado_em_demo_mode(self):
+        response = self.client.delete(reverse("marca-detail", args=[self.marca.id]))
+        self.assertIn(response.status_code, {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN})
+        self.assertTrue(models.Marca.objects.filter(id=self.marca.id).exists())
+
+    def test_usuario_autenticado_pode_escrever_em_demo_mode(self):
+        User.objects.create_user(username="admin-demo", password="senha-forte-123")
+        self.assertTrue(self.client.login(username="admin-demo", password="senha-forte-123"))
+        response = self.client.post(
+            reverse("marca-list"),
+            {"nome": "Marca Autenticada em Demo"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -128,7 +128,7 @@ leitura.save()
 | Aspecto | UUID (`id`) | Sequencial (`seq_id`) |
 |---|---|---|
 | Chave primária | ✅ Sim | ❌ Não |
-| Gerado no ESP32 | ✅ Sim | ❌ Não |
+| Gerado no cliente antes do envio | ✅ Sim (simulador Python; firmware ESP32 é etapa futura) | ❌ Não |
 | Idempotência/dedup | ✅ Sim | ❌ Não |
 | Legível por humanos | ❌ Não | ✅ Sim |
 | Uso em UI | ❌ Não recomendado | ✅ Sim |

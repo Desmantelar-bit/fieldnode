@@ -1,5 +1,15 @@
 # Guia Rápido: UUID vs seq_id
 
+> **Arquivo histórico** — preservado em `docs/archive/` como registro da fase
+> em que `seq_id` estava ativo no model. O campo foi removido em agosto de 2026
+> (migration `0009_remove_leituratelemetria_seq_id.py`). A documentação
+> consolidada e atualizada está em `docs/SEQ_ID.md`.
+>
+> As referências a "Gerado no ESP32" neste arquivo descrevem a intenção de
+> design da época, não firmware implementado. A geração de UUID foi
+> demonstrada no simulador Python; a implementação em firmware ESP32 é etapa
+> futura de validação física.
+
 ## 🎯 Quando Usar Cada Um?
 
 ### UUID (id) - Chave Primária
