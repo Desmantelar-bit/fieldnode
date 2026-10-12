@@ -1,287 +1,225 @@
-# Resultados de Validação Comercial
+# Resultados de validação comercial
+
+## Status da consolidação
+
+Este documento consolida o que está efetivamente registrado no repositório até
+09/10/2026. Ele é um relatório de descoberta qualitativa, não uma prova
+estatística de mercado nem uma confirmação de venda.
+
+| Critério | Estado | Evidência disponível |
+|---|---|---|
+| Registros comerciais investigados | VERIFICADO | Relatório histórico anterior e roteiro S9-T4 localizados no repositório. |
+| Registros históricos conciliados | VERIFICADO | Três entradas, todas datadas de 19/09/2026 e atribuídas a contextos distintos. |
+| Entrevistas com evidência primária anexada | NÃO VERIFICADO | Não há ficha preenchida, transcrição, gravação, convite, agendamento ou ata correspondente no repositório. |
+| Entrevistas concluídas e verificáveis | 0 confirmadas | Os três registros são tratados abaixo como históricos parciais, não como entrevistas plenamente auditáveis. |
+| Meta de 5–6 conversas | NÃO ATINGIDA | Não existem registros adicionais de conversas 4–6. |
+| Pelo menos três perfis operacionais | NÃO ATINGIDO | Os registros disponíveis são de especialistas técnicos ligados a fabricantes/plataforma; não há gestor de frota, manutenção, supervisor de colheita, operador ou analista de usina com ficha verificável. |
+| Disposição concreta de pagar | NÃO EVIDENCIADA | Não há orçamento, processo de compra, proposta, piloto autorizado ou compromisso comercial documentado. |
 
-Este documento registra aprendizados de conversas com potenciais usuários e stakeholders do FieldNode.
+A meta de 5–6 conversas continua pendente. Não será preenchida com pesquisa
+secundária, demonstração técnica ou entrevistas imaginárias. Estatística de
+guardanapo não vira evidência só porque foi colocada numa tabela bonita.
+
+## 1. Escopo e metodologia
 
-Os resultados aqui não devem ser tratados como evidência estatística. Três conversas não representam todo o mercado. O objetivo desta fase é descoberta qualitativa de problema, não confirmação de hipótese.
+O objetivo era investigar processos reais de operação, manutenção, dados,
+alertas, impactos, alternativas e critérios de compra, além de testar a tese
+de valor de uma solução complementar para frotas de marcas diferentes.
 
----
+Foram examinados:
 
-## Roteiro Utilizado
-
-### Contexto
-
-1. Como vocês acompanham hoje o funcionamento das máquinas durante a operação?
-2. Que informações vocês conseguem enxergar em tempo real?
-3. O que normalmente fica difícil de saber até ser tarde demais?
-
-### Problema
-
-4. Quais situações mais costumam gerar parada, atraso ou perda operacional?
-5. Quando uma máquina apresenta comportamento anormal, como vocês descobrem?
-6. Quem normalmente percebe primeiro esse problema?
-7. Quanto tempo costuma levar entre perceber o problema e tomar uma ação?
-
-### Processo atual
-
-8. Quais ferramentas ou sistemas vocês utilizam hoje?
-9. O que funciona bem nesses sistemas?
-10. O que ainda precisa ser feito manualmente?
-
-### Impacto
-
-11. Quando existe uma parada inesperada, quais são as principais consequências?
-12. Existe algum indicador utilizado para medir esse impacto?
-
-### Solução
-
-13. Em quais situações um alerta antecipado teria valor real?\
-14. Que informação precisaria aparecer nesse alerta para alguém tomar uma decisão?
-15. Quem seria a pessoa responsável por usar esse tipo de informação?
-
-### Compra ou piloto
-
-16. Uma solução desse tipo seria avaliada por quem?
-17. O que precisaria ser demonstrado para vocês considerarem um piloto?
-18. Quais seriam as principais preocupações antes de conectar uma solução dessas à operação real?
-
----
-
-## Conversa 001 — John Deere
-
-**Data:** 2026-09-19
-**Perfil do contato:** Especialista técnico, John Deere Brasil.
-**Segmento:** Fabricante OEM / tecnologia agrícola embarcada.
-**Canal:** Conversa direta.
-
-### Sistemas e processo atual
-
-- Monitoramento centralizado no **John Deere Operations Center (JDOC)**, via web e aplicativo móvel.
-- Dados extraídos do barramento **J1939 (rede CAN)** via módulo embarcado **JDLink** com transmissão **4G/LTE**.
-- Parâmetros visíveis em tempo real quando há sinal: RPM, temperatura do líquido de arrefecimento, pressão hidráulica, consumo de combustível e GPS.
-
-### Problema relatado
-
-- **30% a 40% das operações de colheita ocorrem em zonas sem cobertura celular.** Quando a máquina entra off-grid, a transmissão cai completamente.
-- O JDLink armazena dados localmente para sincronizar depois, mas **não oferece dashboard acessível ao operador na cabine ou ao supervisor no campo durante o período offline.**
-- Quem percebe o problema primeiro nessas zonas é o próprio operador, por ruídos, vibrações extremas ou perda de potência física.
-- **Cerca de 40% da frota nacional tem mais de 15 anos** e não dispõe de barramento CAN/J1939 acessível. A integração JDOC fica limitada ou exige retrofits manuais nessas máquinas.
-
-### Impacto relatado
-
-- Parada não programada custa **R$ 5.000 a R$ 15.000 por hora**, somando perda de produtividade, equipe e logística de manutenção.
-
-### O que um alerta antecipado precisaria mostrar
-
-- Métrica preditiva simples: **"tempo estimado em minutos para a temperatura ou vibração atingir a zona de risco"**, exibida em dispositivo local para o supervisor de campo.
-- Usuário da decisão: supervisor de campo ou gestor de frota.
-
-### Critérios para piloto
-
-- Avaliado pelo departamento de tecnologia agrícola e concessionárias.
-- Precisaria demonstrar: **sincronização automática e transparente do histórico offline** assim que o sinal retorna, e eficácia de um **dashboard local offline-first**.
-
-### Preocupação principal antes de plugar na operação
-
-- Suporte a **frotas mistas** (outras marcas e máquinas antigas) via sensores externos confiáveis, complementando onde o JDOC ainda encontra barreiras.
-
-### O que o FieldNode valida com esta conversa
-
-- O problema de conectividade offline é real e quantificado (30–40% das operações).
-- A frota legada sem CAN é um mercado não atendido pelo próprio fabricante.
-- O conceito de alerta local offline-first tem valor declarado pelo especialista do OEM.
-- A sincronização pós-reconexão sem duplicação é requisito técnico explícito.
-
-### O que NÃO foi validado
-
-- Disposição de compra ou orçamento disponível.
-- Processo de aprovação interno da John Deere para parceiros externos.
-- Integração técnica com JDOC via API oficial.
-
----
-
-## Conversa 002 — Solinftec
-
-**Data:** 2026-09-19
-**Perfil do contato:** Especialista técnico, Solinftec.
-**Segmento:** Plataforma de IA agrícola / agtech SaaS.
-**Canal:** Conversa direta.
-
-### Sistemas e processo atual
-
-- Monitoramento via plataforma de IA **Alice**, com infraestrutura proprietária de **antenas de rádio frequência (RF) e rede mesh local Zigbee** instalada nas fazendas.
-- Quando a infraestrutura está presente: velocidade, área colhida, eficiência operacional, produtividade e GPS em tempo real. A Alice analisa em nuvem e entrega predições e recomendações.
-- Em alguns casos, operadores ainda geram **relatórios manuais de hora em hora** para a usina.
-
-### Problema relatado
-
-- A solução depende de **alto investimento de instalação prévia de antenas**. Quando a colhedora sai da zona de cobertura proprietária, o estado da máquina fica invisível.
-- Se o equipamento sai da malha RF com desgaste mecânico severo, apenas o operador da cabine percebe fisicamente. O tempo de ação atrasa drasticamente.
-
-### Impacto relatado
-
-- **R$ 5.000 a R$ 15.000 por hora perdida.**
-- Um alerta antecipado teria **valor comercial gigantesco para atuar nas margens onde a rede mesh não chega.**
-
-### O que um alerta antecipado precisaria mostrar
-
-- Processamento **direto na borda (edge computing) na própria máquina**, mostrando **"normal, atenção ou crítico"** sem depender do servidor em nuvem.
-- Usuário da decisão: operador na cabine ou fiscal que passa de caminhonete próximo à máquina.
-
-### Critérios para piloto
-
-- Avaliado por arquitetos de solução e diretores de agtech.
-- Precisaria demonstrar: **capacidade offline-first de baixo custo (abaixo de R$ 500 de hardware por máquina)** e análise de risco retroativa com machine learning baseada em dados não supervisionados.
-
-### Preocupação principal antes de plugar na operação
-
-- **Garantia de que não haverá duplicação de pacotes e problemas de UUID durante as ressincronizações** com os bancos de dados ao reconectar.
-
-### O que o FieldNode valida com esta conversa
-
-- O limite da cobertura mesh é o mesmo problema do limite celular: a borda sem rede é o ponto cego de todos os players.
-- O conceito de edge computing com classificação local (NORMAL/ATENCAO/CRITICO) foi descrito espontaneamente pelo especialista — sem sugestão da equipe.
-- A deduplicação UUID como requisito técnico foi citada explicitamente como preocupação de integração.
-- O teto de R$ 500 de hardware por máquina é um critério de viabilidade comercial concreto.
-
-### O que NÃO foi validado
-
-- Modelo de parceria ou integração técnica com a plataforma Alice.
-- Processo de compra ou aprovação orçamentária.
-- Compatibilidade de protocolo entre FieldNode e infraestrutura Solinftec.
-
----
-
-## Conversa 003 — Case IH
-
-**Data:** 2026-09-19
-**Perfil do contato:** Especialista técnico, Case IH Brasil.
-**Segmento:** Fabricante OEM / agricultura de precisão.
-**Canal:** Conversa direta.
-
-### Sistemas e processo atual
-
-- Monitoramento via **AFS Connect** (Advanced Farming Systems), portal web e aplicativo móvel com inteligência via Power BI.
-- Base técnica: rede **CAM (CAN Bus/J1939 nativo)** com módulo embarcado **AFS Pro 700 ou PCM/PCMF**, transmissão via **4G/LTE e Wi-Fi**.
-- Parâmetros em tempo real: RPM, temperatura, pressão, área colhida, rendimento agronômico (TCH), status da operação e histórico de localização.
-- O software pode **bloquear comandos se o operador forçar a máquina além dos limites operacionais previstos.**
-
-### Problema relatado
-
-- **Máquinas sem rede CAM nativa** recebem apenas o módulo **CM100**, que coleta dados básicos (combustível, motor, transmissão) e exige que o operador aguarde área com Wi-Fi/sinal — armazena até 30 dias de log, mas **não permite visualização remota instantânea.**
-- **Incêndios em colhedoras por superaquecimento de rolamentos na esteira** são um problema grave. Esses rolamentos muitas vezes não são monitorados por padrão no barramento.
-- Usinas como a **Clealco (região de Araçatuba)** não usam os dashboards do AFS Connect — exigem dados brutos diretos da concessionária para injetar em sistemas proprietários de BI.
-- Clientes relatam limitações de usabilidade no aplicativo mobile e casos de exclusão acidental de conta.
-
-### Impacto relatado
-
-- **R$ 5.000 a R$ 15.000 por hora**, mais o risco incalculável de **perder uma colheitadeira inteira num incêndio de lavoura.**
-
-### O que um alerta antecipado precisaria mostrar
-
-- Alerta local (offline) focado na **variação térmica de componentes móveis** e no **desgaste físico**, com impacto direto na segurança das operações.
-
-### Critérios para piloto
-
-- Avaliado pela liderança de agricultura de precisão.
-- Precisaria demonstrar: **estabilidade ao integrar sensores externos extras** (como módulos para monitorar rolamentos) sem depender da infraestrutura de CAN, e **suporte pleno a frotas mistas** (Case, John Deere e máquinas antigas).
-
-### Preocupação principal antes de plugar na operação
-
-- **Segurança no upload posterior** das informações após horas offline e como integrar relatórios brutos ao fluxo de concessionárias de forma confiável.
-
-### O que o FieldNode valida com esta conversa
-
-- O problema de rolamentos sem monitoramento é um risco de segurança real e não coberto pelos sistemas atuais — abre espaço para sensores externos complementares.
-- O requisito de frotas mistas (multi-marca, máquinas antigas) foi citado por dois dos três especialistas de forma independente.
-- A demanda por dados brutos exportáveis (Clealco/BI proprietário) valida o endpoint de exportação CSV/XLSX do FieldNode.
-- A preocupação com segurança no upload pós-offline é o mesmo requisito de deduplicação UUID já implementado.
-
-### O que NÃO foi validado
-
-- Processo de integração técnica com AFS Connect via API oficial.
-- Modelo de parceria com concessionárias Case.
-- Aprovação orçamentária ou processo de compra.
-
----
-
-## Síntese das Três Conversas
-
-### Problema confirmado de forma independente pelos três especialistas
-
-| Ponto | John Deere | Solinftec | Case IH |
-|---|---|---|---|
-| Ponto cego offline (sem celular ou sem mesh) | sim | sim | sim |
-| Frota legada sem CAN como mercado não atendido | sim | — | sim |
-| Custo de parada R$ 5k–15k/hora | sim | sim | sim |
-| Alerta local offline-first como solução desejada | sim | sim | sim |
-| Deduplicação/sincronização pós-reconexão como requisito | sim | sim (explícito) | sim |
-| Frotas mistas (multi-marca) como critério de piloto | sim | — | sim |
-
-### Hipóteses do FieldNode confirmadas
-
-- O problema de conectividade offline é real, quantificado e não resolvido pelos sistemas atuais dos três players.
-- A classificação local NORMAL/ATENCAO/CRITICO foi descrita espontaneamente pela Solinftec sem sugestão da equipe — validação independente do modelo de saída do pipeline de IA.
-- A deduplicação UUID, já implementada, foi citada como requisito técnico explícito pela Solinftec.
-- A exportação de dados brutos (CSV/XLSX), já implementada, foi validada pelo caso Clealco/Case IH.
-
-### Hipóteses ainda abertas
-
-- Disposição real de compra ou orçamento disponível em qualquer dos três.
-- Modelo de parceria ou integração técnica com plataformas existentes (JDOC, Alice, AFS Connect).
-- Teto de preço de hardware (R$ 500/máquina citado pela Solinftec) validado com os outros dois.
-- Processo de aprovação interno em cada empresa.
-
-### Dívidas técnicas reveladas pelas conversas
-
-- **Monitoramento de rolamentos e componentes sem CAN:** os três especialistas citaram máquinas antigas ou componentes não cobertos pelo barramento. O FieldNode atual depende de sensores de temperatura, vibração e RPM — mas não tem abstração para sensores externos adicionais (ex.: sensor de temperatura de rolamento). Isso é uma lacuna de hardware fora do escopo atual do TCC, mas deve ser registrada como próximo passo de produto.
-- **Dashboard local offline-first na cabine:** o Service Worker atual cobre fila de telemetria, mas não um dashboard operacional acessível sem internet na cabine. Isso é uma feature de produto, não um bug.
-- **Integração com sistemas de BI proprietários (ex.: Clealco):** o endpoint de exportação CSV/XLSX existe, mas não há documentação de integração para consumo por sistemas externos. Baixa prioridade para o TCC, alta prioridade para piloto real.
-
----
-
-## Métricas Acumuladas
-
-**Conversas comerciais realizadas:** 3 (John Deere, Solinftec, Case IH).
-
-**Conversas com conteúdo substantivo sobre operação, problema e processo:** 3/3.
-
-**Critério S2-T5 de validação comercial:** satisfeito — pelo menos uma conversa real foi realizada com potenciais stakeholders, com conteúdo sobre operação, problema, processo e necessidade.
-
-**Endpoints de escrita protegidos:** 100% — POST/PUT/PATCH/DELETE bloqueados sem token (validado por `test_permissions` e `test_auth`, 18 testes verdes, incluindo 4 testes explícitos com `DEMO_MODE=True`).
-
-**Próximo passo comercial:** identificar contato acionável em usina ou operação agrícola no MS para conversa com usuário final operacional (supervisor de campo, gestor de frota), não apenas com especialistas de fabricante/plataforma.
-
----
-
-## Matriz de Cobertura DEMO_MODE — Endpoints Públicos Sensíveis
-
-Verificado no código em `api_tcc/api/views_ingestao.py`, `views_gps.py`, `views_relatorio.py`, `views_prescricao.py` e `viewsets.py`.
-
-| Endpoint | Anônimo | Filtro `is_demo` aplicado | Mecanismo | Teste |
-|---|---|---|---|---|
-| `GET /api/leituras/ultimas/` | sim | sim | SQL raw com `INNER JOIN api_tcc_machine m AND m.is_demo = %s` | `DemoModeTelemetriaTest` (3 testes) |
-| `GET /api/telemetria/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` | `DemoModeIsolamentoEndpointsTest` |
-| `GET /api/metricas/` | sim | sim | `_filter_public_demo_leituras(...)` + invalidas zeradas | `DemoModeIsolamentoEndpointsTest` |
-| `GET /api/status-mqtt/` | sim | sim | `_filter_public_demo_leituras(...).order_by('-recebido_em').first()` | `DemoModeIsolamentoEndpointsTest` |
-| `GET /api/relatorio/` | sim | sim | `_filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)` | `DemoModeIsolamentoEndpointsTest` |
-| `GET /api/relatorio/exportar/` (xlsx) | sim | sim | `leituras_qs.filter(machine__is_demo=True)` + bloqueia máquina não-demo | não requer filtro de machine (filtra por maquina_id explícito) |
-| `GET /api/maquinas/posicao/` | sim | sim | `leituras.filter(machine__is_demo=True)` quando `demo_publico` | não requer filtro de machine (usa `get_machines_for_request`) |
-| `GET /api/anomalias/` | sim | sim | `_public_demo_machine_allowed()` — bloqueia máquina não-demo | não requer filtro de machine (requer `maquina_id` explícito) |
-| `GET /api/manutencao/` | sim | sim | `_public_demo_machine_allowed()` | não requer filtro de machine (requer `maquina_id` explícito) |
-| `GET /api/prescricoes/` | sim | sim | `_public_demo_machine_allowed()` | não requer filtro de machine (requer `maquina_id` explícito) |
-| `GET /api/prescricoes/lista/` | sim | sim | `_public_demo_machine_allowed()` → retorna `[]` | não requer filtro de machine (requer `maquina_id` explícito) |
-| `GET /api/prescricoes/<maquina_id>/` | sim | sim | `_demo_machine_allowed()` em `views_prescricao.py` | não requer filtro de machine (requer `maquina_id` explícito) |
-| `GET /api/colheitadeira/` | sim | sim | `ColheitadeiraViewSet.get_queryset()` filtra `machine__is_demo=True` | `DemoModeIsolamentoEndpointsTest` |
-
-**Endpoints que não filtram por `machine__is_demo` diretamente** (anomalias, manutencao, prescricoes): recebem `maquina_id` como parâmetro obrigatório e verificam via `_public_demo_machine_allowed()` / `get_machine_for_request()` se a machine existe e é demo. O isolamento é garantido pela verificação de acesso, não por filtro de queryset — comportamento correto para endpoints que operam sobre uma única máquina.
-
-**Escrita com DEMO_MODE=True (sem token):**
-
-- `POST /api/colheitadeira/` → 401/403 (validado por `PermissaoEscritaEmDemoModeTest`)
-- `POST /api/telemetria/` → 401 (X-API-Key obrigatória, independente de DEMO_MODE; validado por `DemoModeEscritaBloqueadaTest`)
-- `PATCH /api/decisions/<id>/` → 401/403 (validado por `DemoModeEscritaBloqueadaTest`)
-- Todos os outros POST/PUT/PATCH/DELETE → 401/403 (validado por `PermissaoEscritaEmDemoModeTest`)
-
-**Filtro no banco, não pós-serialização:** confirmado. Nenhuma view consulta todos os dados e filtra em Python. O filtro `is_demo` é aplicado no queryset/SQL antes de qualquer serialização.
-
-**Nota sobre `DEMO_MODE` no ambiente de testes:** os testes usam `@override_settings(DEMO_MODE=True/False)` explícito em todos os cenários relevantes. O valor do `.env` local não interfere nos resultados.
+- `docs/RESULTADOS_VALIDACAO_COMERCIAL.md`, versão histórica anterior;
+- `docs/ROTEIRO_VALIDACAO_COMERCIAL.md`, elaborado para S9-T4;
+- referências comerciais em `docs/SEGURANCA.md`, `docs/faq_banca.md` e demais
+  documentos do repositório;
+- histórico Git do relatório e dos documentos relacionados;
+- arquivos do repositório em busca de fichas, convites, contatos, agendamentos,
+  atas e registros de recrutamento.
+
+O roteiro S9-T4 recomenda começar pelo processo atual e por episódios concretos,
+separando relato, evidência apresentada, interpretação, hipótese, contradição e
+desconhecido. Os três registros históricos foram produzidos antes desse roteiro
+e não podem ser reescritos retroativamente como se o tivessem seguido.
+
+Não há método de recrutamento, duração, consentimento, perguntas efetivamente
+realizadas ou fonte primária documentados para os três registros. Também não há
+canal de comunicação autorizado, destinatário identificado ou agendamento
+registrado para entrevistas adicionais nos arquivos examinados. Portanto, a
+busca adicional fica pendente de uma ação humana de recrutamento com autorização
+e registro adequado.
+
+## 2. Inventário consolidado
+
+| ID | Data/período | Perfil registrado | Estado do registro | Dor relatada no resumo | Sinal de pagamento | Limitação principal |
+|---|---|---|---|---|---|---|
+| INT-01 | 19/09/2026 | Especialista técnico, John Deere Brasil | Registro histórico parcial; conversa alegada, sem fonte primária anexada | Conectividade offline, frota legada e ausência de visão local durante o período sem rede | Nível 0, sem evidência de pagamento | Não há orçamento, processo de compra ou integração autorizada documentados. |
+| INT-02 | 19/09/2026 | Especialista técnico, Solinftec | Registro histórico parcial; conversa alegada, sem fonte primária anexada | Limite da cobertura mesh, necessidade de análise local e preocupação com duplicação na sincronização | Nível 0, sem evidência de pagamento | O valor de hardware citado é critério relatado, não compromisso de compra. |
+| INT-03 | 19/09/2026 | Especialista técnico, Case IH Brasil | Registro histórico parcial; conversa alegada, sem fonte primária anexada | Componentes sem cobertura do barramento, máquinas legadas, exportação e segurança no upload | Nível 0, sem evidência de pagamento | Não há comprovação de contato acionável com usina ou concessionária. |
+
+### Contagem sem duplicação
+
+Há três registros históricos com empresas/contextos distintos. Como a fonte
+primária não está disponível, a contagem auditável de entrevistas concluídas é
+zero. A contagem histórica registrada é três. Essas duas contagens não devem ser
+misturadas.
+
+## 3. Análise dos registros históricos
+
+### INT-01, contexto John Deere
+
+O resumo histórico relata uso do John Deere Operations Center e transmissão
+dependente de conectividade. Registra como problemas a perda de visibilidade em
+áreas sem cobertura, máquinas antigas sem acesso ao barramento CAN/J1939 e a
+necessidade de sincronizar dados acumulados quando o sinal retorna. Também
+registra um valor de impacto de R$ 5.000 a R$ 15.000 por hora de parada e a
+preferência relatada por uma indicação local de risco.
+
+Esses pontos são relatos preservados de um documento anterior, não métricas
+independentemente verificadas neste ciclo. O documento não informa perguntas,
+respostas literais, método de medição, duração ou autorização para uma etapa
+seguinte. Não há evidência de orçamento, compra, piloto aprovado ou integração
+com o JDOC.
+
+Classificação: sinal exploratório, força baixa para generalização de mercado.
+
+### INT-02, contexto Solinftec
+
+O resumo histórico relata dependência de infraestrutura de rádio/mesh em parte
+das operações, perda de visibilidade fora da cobertura e interesse relatado em
+processamento local com classificação NORMAL, ATENÇÃO ou CRÍTICO. Também registra
+preocupação com duplicação de pacotes e UUID durante a ressincronização, além de
+um limite de hardware abaixo de R$ 500 por máquina.
+
+O limite de custo é um critério relatado no resumo, não uma cotação, orçamento ou
+disposição de pagar. Não há fonte primária para verificar contexto, autoria,
+perguntas ou autorização de continuidade. Também não há comprovação de
+compatibilidade com a infraestrutura Solinftec.
+
+Classificação: sinal exploratório, força baixa para generalização de mercado.
+
+### INT-03, contexto Case IH
+
+O resumo histórico relata limitações de visibilidade remota em máquinas legadas,
+componentes que não aparecem no barramento, demanda por dados brutos para
+processos de BI e preocupação com segurança do upload após períodos offline.
+Também registra a necessidade de considerar frotas mistas e sensores externos.
+
+O caso de uma usina em Araçatuba/Clealco aparece como contexto mencionado no
+resumo. Isso não comprova uma conversa com a usina, uma autorização de contato,
+uma integração ou uma demanda representativa de outras usinas. Não há registro
+de orçamento, piloto aprovado ou processo de compra.
+
+Classificação: sinal exploratório, força baixa para generalização de mercado.
+
+## 4. Níveis de disposição de pagamento
+
+Critério usado nesta consolidação:
+
+- **Nível 0, sem evidência:** pagamento não investigado ou sem registro suficiente;
+- **Nível 1, interesse verbal:** interesse declarado sem critério econômico concreto;
+- **Nível 2, processo de compra identificado:** orçamento, aprovador, critérios ou condições econômicas documentados;
+- **Nível 3, compromisso concreto:** avaliação técnica autorizada, piloto formal, processo de aquisição ou negociação real documentada.
+
+Os três registros ficam no Nível 0. Há referências a custos de parada, teto de
+hardware e critérios técnicos de piloto, mas nenhum desses itens prova que uma
+organização esteja disposta a pagar pelo FieldNode. Não há evidência suficiente
+nem para atribuir Nível 1 com segurança.
+
+## 5. Matriz das hipóteses comerciais
+
+| Hipótese | Evidência favorável nos registros | Evidência contrária ou lacuna | Perfis e n | Qualidade | Conclusão provisória | Próximo teste |
+|---|---|---|---|---|---|---|
+| H1. Dados atrasados ou fragmentados prejudicam decisões | Os três resumos relatam perda de visibilidade fora de celular, mesh ou Wi-Fi. | Sem fonte primária, episódio operacional e frequência verificáveis. | Especialistas técnicos; 3 registros históricos, 0 entrevistas auditáveis | Baixa | Parcialmente apoiada como hipótese exploratória | Entrevistar gestor de frota e supervisor sobre um caso recente e tempo até a ação. |
+| H2. Dados de marcas diferentes são uma dor relevante | INT-01 e INT-03 mencionam frotas legadas/mistas e INT-03 menciona exportação para BI. | Não há usuários finais nem medida de retrabalho, atraso ou custo de integração. | Especialistas técnicos; 2 registros históricos relevantes | Baixa | Parcialmente apoiada | Entrevistar operação multi-marca e tecnologia da usina separadamente. |
+| H3. Painel unificado agrega valor sobre ferramentas existentes | Os resumos mencionam pontos cegos e múltiplas plataformas. | Não há comparação de decisão, uso contínuo, preferência por painel ou autorização de piloto. | Especialistas técnicos; n não verificável | Baixa | Inconclusiva | Perguntar quando uma fonte adicional mudaria uma decisão e quando não valeria o custo. |
+| H4. Confiabilidade dos alertas determina adoção | Há preocupação relatada com classificação local, sincronização e segurança. | Não há teste de precisão, falso positivo, falso negativo ou critério de confiança. | Especialistas técnicos; n não verificável | Baixa | Inconclusiva | Investigar alertas ignorados, evidência necessária e consequências de erro. |
+| H5. Paradas têm impacto que justifica solução de apoio | Os resumos citam R$ 5.000–15.000/hora e risco de incêndio. | Valores não têm fonte de medição anexada; não há comprador ou orçamento vinculado. | Especialistas técnicos; 3 registros históricos | Baixa | Parcialmente apoiada como relato, não como prova econômica | Solicitar episódio recente, unidade de medida, registro e decisão tomada. |
+| H6. Existe disposição concreta de pagar | Nenhuma evidência documental de compra, orçamento ou compromisso. | Nível 0 para os três registros. | n=0 com sinal de pagamento verificável | Não evidenciada | Não investigada de forma suficiente | Mapear orçamento, aprovador e próximo passo autorizado com usuários compradores. |
+| H7. Existem condições para acessar os dados necessários | São citados JDOC, Alice, AFS Connect, sensores externos e exportação. | Não há autorização, contrato, API aprovada, permissões ou teste em equipamento físico. | Especialistas técnicos; n não verificável | Baixa | Inconclusiva | Entrevistar tecnologia sobre permissões, formatos, contratos e requisitos de segurança. |
+| H8. Recomendação baseada em dados seria aceita no fluxo real | Há relatos de valor para alertas locais e classificação de risco. | Não há observação de fluxo real, responsável operacional ou decisão efetivamente tomada. | Especialistas técnicos; n não verificável | Baixa | Inconclusiva | Observar ou reconstruir com supervisor/manutenção uma decisão real, sem apresentar solução antes. |
+
+“Parcialmente apoiada” aqui significa apenas que os registros contêm sinais
+compatíveis com a hipótese. Não significa validação de mercado.
+
+## 6. Dor principal: resultado provisório
+
+O tema que aparece com maior consistência nos três resumos é a disponibilidade
+de dados durante períodos sem conectividade, acompanhada por alertas locais e
+sincronização posterior. Isso aponta mais diretamente para a categoria **E,
+disponibilidade e qualidade dos dados**, com relação às categorias **B,
+confiabilidade de alertas**, e **A, integração multi-marca**.
+
+Não é metodologicamente defensável declarar integração multi-marca como dor
+dominante. A amostra é pequena, concentrada em especialistas técnicos, sem
+entrevistas auditáveis com quem opera, mantém ou compra. O resultado correto é:
+
+> categoria mais recorrente nos registros históricos: disponibilidade de dados
+> offline; dor dominante de mercado: inconclusiva.
+
+## 7. Concorrentes, sistemas e alternativas
+
+John Deere Operations Center, Alice/Solinftec e AFS Connect/Case IH aparecem
+como sistemas ou contextos atribuídos aos registros históricos. A simples
+menção não prova insatisfação, inferioridade, intenção de substituição ou espaço
+comercial para o FieldNode.
+
+O material disponível sugere uma hipótese de coexistência ou complementação em
+cenários offline, legados e multi-marca. Não comprova que os fabricantes ou
+usinas aceitariam uma integração, nem que o FieldNode deveria substituir
+plataformas nativas.
+
+## 8. Limitações e pendências de coleta
+
+- três registros históricos no documento anterior, todos do mesmo período;
+- nenhuma ficha, transcrição, gravação ou evidência primária anexada;
+- ausência de gestor de frota, manutenção, supervisor de colheita, operador e
+  analista de tecnologia da usina com registro verificável;
+- método de recrutamento, taxa de resposta, duração e consentimento não
+  registrados;
+- ausência de contato acionável e de autorização documentada para novas
+  abordagens;
+- ausência de evidência de orçamento, piloto, compra ou compromisso comercial;
+- dependência de relatos sem verificação independente;
+- impossibilidade de generalizar para usinas, fabricantes ou mercado;
+- impossibilidade de estimar mercado, conversão, receita ou disposição de pagar;
+- diferenças entre o roteiro histórico e o roteiro S9-T4;
+- o caso de usina em MS/Araçatuba permanece contexto a investigar, não entrevista
+  adicional nem prova de mercado.
+
+## 9. Recomendações para a Semana 10
+
+1. Manter disponibilidade de dados offline como hipótese de trabalho, sem
+   apresentá-la como dor de mercado confirmada.
+2. Priorizar três entrevistas auditáveis com perfis diferentes: gestor de frota,
+   responsável por manutenção e supervisor de frente de colheita. Depois buscar
+   operador e tecnologia da usina para completar o contraste.
+3. Usar o roteiro S9-T4 sem apresentar o FieldNode antes de entender o processo
+   atual. Registrar episódio, frequência, impacto, fonte da métrica, alternativas
+   e casos contrários.
+4. Investigar compra separadamente: orçamento, aprovador, critério de piloto,
+   etapa autorizada e condição que faria a organização interromper o teste.
+5. Tratar integração multi-marca como hipótese aberta. Só priorizá-la acima de
+   confiabilidade de alertas, manutenção ou qualidade dos dados depois de ouvir
+   usuários diretamente afetados.
+6. Não usar demonstração técnica, suporte a dois fabricantes simulados,
+   execução de LLM ou teste do dashboard como substituto de validação comercial.
+
+## 10. Definition of Done desta consolidação
+
+- [x] Histórico comercial disponível no repositório investigado.
+- [x] Três registros antigos conciliados sem duplicação aparente.
+- [x] Registros históricos separados de entrevistas verificáveis.
+- [x] Hipóteses, dor provisória, pagamento e limitações consolidados.
+- [x] Ausência de contatos e de entrevistas adicionais registrada sem exposição de dados pessoais.
+- [x] Meta de 5–6 conversas marcada como não atingida.
+- [ ] Cinco ou seis conversas reais documentadas e classificadas.
+- [ ] Pelo menos três perfis operacionais representados por entrevistas verificáveis.
+- [ ] Evidência de processo de compra, piloto autorizado ou disposição concreta de pagar.
+
+## 11. Separação das evidências técnicas
+
+Testes de autenticação, isolamento de `DEMO_MODE`, endpoints, dashboard, IA,
+telemetria e exportação pertencem à validação técnica do produto. Eles não foram
+usados para aumentar a contagem de entrevistas nem para inferir disposição de
+pagamento. As evidências técnicas continuam nos documentos e testes próprios do
+repositório.
