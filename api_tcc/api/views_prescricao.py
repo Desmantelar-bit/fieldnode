@@ -64,7 +64,20 @@ class PrescricaoView(APIView):
         try:
             resultado = analisar_maquina(maquina_id)
             metricas_seguras = _valor_json_seguro(resultado.metricas)
-            decision = persistir_decision_da_analise(resultado)
+            machine = Machine.objects.get(external_code=maquina_id.strip().upper())
+            decision = (
+                Decision.objects.filter(
+                    machine=machine,
+                    event__isnull=False,
+                    event__status="ABERTO",
+                    status=Decision.Status.PENDENTE,
+                )
+                .select_related("event")
+                .order_by("-criado_em")
+                .first()
+            )
+            if decision is None:
+                decision = persistir_decision_da_analise(resultado)
             agentic_decision = (
                 Decision.objects.filter(
                     machine=decision.machine,

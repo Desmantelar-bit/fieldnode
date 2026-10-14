@@ -1,0 +1,42 @@
+{
+  "ensaio": "ENSAIO-01",
+  "timestamp_utc": "2026-10-14T19:06:48.437018+00:00",
+  "ambiente": "Docker Compose (MySQL 8, Django Gunicorn, Mosquitto, Next.js)",
+  "telemetria": {
+    "status": "preparado_para_aprovacao_humana",
+    "reading_id": "500c5ab7-b9ed-4546-9b31-96e9dd283de1",
+    "message_id": "3e5476b7-306b-455d-9885-fa7fbcdd71ab",
+    "device_id": "COLH-01",
+    "sequence_number": 1,
+    "temperature": 115.0,
+    "outbox": {
+      "SINCRONIZADA": 1
+    },
+    "cursor": 1,
+    "analysis_status": "ATENCAO",
+    "decision_id": "da6285fe-6aab-4aa4-926f-6c697328e7c8",
+    "decision_status": "PENDENTE",
+    "next_step": "abrir a prescri��o no dashboard, autenticar e aprovar a Decision"
+  },
+  "aprovacao_ui": {
+    "usuario": "admin",
+    "rota": "/maquinas/COLH-01/prescricao",
+    "resultado_ui": "APROVADA",
+    "screenshot": "artifacts/s10/ensaio-01-dashboard.png",
+    "video": null
+  },
+  "verificacao_banco_mysql": {
+    "decision_id": "da6285fe-6aab-4aa4-926f-6c697328e7c8",
+    "decision_status": "APROVADA",
+    "decision_severidade": "CRITICO",
+    "decidido_por": "admin",
+    "decidido_em": "2026-10-14T19:06:43.592561+00:00",
+    "outcome_texto": "Ensaio 1: Aprovação realizada durante a demonstração oficial; intervenção mecânica não executada.",
+    "event_id": "1e133030-9499-4db8-8dae-cbf5c9961552",
+    "event_tipo": "ANOMALIA_ESTATISTICA",
+    "event_severidade": "CRITICO",
+    "event_status": "ABERTO",
+    "machine": "COLH-01"
+  },
+  "status_final_ensaio": "QUALIFICADO"
+}

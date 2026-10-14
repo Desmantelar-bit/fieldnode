@@ -381,6 +381,27 @@ Build do frontend com verificação de tipos:
 cd frontend-next && npm run build
 ```
 
+## Semana 10 - demonstração closed loop
+
+O roteiro reproduzível da banca está em [docs/ROTEIRO_DEMO_BANCA.md](docs/ROTEIRO_DEMO_BANCA.md). Ele usa o `EdgeClient` real em `scripts/s10_closed_loop_demo.py` e demonstra a cadeia:
+
+```text
+leitura -> trust_score -> Event -> Decision pendente -> aprovação humana -> outcome
+```
+
+O executor automatiza somente a parte de telemetria e consulta da Decision. A aprovação continua no dashboard autenticado; não existe atalho que altere o estado diretamente no banco. O material de perguntas técnicas está em [docs/INVESTOR_CTO_PRESSURE_TEST.md](docs/INVESTOR_CTO_PRESSURE_TEST.md).
+
+Para uma execução preparada no Compose:
+
+```powershell
+docker compose up --build -d
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py popular_tudo
+python scripts/s10_closed_loop_demo.py --device-id COLH-01 --machine-id COLH-01
+```
+
+O fluxo completo só é considerado validado depois de três ensaios Compose consecutivos com aprovação humana, outcome e rastreabilidade conferidos. Sem Docker Desktop ou sem a execução observada, o estado correto é **não verificado**, não “demo pronta”.
+
 ---
 
 ## Resiliência Offline
