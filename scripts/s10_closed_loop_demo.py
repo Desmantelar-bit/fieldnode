@@ -24,12 +24,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from simulators.edge_client import EdgeBuffer, EdgeClient, generate_payload
 
 
+try:
+    from decouple import config
+    DEFAULT_API_KEY = config("FIELDNODE_API_KEY", default=os.getenv("FIELDNODE_API_KEY", ""))
+    DEFAULT_AUTH_TOKEN = config("FIELDNODE_AUTH_TOKEN", default=os.getenv("FIELDNODE_AUTH_TOKEN", ""))
+except ImportError:
+    DEFAULT_API_KEY = os.getenv("FIELDNODE_API_KEY", "")
+    DEFAULT_AUTH_TOKEN = os.getenv("FIELDNODE_AUTH_TOKEN", "")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device-id", default=os.getenv("S10_DEVICE_ID", "COLH-01"))
     parser.add_argument("--api-url", default=os.getenv("FIELDNODE_API_URL", "http://127.0.0.1:8000/api") + "/telemetria/")
-    parser.add_argument("--api-key", default=os.getenv("FIELDNODE_API_KEY", ""))
-    parser.add_argument("--auth-token", default=os.getenv("FIELDNODE_AUTH_TOKEN", ""))
+    parser.add_argument("--api-key", default=DEFAULT_API_KEY)
+    parser.add_argument("--auth-token", default=DEFAULT_AUTH_TOKEN)
     parser.add_argument("--buffer-path", default=os.getenv("S10_BUFFER_PATH", "artifacts/s10/edge-buffer.db"))
     parser.add_argument("--temperature", type=float, default=115.0)
     parser.add_argument("--vibration", type=float, default=2.0)

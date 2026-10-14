@@ -145,18 +145,22 @@ class Command(BaseCommand):
                 rpm = random.randint(1300, 2300)
 
                 machine = Machine.objects.filter(external_code=maquina_id.strip().upper()).first()
+                # Lookup usa (device_id, message_id) — mesma chave da constraint
+                # unique_together no modelo. Isso garante idempotência: o comando
+                # pode ser executado múltiplas vezes sem IntegrityError.
+                msg_id = f'{maquina_id}-{j}'
                 leitura, created = LeituraTelemetria.objects.get_or_create(
-                    maquina_id=maquina_id,
-                    timestamp=ts,
+                    device_id=maquina_id,
+                    message_id=msg_id,
                     defaults={
+                        'maquina_id': maquina_id,
                         'temperatura': temp,
                         'vibracao': vib,
                         'rpm': rpm,
                         'latitude': lat,
                         'longitude': lng,
                         'machine': machine,
-                        'device_id': maquina_id,
-                        'message_id': f'{maquina_id}-{j}',
+                        'timestamp': ts,
                     },
                 )
                 if created:

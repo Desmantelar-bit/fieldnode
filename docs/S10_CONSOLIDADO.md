@@ -14,6 +14,8 @@
 | S9-T3 — PoC IA agentiva | `gerar_decisao_agentiva`, `test_agentic.py`, DLQ com contexto `AGENTIC_LLM` | VERIFICADO (código e testes) | Execução real contra Gemini não concluída: `GEMINI_API_KEY` vazia e sem `Event` elegível na base local; registrado em `S9-T3_AGENTIC_AI_POC.md` |
 | S9-T4 — Roteiro de validação comercial | `docs/ROTEIRO_VALIDACAO_COMERCIAL.md`, commit `12f2333` | VERIFICADO | Revisão pelo grupo não confirmada no repositório |
 | S9-T5 — Consolidação comercial | `docs/RESULTADOS_VALIDACAO_COMERCIAL.md`, commit `0993b3e` | VERIFICADO | Ver seção 2 |
+| S10-T1 — Closed Loop Demo e Gravação Oficial | Tríade de ensaios Compose, vídeo gravado, aprovação humana real | VERIFICADO (100%) | Documentado em `docs/S10_EXECUCOES.md` e `artifacts/s10/videos/` |
+| S10-T2 — Alinhamento Proposta TCC v5 e README | README, Proposta v5, auditoria de código, inspeção visual Word 16.0 | VERIFICADO (100%) | Homologado em `docs/REVISAO_CRUZADA_S10_T2.md` e `artifacts/s10/docx-render-v5/` |
 
 ### Ressalva S9-T2
 
