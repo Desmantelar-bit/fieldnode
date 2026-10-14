@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = ROOT / "artifacts" / "s10"
 VIDEOS_DIR = ARTIFACTS_DIR / "videos"
 
-API_KEY = "fieldnode-demo-2024"
-AUTH_TOKEN = "3956b2968d300ba9387c371c22ffdd5dd39462c4"
+API_KEY = os.environ.get("FIELDNODE_API_KEY", "")
+AUTH_TOKEN = os.environ.get("FIELDNODE_AUTH_TOKEN", "")
 MACHINE_ID = "COLH-01"
 DEVICE_ID = "COLH-01"
 
@@ -73,6 +73,12 @@ def execute_trial(trial_num: int) -> dict:
     print(f"\n=======================================================")
     print(f"  INICIANDO ENSAIO OFICIAL {trial_num:02d} / 03")
     print(f"=======================================================")
+
+    if not API_KEY or not AUTH_TOKEN:
+        raise RuntimeError(
+            "Defina FIELDNODE_API_KEY e FIELDNODE_AUTH_TOKEN no ambiente; "
+            "segredos não são mantidos no código."
+        )
 
     buffer_path = ARTIFACTS_DIR / f"buffer-trial-{trial_num:02d}.db"
     if buffer_path.exists():

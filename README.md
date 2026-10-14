@@ -350,7 +350,7 @@ nao e teoria, e so uma terca-feira ruim.
 ```bash
 curl -X POST http://127.0.0.1:8000/api/telemetria/ \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: 00000000-0000-4000-8000-000000000000" \
+  -H "X-API-Key: ${FIELDNODE_API_KEY}" \
   -d '{
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "maquina_id": "COLH-01",

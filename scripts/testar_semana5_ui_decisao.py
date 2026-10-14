@@ -7,9 +7,10 @@ Valida endpoints, tipos Zod e comportamento do modal.
 import requests
 import json
 import time
+import os
 
 API_URL = "http://127.0.0.1:8000/api"
-API_KEY = "00000000-0000-4000-8000-000000000000"
+API_KEY = os.environ.get("FIELDNODE_API_KEY", "")
 
 def test_prescricao_endpoint():
     """Testa se o endpoint de prescrição responde corretamente"""

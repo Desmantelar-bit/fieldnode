@@ -15,7 +15,7 @@ TOPICO = "fieldnode/COLH-01/leitura"
 MAQUINA_ID = "COLH-01"
 INTERVALO = 3  # segundos entre leituras
 API_URL = "http://127.0.0.1:8000/api/telemetria/"
-API_KEY = os.environ.get("FIELDNODE_API_KEY", "fieldnode-demo-2024")
+API_KEY = os.environ.get("FIELDNODE_API_KEY", "")
 
 
 def gerar_leitura(ciclo: int) -> dict:
