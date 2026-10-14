@@ -1,6 +1,10 @@
 # Semana 10 — Consolidado de estado do projeto
 
-**Data de referência:** 09/10/2026
+> **Veredito de encerramento:** ROADMAP DE 10 SEMANAS ENCERRADO COM PENDÊNCIAS.
+>
+> O escopo de software foi implementado e verificado como protótipo técnico demonstrável. Permanecem abertas a rotação de credenciais históricas, o ensaio oral humano, a validação comercial auditável, a integração de `CanonicalTelemetry`, a execução real do Gemini e a validação física em campo.
+
+**Data de referência:** 14/10/2026
 **Bloco de origem:** S9 (todas as tarefas)
 
 ---
