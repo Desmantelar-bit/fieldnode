@@ -1227,7 +1227,9 @@ Este adendo registra a comparação posterior com o backend presente na raiz do 
 ### Estrutura e execução
 
 - Backend mantido na raiz (`api_tcc/`); frontend integrado em `frontend-next/`.
-- A cópia `frontfieldnode/` permanece separada e não é usada pelo runtime principal.
+- A cópia histórica `frontfieldnode/` foi retirada da árvore do repositório em
+  15/10/2026. O conteúdo preservado para recuperação ficou fora do workspace;
+  o runtime e o controle de versão usam somente `frontend-next/`.
 - O Next encaminha `/api/*` usando `FIELDNODE_SERVER_API_URL`; o valor padrão em `next.config.ts` é `http://127.0.0.1:8000/api`.
 - Dependências Python e JavaScript permanecem separadas. Nenhuma migration ou dependência nova foi necessária.
 
