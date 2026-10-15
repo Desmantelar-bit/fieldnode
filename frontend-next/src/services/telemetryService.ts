@@ -44,7 +44,7 @@ export function resolveApiUrl(): string {
     const clientUrl =
       process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-    return normalizeApiUrl(clientUrl || "http://172.26.80.1:8000/api");
+    return normalizeApiUrl(clientUrl || "/api");
   }
 
   const configuredUrl =
