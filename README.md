@@ -50,12 +50,12 @@ sequenceDiagram
     API->>DB: UUID já existe?
     alt duplicata
         DB-->>API: sim
-        API-->>ESP: 200 duplicata ignorada
+        API-->>SOURCE: 200 duplicata ignorada
     else novo
         DB-->>API: não
         API->>DB: INSERT LeituraTelemetria
         API->>IA: agendar anomalias + estado + manutencao
-        API-->>ESP: 201 ok + id
+        API-->>SOURCE: 201 ok + id
     end
 ```
 
