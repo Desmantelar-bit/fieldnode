@@ -1,7 +1,13 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { ErrorState, EmptyState } from '@/components/EmptyState';
-import { AnalisePrescricaoSchema } from '@/schemas';
-import { resolveApiUrl } from '@/services/telemetryService';
+import { LoadingState } from '@/components/ui/FeedbackStates';
+import { StatusBadge, riskTone } from '@/components/StatusBadge';
+import { telemetryService } from '@/services/telemetryService';
+import type { AnalisePrescricao } from '@/types/telemetry';
 
 function sourceLabel(source: string) {
   if (source === 'ia_generativa') return 'Explicação gerada por IA';
@@ -9,12 +15,37 @@ function sourceLabel(source: string) {
   return 'Recomendação determinística';
 }
 
-export default async function PrescricaoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: maquinaId } = await params;
+const sourceToneClass = {
+  NORMAL: 'border-[color:var(--status-normal)]/20 bg-[color:var(--status-normal)]/8 text-[color:var(--status-normal)]',
+  ATENCAO: 'border-[color:var(--status-atencao)]/20 bg-[color:var(--status-atencao)]/8 text-[color:var(--status-atencao)]',
+  CRITICO: 'border-[color:var(--status-critico)]/20 bg-[color:var(--status-critico)]/8 text-[color:var(--status-critico)]',
+} as const;
+
+type PrescriptionState =
+  | { status: 'loading' }
+  | { status: 'success'; data: AnalisePrescricao }
+  | { status: 'error'; message: string };
+
+export default function PrescricaoPage() {
+  const params = useParams<{ id: string }>();
+  const maquinaId = params?.id ?? '';
+  const [state, setState] = useState<PrescriptionState>({ status: 'loading' });
+
+  useEffect(() => {
+    let active = true;
+    setState({ status: 'loading' });
+    telemetryService.getAnalisePrescricao(maquinaId).then((data) => {
+      if (active) setState({ status: 'success', data });
+    }).catch((error: unknown) => {
+      if (active) {
+        setState({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Erro desconhecido',
+        });
+      }
+    });
+    return () => { active = false; };
+  }, [maquinaId]);
 
   if (!maquinaId) {
     return (
@@ -24,50 +55,64 @@ export default async function PrescricaoPage({
     );
   }
 
-  try {
-    const response = await fetch(
-      `${resolveApiUrl()}/prescricoes/${encodeURIComponent(maquinaId)}/`,
-      { cache: 'no-store', headers: { Accept: 'application/json' } },
-    );
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const parsed = AnalisePrescricaoSchema.safeParse(await response.json());
-    if (!parsed.success) throw new Error('Resposta da análise em formato inesperado.');
-    const analise = parsed.data;
-    const texto = analise.explicacao_operador || analise.recomendacao_tecnica || 'Nenhuma ação necessária.';
-
+  if (state.status === 'loading') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
-        <div className="space-y-6">
+        <LoadingState mensagem="Carregando recomendação..." />
+      </AppShell>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <ErrorState title="Não consegui carregar a prescrição." message={`${state.message} — tente novamente.`} />
+      </AppShell>
+    );
+  }
+
+  const analise = state.data;
+  const texto = analise.explicacao_operador || analise.recomendacao_tecnica || 'Nenhuma ação necessária.';
+
+  return (
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <div className="space-y-5">
           <div>
-            <h2 className="text-2xl font-bold text-slate-50">Prescrição para {maquinaId}</h2>
-            <p className="mt-1 text-sm text-slate-400">Recomendação operacional baseada na telemetria atual.</p>
+            <h2 className="text-xl font-bold text-[var(--text-1)]">
+              Prescrição para {maquinaId}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-3)]">
+              Recomendação operacional baseada na telemetria atual.
+            </p>
           </div>
 
-          <section className="glass-panel rounded-lg border border-white/10 bg-white/[0.02] p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-slate-100">Status: {analise.status}</span>
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+          <section className="metric-card border border-[var(--line)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <StatusBadge tone={riskTone(analise.status)}>
+                {analise.status}
+              </StatusBadge>
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${sourceToneClass[analise.status]}`}>
                 {sourceLabel(analise.fonte_explicacao)}
               </span>
             </div>
-            <p className="mt-4 text-base font-medium leading-relaxed text-slate-100">{texto}</p>
+
+            <p className="mt-4 text-sm font-medium leading-relaxed text-[var(--text-1)]">
+              {texto}
+            </p>
+
             {analise.recomendacao_tecnica && (
-              <p className="mt-3 text-sm text-slate-300">Conduta técnica: {analise.recomendacao_tecnica}</p>
+              <p className="mt-3 text-xs text-[var(--text-2)]">
+                Conduta técnica: {analise.recomendacao_tecnica}
+              </p>
             )}
+
             {analise.motivos.length > 0 && (
-              <p className="mt-3 text-sm text-slate-400">Motivos: {analise.motivos.join('; ')}.</p>
+              <p className="mt-2 text-xs text-[var(--text-3)]">
+                Motivos: {analise.motivos.join('; ')}.
+              </p>
             )}
           </section>
         </div>
       </AppShell>
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erro desconhecido';
-    return (
-      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
-        <ErrorState title="Não consegui carregar a prescrição." message={`${message} — tente novamente.`} />
-      </AppShell>
-    );
-  }
+  );
 }

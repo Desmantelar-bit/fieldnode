@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 BROKER = os.getenv('MQTT_BROKER', 'localhost')
 PORT = int(os.getenv('MQTT_PORT', '1883'))
 API_URL = os.getenv('FIELDNODE_API_URL', 'http://127.0.0.1:8000/api/telemetria/')
-API_KEY = os.getenv('FIELDNODE_API_KEY', '00000000-0000-4000-8000-000000000000')
+API_KEY = os.getenv('FIELDNODE_API_KEY', '')
 DEMO_CYCLES = int(os.getenv('DEMO_CYCLES', '0'))
 
 DEMO_ROUTE = [
@@ -153,6 +153,8 @@ def loop_fallback_api():
         time.sleep(2)
 
 def main():
+    if not API_KEY:
+        raise RuntimeError('Defina FIELDNODE_API_KEY no ambiente antes de executar o simulador.')
     client = mqtt.Client()
     
     try:

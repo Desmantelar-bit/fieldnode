@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/**/*.{js,ts,jsx,tsx,mdx}',
     './src/lib/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,7 +10,7 @@ const config: Config = {
     extend: {
       colors: {
         base: {
-          950: '#0B0E14',
+          950: 'var(--background)',
         },
         field: {
           bg: 'var(--background)',
@@ -31,14 +32,10 @@ const config: Config = {
           critico: 'var(--status-critico)',
           neutro: 'var(--status-neutro)',
         },
-        // accent: identidade visual de interface (navegacao, foco, botoes primarios)
-        // semanticamente independente de --status-normal
         accent: {
           DEFAULT: 'var(--ui-accent)',
           dim: 'var(--panel-glass-strong)',
           text: 'var(--text-1)',
-          lime: '#CCFF00',
-          orange: '#FF5E00',
         },
       },
       backdropBlur: {
@@ -46,34 +43,34 @@ const config: Config = {
       },
       borderRadius: {
         none: '0',
-        sm: '0',
-        DEFAULT: '0',
-        md: '0',
-        lg: '0',
-        xl: '0',
-        '2xl': '0',
-        '3xl': '0',
-        '4xl': '2rem',
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '12px',
+        xl: '16px',
+        '2xl': '20px',
+        '3xl': '24px',
+        '4xl': '32px',
+        full: '9999px',
       },
       boxShadow: {
         glass: 'var(--shadow-glass)',
-      },
-      spacing: {
-        1: 'var(--space-1)',
-        2: 'var(--space-2)',
-        3: 'var(--space-3)',
-        4: 'var(--space-4)',
-        6: 'var(--space-6)',
-        8: 'var(--space-8)',
+        card: '0 1px 3px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)',
+        'card-hover': '0 4px 24px rgba(0,0,0,0.18)',
       },
       fontFamily: {
-        sans: ['Inter', 'SF Pro Display', 'sans-serif'],
-        mono: 'var(--font-code)',
+        display: ['var(--font-display)', 'sans-serif'],
+        body: ['var(--font-body)', 'sans-serif'],
+        sans: ['var(--font-body)', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       letterSpacing: {
-        label: 'var(--tracking-label)',
-        title: 'var(--tracking-title)',
-        tightest: '-.04em',
+        label: '0.06em',
+        title: '-0.01em',
+        tightest: '-0.04em',
+      },
+      transitionDuration: {
+        DEFAULT: '150ms',
       },
     },
   },

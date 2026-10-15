@@ -3,11 +3,14 @@ import paho.mqtt.client as mqtt
 import json
 import time
 import requests
+import os
 from threading import Thread
 from random import randint
 
 BROKER='localhost'
 PORT=1883
+HEALTH_URL=os.getenv('FIELDNODE_HEALTH_URL', 'http://127.0.0.1:8000/api/health/')
+API_KEY=os.getenv('FIELDNODE_API_KEY', '')
 MACHINES=[f'ST{i:03d}' for i in range(1,9)]
 INTERVALO=2
 DURATION=30*60
@@ -23,9 +26,11 @@ def mon():
     while True:
         try:
             s=time.time()
-            requests.get('http://127.0.0.1:8000/api/status-maquinas/',headers={'X-API-Key':'00000000-0000-4000-8000-000000000000'},timeout=3)
+            headers={'X-API-Key': API_KEY} if API_KEY else {}
+            requests.get(HEALTH_URL,headers=headers,timeout=3)
             lat.append((time.time()-s)*1000)
-        except:errors+=1
+        except requests.RequestException:
+            errors+=1
         time.sleep(30)
 def main():
     global sent

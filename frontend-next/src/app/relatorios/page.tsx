@@ -1,179 +1,170 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarRange, FileText, RefreshCw, Server, SlidersHorizontal } from 'lucide-react';
-import { BackButton } from '@/components/BackButton';
+import { CalendarRange, FileText, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { AppShell } from '@/components/AppShell';
 import { ReportPreview } from '@/components/ReportPreview';
-import { Sidebar } from '@/components/Sidebar';
 import { telemetryService, resolveApiUrl } from '@/services/telemetryService';
+import { handleUnauthorizedResponse } from '@/services/authService';
 import type { EstadoRequisicao } from '@/types/api';
 import type { Relatorio } from '@/types/telemetry';
 
 type MachineOption = { id: number; maquina_id: string; modelo: string; marca: string };
-
 type ExportState = 'idle' | 'loading' | 'error';
 
 const PERIOD_OPTIONS = [
-  { label: 'últimos 7 dias', value: 7 },
-  { label: 'últimos 15 dias', value: 15 },
-  { label: 'últimos 30 dias', value: 30 },
+  { label: 'Últimos 7 dias',  value: 7 },
+  { label: 'Últimos 15 dias', value: 15 },
+  { label: 'Últimos 30 dias', value: 30 },
 ];
 
 function downloadBlob(blob: Blob, machineId: string) {
-  const blobUrl = window.URL.createObjectURL(blob);
+  const url    = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = blobUrl;
+  anchor.href     = url;
   anchor.download = `fieldnode_relatorio_${machineId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 0);
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
 }
 
+const selectClass =
+  'min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--panel-glass-mid)] px-4 text-sm font-medium text-[var(--text-1)] outline-none transition hover:border-[var(--border-highlight)] focus:border-[color:var(--ui-accent)]/60 disabled:cursor-not-allowed disabled:opacity-50';
+
 export default function RelatoriosPage() {
-  const [estadoMaquinas, setEstadoMaquinas] = useState<EstadoRequisicao<MachineOption[]>>({ tipo: 'carregando' });
+  const [estadoMaquinas,  setEstadoMaquinas]  = useState<EstadoRequisicao<MachineOption[]>>({ tipo: 'carregando' });
   const [selectedMachine, setSelectedMachine] = useState('');
-  const [period, setPeriod] = useState(7);
+  const [period,          setPeriod]          = useState(7);
   const [estadoRelatorio, setEstadoRelatorio] = useState<EstadoRequisicao<Relatorio>>({ tipo: 'vazio' });
-  const [exportState, setExportState] = useState<ExportState>('idle');
+  const [exportState,        setExportState]        = useState<ExportState>('idle');
+  const [exportErrorMessage, setExportErrorMessage] = useState('');
 
   useEffect(() => {
     let active = true;
-
     telemetryService.getFleetStatus()
       .then((machines) => {
         if (!active) return;
         const options = machines
-          .filter((machine) => machine.maquina_id)
-          .map((machine) => ({
-            id: machine.id,
-            maquina_id: machine.maquina_id ?? '',
-            modelo: machine.modelo.nome,
-            marca: machine.modelo.marca.nome,
-          }));
+          .filter((m) => m.maquina_id)
+          .map((m) => ({ id: m.id, maquina_id: m.maquina_id ?? '', modelo: m.modelo.nome, marca: m.modelo.marca.nome }));
         setEstadoMaquinas(options.length ? { tipo: 'sucesso', dados: options } : { tipo: 'vazio' });
         setSelectedMachine(options[0]?.maquina_id ?? '');
       })
-      .catch((error: unknown) => {
-        if (active) {
-          setEstadoMaquinas({
-            tipo: 'erro',
-            mensagem: error instanceof Error ? error.message : 'não foi possível carregar a frota.',
-          });
-        }
+      .catch((err: unknown) => {
+        if (active) setEstadoMaquinas({ tipo: 'erro', mensagem: err instanceof Error ? err.message : 'Não foi possível carregar a frota.' });
       });
-
     return () => { active = false; };
   }, []);
 
-  const selectedMachineOption = estadoMaquinas.tipo === 'sucesso'
-    ? estadoMaquinas.dados.find((machine) => machine.maquina_id === selectedMachine)
-    : undefined;
-  const machineLabel = selectedMachineOption
-    ? `${selectedMachineOption.maquina_id} · ${selectedMachineOption.marca} ${selectedMachineOption.modelo}`
-    : selectedMachine || 'máquina selecionada';
-  const relatorio = estadoRelatorio.tipo === 'sucesso' ? estadoRelatorio.dados : null;
+  const selectedOption  = estadoMaquinas.tipo === 'sucesso' ? estadoMaquinas.dados.find((m) => m.maquina_id === selectedMachine) : undefined;
+  const machineLabel    = selectedOption ? `${selectedOption.maquina_id} · ${selectedOption.marca} ${selectedOption.modelo}` : selectedMachine || 'máquina selecionada';
+  const relatorio       = estadoRelatorio.tipo === 'sucesso' ? estadoRelatorio.dados : null;
 
   const handleGenerate = async () => {
     if (!selectedMachine) return;
     setEstadoRelatorio({ tipo: 'carregando' });
     try {
       const data = await telemetryService.getRelatorio({ machineId: selectedMachine, period });
-      if (data.status && data.status !== 'ok') {
-        throw new Error(data.detalhe || 'sem dados para o período selecionado.');
-      }
+      if (data.status && data.status !== 'ok') throw new Error(data.detalhe || 'Sem dados para o período selecionado.');
       setEstadoRelatorio({ tipo: 'sucesso', dados: data });
-    } catch (error) {
-      setEstadoRelatorio({
-        tipo: 'erro',
-        mensagem: error instanceof Error ? error.message : 'não foi possível gerar o relatório.',
-      });
+    } catch (err) {
+      setEstadoRelatorio({ tipo: 'erro', mensagem: err instanceof Error ? err.message : 'Não foi possível gerar o relatório.' });
     }
   };
 
   const handleExport = async () => {
     if (!selectedMachine || exportState === 'loading') return;
     setExportState('loading');
+    setExportErrorMessage('');
     try {
       const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(selectedMachine)}`;
-      const response = await fetch(url, { headers: { Accept: '*/*' } });
+      const headers = new Headers({ Accept: '*/*' });
+      if (typeof window !== 'undefined') {
+        try {
+          const token = localStorage.getItem('fn-auth-token');
+          if (token) headers.set('Authorization', `Token ${token}`);
+        } catch {
+          // storage unavailable
+        }
+      }
+      const response = await fetch(url, { headers });
+      handleUnauthorizedResponse(response);
+      if (response.status === 404 || response.status === 501) {
+        setExportErrorMessage('O endpoint de exportação de relatório (/api/relatorio/exportar/) ainda não está disponível no backend.');
+        setExportState('error');
+        return;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       downloadBlob(await response.blob(), selectedMachine);
       setExportState('idle');
     } catch {
+      setExportErrorMessage('Não foi possível preparar o arquivo. Verifique a conexão com a API e tente novamente.');
       setExportState('error');
     }
   };
 
   return (
-    <main className="min-h-screen bg-[image:var(--surface-page)] p-5 pb-28 text-field-text sm:p-8 sm:pb-32 lg:ml-28 lg:pb-12">
-      <Sidebar />
-      <BackButton />
+    <AppShell
+      active="/relatorios"
+      eyebrow="Inteligência operacional"
+      title="Relatórios"
+      description="Consolide telemetria, alertas e eficiência em uma leitura clara da operação."
+    >
 
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-8 pl-14 lg:pl-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">FieldNode / inteligência operacional</p>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-status-normal/20 bg-status-normal/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-status-normal">
-              <span className="h-1.5 w-1.5 rounded-full bg-status-normal shadow-[0_0_8px_var(--glow-normal-strong)]" /> dados locais
-            </span>
-          </div>
-          <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-title text-field-text1 sm:text-4xl">relatórios que dão contexto ao campo</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-field-text3 sm:text-base">Consolide telemetria, alertas e eficiência em uma leitura que serve tanto para a operação quanto para a banca. Sem planilha com cara de castigo.</p>
-        </header>
-
-        <section className="glass-panel mb-6 rounded-3xl p-4 sm:p-5" aria-labelledby="report-filters-title">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-accent">
-                <SlidersHorizontal aria-hidden="true" size={18} strokeWidth={1.8} />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-field-text3">configuração de leitura</p>
-                <h2 id="report-filters-title" className="mt-1 text-sm font-semibold text-field-text1">Escolha o recorte da operação</h2>
-              </div>
+        {/* Filtros */}
+        <section
+          className="metric-card mb-6"
+          aria-labelledby="report-filters-title"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--panel-glass-strong)] text-[color:var(--ui-accent)]">
+              <SlidersHorizontal size={16} strokeWidth={1.8} aria-hidden="true" />
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs text-field-text3">
-              <span className="inline-flex items-center gap-1.5"><Server aria-hidden="true" size={14} /> api django</span>
-              <span className="text-field-border">/</span>
-              <span className="inline-flex items-center gap-1.5"><CalendarRange aria-hidden="true" size={14} /> janela móvel</span>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-end">
-            <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-field-text3">
-              máquina
-              <select
-                id="report-machine-select"
-                name="machine"
-                value={selectedMachine}
-                onChange={(event) => {
-                  setSelectedMachine(event.target.value);
-                  setEstadoRelatorio({ tipo: 'vazio' });
-                }}
-                disabled={estadoMaquinas.tipo !== 'sucesso'}
-                className="min-h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-medium normal-case tracking-normal text-field-text1 outline-none transition hover:border-white/20 focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+            <div>
+              <h2
+                id="report-filters-title"
+                className="text-sm font-bold text-[var(--text-1)]"
               >
-                {estadoMaquinas.tipo === 'sucesso' && estadoMaquinas.dados.map((machine) => (
-                  <option key={machine.id} value={machine.maquina_id} className="bg-slate-950 text-white">{machine.maquina_id} · {machine.marca} {machine.modelo}</option>
+                Configurar leitura
+              </h2>
+              <p className="text-[10px] text-[var(--text-3)]">
+                Selecione máquina e período
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_11rem_auto] md:items-end">
+            <label className="grid gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                Máquina
+              </span>
+              <select
+                value={selectedMachine}
+                onChange={(e) => { setSelectedMachine(e.target.value); setEstadoRelatorio({ tipo: 'vazio' }); }}
+                disabled={estadoMaquinas.tipo !== 'sucesso'}
+                className={selectClass}
+              >
+                {estadoMaquinas.tipo === 'sucesso' && estadoMaquinas.dados.map((m) => (
+                  <option key={m.id} value={m.maquina_id}>
+                    {m.maquina_id} · {m.marca} {m.modelo}
+                  </option>
                 ))}
               </select>
             </label>
 
-            <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-field-text3">
-              período
+            <label className="grid gap-1.5">
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                <CalendarRange size={11} aria-hidden="true" /> Período
+              </span>
               <select
-                id="report-period-select"
-                name="period"
                 value={period}
-                onChange={(event) => {
-                  setPeriod(Number(event.target.value));
-                  setEstadoRelatorio({ tipo: 'vazio' });
-                }}
-                className="min-h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-medium normal-case tracking-normal text-field-text1 outline-none transition hover:border-white/20 focus:border-accent/60"
+                onChange={(e) => { setPeriod(Number(e.target.value)); setEstadoRelatorio({ tipo: 'vazio' }); }}
+                className={selectClass}
               >
-                {PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-slate-950 text-white">{option.label}</option>)}
+                {PERIOD_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
               </select>
             </label>
 
@@ -181,46 +172,63 @@ export default function RelatoriosPage() {
               type="button"
               onClick={handleGenerate}
               disabled={!selectedMachine || estadoRelatorio.tipo === 'carregando'}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-bold text-slate-950 shadow-[0_0_24px_var(--glow-normal)] transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+              className="btn-brand inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ui-accent)] disabled:cursor-not-allowed"
             >
-              <RefreshCw aria-hidden="true" className={estadoRelatorio.tipo === 'carregando' ? 'animate-spin' : ''} size={16} />
-              {estadoRelatorio.tipo === 'carregando' ? 'gerando...' : 'gerar leitura'}
+              <RefreshCw
+                size={15}
+                aria-hidden="true"
+                className={estadoRelatorio.tipo === 'carregando' ? 'animate-spin' : ''}
+              />
+              {estadoRelatorio.tipo === 'carregando' ? 'Gerando...' : 'Gerar leitura'}
             </button>
           </div>
         </section>
 
+        {/* Estados de carregamento / erro / vazio */}
         {estadoMaquinas.tipo === 'carregando' && (
-          <div className="glass-panel animate-pulse rounded-3xl p-6 sm:p-8" aria-label="carregando lista de máquinas">
-            <div className="h-4 w-32 rounded-full bg-white/10" />
-            <div className="mt-4 h-10 max-w-md rounded-2xl bg-white/10" />
-            <div className="mt-8 grid gap-4 sm:grid-cols-3"><div className="h-28 rounded-2xl bg-white/10" /><div className="h-28 rounded-2xl bg-white/10" /><div className="h-28 rounded-2xl bg-white/10" /></div>
+          <div className="metric-card animate-pulse" aria-label="Carregando lista de máquinas">
+            <div className="h-3 w-28 rounded-full bg-[var(--panel-glass-strong)]" />
+            <div className="mt-4 h-10 max-w-sm rounded-xl bg-[var(--panel-glass-strong)]" />
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-[var(--panel-glass-mid)]" />)}
+            </div>
           </div>
         )}
 
         {estadoMaquinas.tipo === 'erro' && (
-          <div className="glass-panel rounded-3xl border-status-critico/30 p-6 text-sm text-status-critico" role="alert">
-            <div className="flex items-center gap-3"><FileText aria-hidden="true" size={18} /><p>não consegui carregar a frota. {estadoMaquinas.mensagem}</p></div>
+          <div className="metric-card border border-[color:var(--status-critico)]/20 bg-[color:var(--status-critico)]/5" role="alert">
+            <p className="text-sm text-[color:var(--status-critico)]">
+              Não foi possível carregar a frota. {estadoMaquinas.mensagem}
+            </p>
           </div>
         )}
 
         {estadoMaquinas.tipo === 'vazio' && (
-          <div className="glass-panel rounded-3xl p-8 text-center text-sm text-field-text3">
-            nenhuma máquina cadastrada para gerar relatórios.
+          <div className="metric-card py-10 text-center text-sm text-[var(--text-3)]">
+            Nenhuma máquina cadastrada para gerar relatórios.
           </div>
         )}
 
         {estadoMaquinas.tipo === 'sucesso' && estadoRelatorio.tipo === 'erro' && (
-          <div className="glass-panel rounded-3xl border-status-critico/30 p-6 text-sm text-status-critico" role="alert">
-            não consegui gerar esta leitura. {estadoRelatorio.mensagem}
+          <div className="metric-card mb-4 border border-[color:var(--status-critico)]/20 bg-[color:var(--status-critico)]/5" role="alert">
+            <p className="text-sm text-[color:var(--status-critico)]">
+              Não foi possível gerar esta leitura. {estadoRelatorio.mensagem}
+            </p>
           </div>
         )}
 
         {estadoMaquinas.tipo === 'sucesso' && estadoRelatorio.tipo === 'vazio' && (
-          <div className="glass-panel rounded-3xl p-8 sm:p-12">
-            <div className="mx-auto max-w-xl text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-accent/10 text-accent"><FileText aria-hidden="true" size={23} /></div>
-              <p className="mt-5 text-lg font-semibold text-field-text1">o relatório ainda está em branco</p>
-              <p className="mt-2 text-sm leading-relaxed text-field-text3">Selecione uma máquina, escolha a janela de análise e gere o consolidado. O botão não morde, prometo.</p>
+          <div className="metric-card py-12">
+            <div className="mx-auto max-w-sm text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--panel-glass-strong)] text-[color:var(--ui-accent)]">
+                <FileText size={20} aria-hidden="true" />
+              </div>
+              <p className="mt-4 text-base font-bold text-[var(--text-1)]">
+                Relatório em branco
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-3)]">
+                Selecione uma máquina, escolha a janela de análise e gere o consolidado.
+              </p>
             </div>
           </div>
         )}
@@ -233,10 +241,13 @@ export default function RelatoriosPage() {
               onExport={handleExport}
               exporting={exportState === 'loading'}
             />
-            {exportState === 'error' && <p className="mt-3 text-center text-xs text-status-critico" role="alert">não foi possível preparar o arquivo xlsx agora. confira a conexão com a API e tente novamente.</p>}
+            {exportState === 'error' && (
+              <p className="mt-3 text-center text-xs text-[color:var(--status-critico)]" role="alert">
+                {exportErrorMessage || 'Não foi possível preparar o arquivo. Verifique a conexão com a API e tente novamente.'}
+              </p>
+            )}
           </>
         )}
-      </div>
-    </main>
+    </AppShell>
   );
 }

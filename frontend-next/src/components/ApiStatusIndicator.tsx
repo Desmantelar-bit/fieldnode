@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { resolveApiUrl } from '@/services/telemetryService';
+import { handleUnauthorizedResponse } from '@/services/authService';
 
 const API_URL = resolveApiUrl();
 
@@ -9,45 +10,72 @@ export function ApiStatusIndicator() {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
-    let isActive = true;
+    let active = true;
 
-    async function verificarAPI() {
+    async function check() {
       try {
+        const headers = new Headers({ Accept: 'application/json' });
+        if (typeof window !== 'undefined') {
+          try {
+            const token = localStorage.getItem('fn-auth-token');
+            if (token) headers.set('Authorization', `Token ${token}`);
+          } catch {
+            // storage unavailable
+          }
+        }
+
         const res = await fetch(`${API_URL}/health/`, {
           signal: AbortSignal.timeout(3000),
           cache: 'no-store',
+          headers,
         });
+        handleUnauthorizedResponse(res);
 
-        if (!res.ok) throw new Error('API Degradada');
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (active) setIsOnline(data.status === 'ok' || res.status === 200);
+          return;
+        }
 
-        const data = await res.json();
-        if (isActive) setIsOnline(data.status === 'ok');
+        // Se o endpoint /health/ não existe (404), verifica a raiz de telemetria
+        if (res.status === 404) {
+          const fallbackRes = await fetch(`${API_URL}/colheitadeira/`, {
+            method: 'HEAD',
+            signal: AbortSignal.timeout(3000),
+            cache: 'no-store',
+            headers,
+          }).catch(() => null);
+          if (fallbackRes) handleUnauthorizedResponse(fallbackRes);
+
+          if (active) {
+            // Qualquer resposta HTTP < 500 comprova que o backend está ativo e respondendo
+            setIsOnline(fallbackRes !== null && fallbackRes.status < 500);
+          }
+          return;
+        }
+
+        if (active) setIsOnline(false);
       } catch {
-        if (isActive) setIsOnline(false);
+        if (active) setIsOnline(false);
       }
     }
 
-    verificarAPI();
-
-    const intervalId = setInterval(verificarAPI, 15000);
-
-    return () => {
-      isActive = false;
-      clearInterval(intervalId);
-    };
+    check();
+    const id = setInterval(check, 15000);
+    return () => { active = false; clearInterval(id); };
   }, []);
 
   return (
-    <div className="flex w-fit items-center gap-2 rounded-full border border-white/10 bg-slate-900/50 px-3 py-1.5 backdrop-blur-md">
+    <div className="status-pill flex items-center gap-1.5 border px-2.5 py-1.5">
       <span
-        className={`h-2 w-2 rounded-full ${
+        className={`h-1.5 w-1.5 rounded-full ${
           isOnline
-            ? 'bg-status-normal shadow-[0_0_8px_rgba(204,255,0,0.5)]'
-            : 'animate-pulse bg-status-critico shadow-[0_0_8px_rgba(255,94,0,0.5)]'
+            ? 'bg-[color:var(--status-normal)] shadow-[0_0_6px_var(--glow-normal-strong)]'
+            : 'animate-pulse bg-[color:var(--status-critico)]'
         }`}
       />
-      <span className="text-xs uppercase tracking-label text-slate-400">
-        API {isOnline ? 'Online' : 'Offline'}
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
+        API {isOnline ? 'online' : 'offline'}
       </span>
     </div>
   );

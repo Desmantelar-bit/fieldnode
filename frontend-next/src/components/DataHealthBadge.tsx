@@ -1,6 +1,7 @@
-import type { Telemetry } from '@/types/telemetry';
-
-type DataHealth = NonNullable<Telemetry['data_health']>;
+type DataHealth = {
+  trust_score_medio?: number | null;
+  sinais_de_alerta?: { ultimos_motivos?: string[] };
+};
 type TrustTone = 'trusted' | 'unstable' | 'suspect' | 'unknown';
 
 const toneClasses: Record<TrustTone, string> = {
@@ -30,7 +31,7 @@ function tooltipText(dataHealth?: DataHealth | null) {
   }
 
   const score = Math.round(dataHealth.trust_score_medio * 100);
-  const motivos = dataHealth.sinais_de_alerta.ultimos_motivos || [];
+  const motivos = dataHealth.sinais_de_alerta?.ultimos_motivos || [];
   if (motivos.length === 0) {
     return `Trust Score medio ${score}%. Sem motivos recentes de alerta.`;
   }

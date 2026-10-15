@@ -13,10 +13,11 @@ export function PrescricaoButton({ machineId }: PrescricaoButtonProps) {
   return (
     <>
       <button
+        type="button"
         onClick={() => setShowModal(true)}
-        className="rounded-md bg-blue-900/30 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-900/50"
+        className="rounded-xl bg-[var(--panel-glass-mid)] px-3 py-2 text-xs font-semibold text-[var(--text-2)] transition hover:bg-[var(--panel-glass-strong)] hover:text-[var(--text-1)] active:scale-95"
       >
-        Ver Decisão
+        Decisão IA
       </button>
 
       <PrescricaoModal

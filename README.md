@@ -18,7 +18,7 @@ graph TD
     DB[("MySQL 8\nou SQLite")]
     IA["Análise operacional\n(regras + anomalias)"]
     NEXT["Next.js 15\n:3000"]
-    SW["Service Worker\n(cache + fila offline)"]
+    SW["Service Worker\n(cache + outbox local)"]
     USER["Navegador"]
 
     SOURCE -->|"MQTT publish"| MQTT
@@ -30,7 +30,7 @@ graph TD
     IA -->|"salva prescrição"| DB
     NEXT -->|"SSR + fetch"| API
     USER -->|"HTTP"| NEXT
-    SW -->|"fila offline"| API
+    SW -->|"reenvio same-origin; autorização pendente"| API
 ```
 
 ---
@@ -93,7 +93,7 @@ flowchart LR
 | Banco | MySQL 8 em Docker / SQLite em desenvolvimento |
 | Análise | Isolation Forest como sinal não supervisionado + regras/thresholds determinísticos |
 | Hardware e transporte | Simuladores MQTT e cliente Python de bancada; ESP32/ESP-NOW permanecem como integração física a validar |
-| Offline | Service Worker com fila de telemetria |
+| Offline | Outbox SQLite no cliente Python e fila local IndexedDB no Service Worker |
 | Docs API | Swagger em `/swagger/` |
 | Testes | Django TestCase + pytest |
 
@@ -109,7 +109,7 @@ flowchart LR
 - Trust Score heurístico e estado agregado de qualidade dos dados;
 - geração determinística de eventos e decisões persistentes, com aprovação ou rejeição por usuário autenticado e registro de outcome;
 - detecção de anomalias com Isolation Forest, usada como sinal complementar, e regras ponderadas para triagem operacional;
-- dashboard Next.js, Service Worker e fila de telemetria para reenvio após reconexão;
+- dashboard Next.js; Service Worker com cache de assets e fila local de telemetria, sem credenciais privilegiadas;
 - testes automatizados e artefatos de ensaio de resiliência documentados em `docs/PROTOCOLO_TESTE_RESILIENCIA_OFFLINE.md` e `artifacts/resilience/`.
 
 Essas evidências são de código, testes e bancada de software. A leitura usada nas demonstrações é simulada; isso não comprova sensor físico calibrado, operação em campo, execução mecânica ou resultado econômico.
@@ -340,7 +340,7 @@ Authorization: Token token-gerado-pelo-drf
 ```
 
 No frontend, o MVP guarda esse token em `localStorage` como
-`fieldnode_auth_token`. Isso e aceitavel para o TCC/prototipo, mas e uma
+`fn-auth-token`. Isso e aceitavel para o TCC/prototipo, mas e uma
 divida tecnica explicita: em producao, o ideal e migrar para cookie `httpOnly`
 com uma estrategia de CSRF adequada, porque XSS lendo token em `localStorage`
 nao e teoria, e so uma terca-feira ruim.
@@ -435,12 +435,40 @@ O fluxo completo só é considerado validado depois de três ensaios Compose con
 
 ## Resiliência Offline
 
-O Service Worker (`/public/sw.js`) intercepta chamadas de telemetria quando o dispositivo perde conexão e enfileira via `QUEUE_TELEMETRY`. Quando a rede volta, a fila é drenada automaticamente para `/api/telemetria/`. A deduplicação UUID no backend evita duplicatas em reenvios.
-
-O cliente Python também possui outbox SQLite e foi exercitado nos cenários documentados de resiliência. Isso é evidência de software/bancada: não comprova buffer físico de 30 dias, ESP32, ESP-NOW, autonomia ou operação em campo.
+O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém payloads offline em IndexedDB; respostas de `/api/` ficam na rede para não reutilizar dados autenticados entre sessões. A fila remove headers de credenciais e preserva itens quando a API rejeita a sincronização. O backend atual exige `X-API-Key` em `POST /api/telemetria/`, então o navegador não consegue concluir ingestão sem um contrato server-side seguro; a ingestão operacional é feita pelos clientes de dispositivo/borda. A outbox SQLite do cliente Python mantém retry, ACK e deduplicação. Isso é evidência de software/bancada: não comprova buffer físico de 30 dias, ESP32, ESP-NOW, autonomia ou operação em campo.
 
 ---
 
 ## Licença
 
 MIT
+
+## Estado da integracao do frontend
+
+O frontend integrado fica em `frontend-next/`. A rota `/register` permanece
+como interface informativa, mas o backend atual nao expoe endpoint de cadastro.
+O login usa `POST /api/auth/login/` e `Authorization: Token <token>`. O logout
+limpa a sessao local; nao ha endpoint DRF de revogacao ou verificacao de token.
+
+Para o proxy same-origin do Next, configure `FIELDNODE_SERVER_API_URL` no
+ambiente do servidor Next (por exemplo, `http://127.0.0.1:8000/api`). Nao use
+`NEXT_PUBLIC_FIELDNODE_API_KEY`: a chave `FIELDNODE_API_KEY` pertence somente
+ao backend/cliente de dispositivo e nunca deve ser incorporada ao bundle web.
+`NEXT_PUBLIC_API_URL` e opcional; quando aponta diretamente ao Django, o
+navegador precisa de CORS configurado para a origem real.
+
+O Service Worker nao armazena respostas de API. A fila IndexedDB persiste e
+tenta reenviar payloads sem armazenar API key/token; quando o backend rejeita a
+ingestao web, o item permanece pendente em vez de ser descartado. A sincronizacao
+web ainda depende de um contrato server-side autenticado; a ingestao operacional
+funcional permanece no cliente de borda, que possui outbox SQLite.
+
+Se `NEXT_PUBLIC_FIELDNODE_API_KEY` foi configurada em uma compilacao anterior,
+considere a chave correspondente exposta e rotacione `FIELDNODE_API_KEY` no
+backend/dispositivos. O Service Worker novo sanitiza headers em filas IndexedDB
+existentes sem remover os payloads pendentes.
+
+O contrato auditado da aplicacao de origem foi preservado em
+`docs/CONTRATO_FRONT_BACK_FRONTEND.md`. Ele registra expectativas do frontend
+e pendencias que ainda dependem de validacao funcional contra o backend. O
+adendo de integração e a matriz de compatibilidade estao no final desse arquivo.

@@ -1,14 +1,16 @@
 "use client";
 
 import dynamic from 'next/dynamic';
+import { MapPin } from 'lucide-react';
 
 const MapClient = dynamic(
   () => import('@/components/MapClient').then((mod) => mod.default),
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[calc(100vh-13rem)] min-h-[28rem] w-full items-center justify-center bg-black/20 text-sm text-slate-400 sm:h-[32rem]">
-        Carregando mapa...
+      <div className="flex h-72 w-full items-center justify-center gap-3 text-[var(--text-3)]">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-[color:var(--ui-accent)] border-t-transparent" />
+        <span className="text-xs font-semibold uppercase tracking-[0.1em]">Carregando mapa...</span>
       </div>
     ),
   }
@@ -16,14 +18,19 @@ const MapClient = dynamic(
 
 export function FleetMap() {
   return (
-    <section className="glass-panel overflow-hidden border border-white/10 bg-white/[0.02]">
-      <div className="border-b border-white/10 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-200">Posicao em campo</h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">
-          Ultima localizacao conhecida por maquina (update a cada leitura).
-        </p>
+    <section className="liquid-glass overflow-hidden">
+      <div className="flex items-center gap-2.5 border-b border-[var(--line)] px-4 py-3">
+        <MapPin size={14} className="text-[color:var(--ui-accent)]" aria-hidden="true" />
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--text-1)]">Posição em campo</h2>
+          <p className="text-[10px] text-[var(--text-3)]">
+            Última localização conhecida por máquina
+          </p>
+        </div>
       </div>
-      <MapClient />
+      <div className="relative h-[50vh] min-h-[28rem] sm:h-[60vh]">
+        <MapClient />
+      </div>
     </section>
   );
 }

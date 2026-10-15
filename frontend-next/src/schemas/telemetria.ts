@@ -1,37 +1,43 @@
 import { z } from 'zod';
 
-export const StatusRiscoSchema = z.object({
-  nivelCor: z.string().optional(),
-  nivelBg: z.string().optional(),
-  rotuloRisco: z.string().optional(),
-});
+function normalizeRiskLabel(value: string): string {
+  const normalized = value
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
 
-export const DataHealthSchema = z.object({
-  machine_id: z.string(),
-  external_code: z.string().nullable().optional(),
-  status: z.enum(['ok', 'sem_dados']).default('sem_dados'),
-  trust_score_medio: z.coerce.number().min(0).max(1).nullable(),
-  ultima_atualizacao: z.string().nullable(),
-  leituras_analisadas: z.coerce.number().default(0),
-  sinais_de_alerta: z
-    .object({
-      primeira_leitura: z.boolean().optional(),
-      gap_temporal: z.boolean().optional(),
-      timestamp_fora_de_ordem: z.boolean().optional(),
-      timestamp_indisponivel: z.boolean().optional(),
-      valores_repetidos: z.boolean().optional(),
-      limite_fisico: z.boolean().optional(),
-      salto_abrupto: z.boolean().optional(),
-      score_baixo: z.boolean().optional(),
-      contadores: z.record(z.coerce.number()).optional(),
-      ultimos_motivos: z.array(z.string()).optional(),
-    })
-    .catchall(z.unknown())
-    .default({}),
-});
+  if (normalized === 'CRITICO') return 'CRITICO';
+  if (normalized === 'ALERTA' || normalized === 'ATENCAO') return 'ATENCAO';
+  if (normalized === 'NORMAL') return 'NORMAL';
+  return value.trim();
+}
+
+export const StatusRiscoSchema = z.preprocess(
+  (val) => {
+    if (typeof val === 'string' && val.trim()) {
+      return { rotuloRisco: normalizeRiskLabel(val) };
+    }
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const record = val as Record<string, unknown>;
+      if (typeof record.rotuloRisco === 'string' && record.rotuloRisco.trim()) {
+        return { ...record, rotuloRisco: normalizeRiskLabel(record.rotuloRisco) };
+      }
+    }
+    return val;
+  },
+  z.object({
+    nivelCor: z.string().optional(),
+    nivelBg: z.string().optional(),
+    rotuloRisco: z.string().optional(),
+  }),
+);
 
 export const LeituraTelemetriaInputSchema = z.object({
   id: z.string().uuid().optional(),
+  device_id: z.string().min(1).optional(),
+  message_id: z.string().min(1).optional(),
+  sequence_number: z.coerce.number().int().nonnegative().optional(),
   maquina_id: z.string().min(1),
   temperatura: z.coerce.number(),
   vibracao: z.coerce.number(),
@@ -41,14 +47,27 @@ export const LeituraTelemetriaInputSchema = z.object({
   timestamp: z.string().min(1),
 });
 
-export const LeituraTelemetriaSchema = LeituraTelemetriaInputSchema.extend({
-  id: z.string().optional(),
-  status_risco: StatusRiscoSchema.optional(),
-  nivel_risco: z.string().optional(),
-  total_leituras: z.coerce.number().optional(),
-  recebido_em: z.string().optional(),
-  data_health: DataHealthSchema.nullable().optional(),
-});
+export const LeituraTelemetriaSchema = z.preprocess(
+  (val: unknown) => {
+    if (val && typeof val === 'object') {
+      const record = val as Record<string, unknown>;
+      if (!record.status_risco && typeof record.nivel_risco === 'string' && record.nivel_risco.trim()) {
+        return {
+          ...record,
+          status_risco: { rotuloRisco: record.nivel_risco.trim() },
+        };
+      }
+    }
+    return val;
+  },
+  LeituraTelemetriaInputSchema.extend({
+    id: z.string().optional(),
+    status_risco: StatusRiscoSchema.optional(),
+    nivel_risco: z.string().optional(),
+    total_leituras: z.coerce.number().optional(),
+    recebido_em: z.string().optional(),
+  }),
+);
 
 export const ListaLeiturasTelemetriaSchema = z.array(LeituraTelemetriaSchema);
 

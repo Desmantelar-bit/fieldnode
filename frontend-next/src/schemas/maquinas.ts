@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const NamedRefSchema = z.preprocess(
   (value) => {
+    if (typeof value === 'string' && value.trim()) return { nome: value.trim() };
     if (value && typeof value === 'object') return value;
     return { nome: 'Nao informado' };
   },
@@ -12,6 +13,9 @@ const NamedRefSchema = z.preprocess(
 
 const MachineModelSchema = z.preprocess(
   (value) => {
+    if (typeof value === 'string' && value.trim()) {
+      return { nome: value.trim(), marca: { nome: 'Marca nao informada' } };
+    }
     if (value && typeof value === 'object') return value;
     return { nome: 'Modelo nao informado', marca: { nome: 'Marca nao informada' } };
   },
@@ -43,15 +47,31 @@ const MovementStatusSchema = z.preprocess(
   }),
 );
 
-export const ColheitadeiraSchema = z.object({
-  id: z.coerce.number(),
-  ativo: z.boolean().optional(),
-  maquina_id: z.string().optional(),
-  modelo: MachineModelSchema,
-  operario: NamedRefSchema.default({ nome: 'Sem operador' }),
-  status_de_operacao: OperationStatusSchema,
-  estado_de_movimento: MovementStatusSchema,
-});
+export const ColheitadeiraSchema = z.preprocess(
+  (val: unknown) => {
+    if (val && typeof val === 'object') {
+      const copy = { ...(val as Record<string, unknown>) };
+      if (!copy.maquina_id && copy.id != null) {
+        copy.maquina_id = String(copy.id);
+      }
+      if (copy.id == null && copy.maquina_id != null) {
+        const num = Number(copy.maquina_id);
+        copy.id = Number.isFinite(num) ? num : 0;
+      }
+      return copy;
+    }
+    return val;
+  },
+  z.object({
+    id: z.coerce.number(),
+    ativo: z.boolean().optional(),
+    maquina_id: z.string().optional(),
+    modelo: MachineModelSchema,
+    operario: NamedRefSchema.default({ nome: 'Sem operador' }),
+    status_de_operacao: OperationStatusSchema,
+    estado_de_movimento: MovementStatusSchema,
+  }),
+);
 
 export const ListaColheitadeirasSchema = z.array(ColheitadeiraSchema);
 

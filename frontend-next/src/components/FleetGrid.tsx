@@ -1,55 +1,87 @@
+import Link from 'next/link';
+import { Clock, Gauge, MoveRight } from 'lucide-react';
 import type { Machine } from '@/types/telemetry';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
 
 export function FleetGrid({ machines }: { machines: Machine[] }) {
   if (machines.length === 0) {
-    return <EmptyState title="Nenhuma colheitadeira cadastrada ainda." message="Assim que a API listar máquinas, elas aparecem aqui. Por enquanto, o campo esta quieto demais." />;
+    return (
+      <EmptyState
+        title="Nenhuma máquina cadastrada ainda."
+        message="Assim que a API listar máquinas, elas aparecem aqui."
+      />
+    );
   }
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {machines.map((machine) => (
-        <article key={machine.id} className="glass-panel rounded-lg p-4 transition hover:border-accent/30 hover:bg-field-glass-strong sm:p-6">
+        <article
+          key={machine.id}
+          className="metric-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-glass)]"
+        >
+          {/* Cabeçalho */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-base font-semibold text-field-text1 sm:text-lg">{machine.modelo.nome}</h3>
-              <p className="text-sm text-field-text3">{machine.modelo.marca.nome}</p>
+              <p className="truncate text-base font-bold text-[var(--text-1)]">
+                {machine.modelo.nome}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--text-3)]">
+                {machine.modelo.marca.nome}
+              </p>
             </div>
-            <StatusBadge tone={machine.status_de_operacao.em_operacao ? 'normal' : 'muted'}>{machine.status_de_operacao.em_operacao ? 'Ativo' : 'Inativo'}</StatusBadge>
+            <StatusBadge tone={machine.status_de_operacao.em_operacao ? 'normal' : 'muted'}>
+              {machine.status_de_operacao.em_operacao ? 'Ativo' : 'Inativo'}
+            </StatusBadge>
           </div>
 
-          <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-field-text3 min-[420px]:grid-cols-2">
-            <div className="rounded-md border border-field-border bg-field-glass-mid p-3">
-              <dt>ID Maquina</dt>
-              <dd className="mt-1 truncate font-semibold text-field-text1 font-mono">{machine.maquina_id || machine.id}</dd>
+          {/* Dados — centralizados, com valores legíveis nos dois temas */}
+          <dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
+            <div className="data-tile p-3 text-center">
+              <dt className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                ID
+              </dt>
+              <dd className="mt-1 truncate font-mono font-semibold text-[var(--text-1)]">
+                {machine.maquina_id || machine.id}
+              </dd>
             </div>
-            <div className="rounded-md border border-field-border bg-field-glass-mid p-3">
-              <dt>Operario</dt>
-              <dd className="mt-1 truncate font-semibold text-field-text1">{machine.operario.nome}</dd>
+            <div className="data-tile p-3 text-center">
+              <dt className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                Operário
+              </dt>
+              <dd className="mt-1 truncate font-semibold text-[var(--text-1)]">
+                {machine.operario.nome}
+              </dd>
             </div>
-            <div className="rounded-md border border-field-border bg-field-glass-mid p-3">
-              <dt>Velocidade</dt>
-              <dd className="mt-1 font-semibold text-field-text1">{machine.estado_de_movimento.velocidade} km/h</dd>
+            <div className="data-tile p-3 text-center">
+              <dt className="flex items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                <Gauge size={9} aria-hidden="true" /> Velocidade
+              </dt>
+              <dd className="mt-1 font-semibold text-[var(--text-1)]">
+                {machine.estado_de_movimento.velocidade} km/h
+              </dd>
             </div>
-            <div className="rounded-md border border-field-border bg-field-glass-mid p-3">
-              <dt>Movimento</dt>
-              <dd className="mt-1 font-semibold text-field-text1">{machine.estado_de_movimento.em_movimento ? 'Em campo' : 'Parada'}</dd>
-            </div>
-            <div className="rounded-md border border-field-border bg-field-glass-mid p-3 col-span-full">
-              <dt>Horas</dt>
-              <dd className="mt-1 font-semibold text-field-text1">{machine.status_de_operacao.tempo_de_operacao}h</dd>
+            <div className="data-tile p-3 text-center">
+              <dt className="flex items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
+                <Clock size={9} aria-hidden="true" /> Horas
+              </dt>
+              <dd className="mt-1 font-semibold text-[var(--text-1)]">
+                {machine.status_de_operacao.tempo_de_operacao}h
+              </dd>
             </div>
           </dl>
 
+          {/* Ações */}
           {machine.maquina_id && (
             <div className="mt-4">
-              <a
+              <Link
                 href={`/maquinas/${machine.maquina_id}/prescricao`}
-                className="w-full inline-flex items-center justify-center px-3 py-2 bg-accent/10 border border-accent/20 text-sm font-medium text-accent hover:bg-accent/20 hover:border-accent/30 transition-colors rounded-md"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--ui-accent)]/12 px-3 py-2 text-xs font-semibold text-[color:var(--ui-accent)] transition hover:bg-[color:var(--ui-accent)]/18"
               >
-                Ver Prescricao
-              </a>
+                Ver Prescrição
+                <MoveRight size={12} aria-hidden="true" />
+              </Link>
             </div>
           )}
         </article>

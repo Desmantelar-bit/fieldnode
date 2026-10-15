@@ -15,10 +15,13 @@ import fs from 'fs';
   });
 
   await page.goto('http://127.0.0.1:3000');
-  await page.evaluate(() => {
-    localStorage.setItem('fieldnode_auth_token', '8710584852c4b1adf92f6f2cb3c7cc7a025121c4');
-    document.cookie = 'fieldnode_token=8710584852c4b1adf92f6f2cb3c7cc7a025121c4; path=/';
-  });
+  const authToken = process.env.FIELDNODE_AUTH_TOKEN;
+  if (!authToken) {
+    throw new Error('Defina FIELDNODE_AUTH_TOKEN para executar a evidência autenticada.');
+  }
+  await page.evaluate((token) => {
+    localStorage.setItem('fn-auth-token', token);
+  }, authToken);
 
   await page.goto('http://127.0.0.1:3000/colheitadeiras');
   await page.waitForTimeout(6000);

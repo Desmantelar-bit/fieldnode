@@ -1,142 +1,123 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { telemetryService } from "@/services/telemetryService";
-import { AppShell } from "@/components/AppShell";
-import { ChatFAB } from "@/components/ChatFAB";
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-} from "@/components/ui/FeedbackStates";
-import { FleetGrid } from "@/components/FleetGrid";
-import { FleetMap } from "@/components/FleetMap";
-import { MetricCard } from "@/components/MetricCard";
-import { ReportButton } from "@/components/ReportButton";
-import { SkeletonGrid } from "@/components/SkeletonGrid";
-import type { Machine, Telemetry } from "@/types/telemetry";
+import { useEffect, useState } from 'react';
+import { telemetryService } from '@/services/telemetryService';
+import { AppShell } from '@/components/AppShell';
+import { ChatFAB } from '@/components/ChatFAB';
+import { ErrorState } from '@/components/EmptyState';
+import { FleetGrid } from '@/components/FleetGrid';
+import { FleetMap } from '@/components/FleetMap';
+import { ReportButton } from '@/components/ReportButton';
+import { DashboardMachineData } from '@/components/DashboardMachineData';
+import { FieldNodeLogo } from '@/components/FieldNodeLogo';
+import { SkeletonGrid } from '@/components/SkeletonGrid';
+
+type FleetStatus = Awaited<ReturnType<typeof telemetryService.getFleetStatus>>;
+type TelemetryReadings = Awaited<ReturnType<typeof telemetryService.getLatestReadings>>;
+
+function FleetData({ machines, readings }: { machines: FleetStatus; readings: TelemetryReadings }) {
+  return (
+    <div className="space-y-6">
+      <DashboardMachineData machines={machines} initialReadings={readings} />
+
+      <section aria-label="Resumo da frota">
+        <p className="section-heading mb-3">Resumo da frota</p>
+        <div className="fleet-summary grid grid-cols-3 gap-3 rounded-2xl p-4">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-[var(--text-1)]">{machines.length}</p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">Total</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-[color:var(--status-normal)]">{machines.filter((machine) => machine.status_de_operacao.em_operacao).length}</p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">Ativos</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-[color:var(--status-atencao)]">{machines.filter((machine) => !machine.status_de_operacao.em_operacao).length}</p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">Inativos</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Máquinas da frota">
+        <p className="section-heading mb-3">Máquinas</p>
+        <FleetGrid machines={machines} />
+      </section>
+
+      <section aria-label="Posição em campo">
+        <p className="section-heading mb-3">Posição em campo</p>
+        <FleetMap />
+      </section>
+
+    </div>
+  );
+}
 
 export default function DashboardPage() {
-  const [machines, setMachines] = useState<Machine[] | null>(null);
-  const [readings, setReadings] = useState<Telemetry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [readingsError, setReadingsError] = useState(false);
-
-  const carregarFrota = useCallback(() => {
-    setMachines(null);
-    setError(null);
-    telemetryService
-      .getFleetStatus()
-      .then(setMachines)
-      .catch((err: unknown) => {
-        console.error("[FieldNode] dashboard: falha ao carregar frota", err);
-        setError("Não foi possível carregar os dados da frota.");
-      });
-  }, []);
-
-  const carregarLeituras = useCallback(() => {
-    setReadings(null);
-    setReadingsError(false);
-    telemetryService
-      .getLatestReadings()
-      .then(setReadings)
-      .catch((err: unknown) => {
-        console.error(
-          "[FieldNode] dashboard: falha ao carregar telemetria",
-          err,
-        );
-        setReadingsError(true);
-      });
-  }, []);
+  const [dashboard, setDashboard] = useState<{
+    loading: boolean;
+    machines: FleetStatus;
+    readings: TelemetryReadings;
+    error: string | null;
+  }>({ loading: true, machines: [], readings: [], error: null });
 
   useEffect(() => {
-    carregarFrota();
-    carregarLeituras();
-  }, [carregarFrota, carregarLeituras]);
+    let active = true;
 
-  if (error) {
+    async function loadDashboard() {
+      try {
+        const machines = await telemetryService.getFleetStatus();
+        const readings = await telemetryService.getLatestReadings().catch(() => []);
+        if (active) setDashboard({ loading: false, machines, readings, error: null });
+      } catch (err) {
+        if (active) {
+          setDashboard({
+            loading: false,
+            machines: [],
+            readings: [],
+            error: err instanceof Error ? err.message : 'Falha ao carregar dados do dashboard.',
+          });
+        }
+      }
+    }
+
+    void loadDashboard();
+    return () => { active = false; };
+  }, []);
+
+  if (dashboard.loading) {
     return (
-      <AppShell
-        active="/dashboard"
-        eyebrow="FieldNode"
-        title="Central de Operações"
-      >
-        <ErrorState
-          title="Dashboard indisponível"
-          message={error}
-          onRetry={carregarFrota}
-        />
+      <AppShell active="/dashboard" title="Central de Operações">
+        <SkeletonGrid />
       </AppShell>
     );
   }
 
+  if (dashboard.error) {
+    return (
+      <AppShell
+        active="/dashboard"
+        title="Central de Operações"
+        titleSlot={<FieldNodeLogo variant="horizontal" asLink={false} />}
+      >
+        <ErrorState title="Dashboard indisponível" message={dashboard.error} />
+        <ChatFAB machines={dashboard.machines} />
+      </AppShell>
+    );
+  }
+
+  const { machines, readings } = dashboard;
+
   return (
     <AppShell
       active="/dashboard"
-      eyebrow="FieldNode"
       title="Central de Operações"
+      titleSlot={<FieldNodeLogo variant="horizontal" asLink={false} />}
       actions={
-        <div className="inline-flex items-center gap-2">
-          <ReportButton machines={machines ?? []} />
-          <div className="inline-flex items-center gap-2 border border-status-normal/20 bg-status-normal/15 px-3 py-1.5 text-xs font-semibold text-status-normal shadow-[0_0_18px_var(--glow-normal)] animate-pulse">
-            <span className="h-2.5 w-2.5 bg-status-normal shadow-[0_0_6px_var(--glow-normal-strong)]" />
-            Sync offline ativo
-          </div>
-        </div>
+        <ReportButton machines={machines} />
       }
     >
-      <p className="mb-8 text-sm text-field-text3">
-        Monitoramento multivariado da frota em tempo real.
-      </p>
-
-      {machines === null ? (
-        <SkeletonGrid />
-      ) : (
-        <div className="space-y-6">
-          {readings === null ? (
-            <LoadingState mensagem="Carregando indicadores de telemetria..." />
-          ) : readingsError ? (
-            <ErrorState
-              title="Indicadores indisponíveis"
-              message="Não foi possível carregar as leituras de telemetria."
-              onRetry={carregarLeituras}
-            />
-          ) : readings.length === 0 ? (
-            <EmptyState
-              title="Nenhuma leitura de telemetria encontrada."
-              message="Os indicadores operacionais serão exibidos quando houver leituras disponíveis."
-            />
-          ) : (
-            <section
-              aria-label="Indicadores operacionais"
-              className="grid grid-cols-1 gap-4 sm:grid-cols-3"
-            >
-              <MetricCard
-                label="RPM médio"
-                value={Math.round(
-                  readings.reduce((sum, reading) => sum + reading.rpm, 0) /
-                    readings.length,
-                )}
-                helper={`média de ${readings.length} leituras recentes`}
-              />
-              <MetricCard
-                label="Temperatura média"
-                value={`${(readings.reduce((sum, reading) => sum + reading.temperatura, 0) / readings.length).toFixed(1)} °C`}
-                helper={`média de ${readings.length} leituras recentes`}
-                tone="amber"
-              />
-              <MetricCard
-                label="Vibração média"
-                value={`${(readings.reduce((sum, reading) => sum + reading.vibracao, 0) / readings.length).toFixed(2)} g`}
-                helper={`média de ${readings.length} leituras recentes`}
-              />
-            </section>
-          )}
-          <FleetGrid machines={machines} />
-          <FleetMap />
-          <ChatFAB machines={machines} />
-        </div>
-      )}
+      <FleetData machines={machines} readings={readings} />
+      <ChatFAB machines={machines} />
     </AppShell>
   );
 }

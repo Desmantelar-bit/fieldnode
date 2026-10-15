@@ -5,24 +5,21 @@ import {
   type Operator,
   type Telemetry,
   type TelemetryInput,
-  type AnomaliaAnalise,
   type AnalisePrescricao,
-  type Decision,
   type Prescricao,
   type Relatorio,
-} from "@/types/telemetry";
+} from '@/types/telemetry';
 import {
   ListaColheitadeirasSchema,
   ListaLeiturasTelemetriaSchema,
   ListaPosicoesMaquinasSchema,
-  AnomaliaAnaliseSchema,
   AnalisePrescricaoSchema,
-  DecisionSchema,
   ListaPrescricoesSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
-} from "@/schemas";
-import type { z } from "zod";
+} from '@/schemas';
+import type { z } from 'zod';
+import { handleUnauthorizedResponse } from '@/services/authService';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -56,51 +53,6 @@ export function resolveApiUrl(): string {
 
 const API_URL = resolveApiUrl();
 const API_TIMEOUT_MS = 10000;
-export const AUTH_TOKEN_STORAGE_KEY = "fieldnode_auth_token";
-
-export function getStoredAuthToken(): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
-}
-
-export async function getServerAuthToken(): Promise<string> {
-  try {
-    const { cookies } = await import("next/headers");
-    const jar = await cookies();
-    return jar.get("fieldnode_token")?.value ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export function clearStoredAuthToken(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-    document.cookie = "fieldnode_token=; path=/; max-age=0; SameSite=Lax";
-  }
-}
-
-function redirectToLoginOnAuthFailure(response: Response): void {
-  if (
-    typeof window !== "undefined" &&
-    (response.status === 401 || response.status === 403) &&
-    window.location.pathname !== "/login"
-  ) {
-    clearStoredAuthToken();
-    const next = `${window.location.pathname}${window.location.search}`;
-    window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-  }
-}
-
-function applyAuthHeaders(headers: Headers): Headers {
-  const token = getStoredAuthToken();
-  if (token) headers.set("Authorization", `Token ${token}`);
-  return headers;
-}
-
-function apiHeaders(init?: HeadersInit): Headers {
-  return applyAuthHeaders(new Headers(init));
-}
 
 function withTimeout<T>(
   request: (signal: AbortSignal) => Promise<T>,
@@ -114,8 +66,8 @@ async function handleResponse<T = unknown>(
   response: Response,
   label = "",
 ): Promise<T> {
+  handleUnauthorizedResponse(response);
   if (!response.ok) {
-    redirectToLoginOnAuthFailure(response);
     let text = "";
     try {
       text = await response.text();
@@ -142,32 +94,50 @@ function validateApiContract<T extends z.ZodTypeAny>(
   const parseResult = schema.safeParse(data);
 
   if (!parseResult.success) {
-    console.error("Contrato de API quebrado:", {
+    console.error('Contrato de API quebrado:', {
       endpoint: label,
       errors: parseResult.error.format(),
     });
-    throw new Error("Formato de dados inesperado recebido do servidor.");
+    throw new Error('Formato de dados inesperado recebido do servidor.');
   }
 
   return parseResult.data;
 }
 
+function withTelemetryIdentity(reading: TelemetryInput): TelemetryInput {
+  const payload = validateApiContract(TelemetryInputSchema, reading, "telemetryInput");
+  return {
+    ...payload,
+    device_id: payload.device_id || payload.maquina_id.trim().toUpperCase(),
+    message_id: payload.message_id || crypto.randomUUID(),
+  };
+}
+
+function buildRequestHeaders(contentType?: string): Headers {
+  const headers = new Headers({ Accept: "application/json" });
+  if (contentType) headers.set("Content-Type", contentType);
+  if (typeof window !== "undefined") {
+    try {
+      const token = localStorage.getItem("fn-auth-token");
+      if (token) headers.set("Authorization", `Token ${token}`);
+    } catch {
+      // storage unavailable
+    }
+  }
+  return headers;
+}
+
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
-    const headers = apiHeaders({ Accept: "application/json" });
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/colheitadeira/`, {
         cache: "no-store",
-        headers,
+        headers: buildRequestHeaders(),
         signal,
       }),
     );
     const data = await handleResponse(response, "getFleetStatus:");
-    return validateApiContract(
-      ListaColheitadeirasSchema,
-      data,
-      "getFleetStatus",
-    );
+    return validateApiContract(ListaColheitadeirasSchema, data, "getFleetStatus");
   },
 
   async getMachinePositions(maquinaId?: string): Promise<MachinePosition[]> {
@@ -177,38 +147,23 @@ export const telemetryService = {
     const response = await withTimeout((signal) =>
       fetch(url, {
         cache: "no-store",
-        headers: apiHeaders({ Accept: "application/json" }),
+        headers: buildRequestHeaders(),
         signal,
       }),
     );
     const data = await handleResponse(response, "getMachinePositions:");
-    return validateApiContract(
-      ListaPosicoesMaquinasSchema,
-      data,
-      "getMachinePositions",
-    );
+    return validateApiContract(ListaPosicoesMaquinasSchema, data, "getMachinePositions");
   },
 
-  async getLatestReadings(serverToken?: string): Promise<Telemetry[]> {
-    const headers = serverToken
-      ? new Headers({
-          Accept: "application/json",
-          Authorization: `Token ${serverToken}`,
-        })
-      : apiHeaders({ Accept: "application/json" });
+  async getLatestReadings(): Promise<Telemetry[]> {
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/leituras/ultimas/`, {
-        cache: "no-store",
-        headers,
+        headers: buildRequestHeaders(),
         signal,
       }),
     );
     const data = await handleResponse(response, "getLatestReadings:");
-    return validateApiContract(
-      ListaLeiturasTelemetriaSchema,
-      data,
-      "getLatestReadings",
-    );
+    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getLatestReadings");
   },
 
   async getMachineReadings(machineId: string): Promise<Telemetry[]> {
@@ -217,72 +172,62 @@ export const telemetryService = {
         `${API_URL}/telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
         {
           cache: "no-store",
-          headers: apiHeaders({ Accept: "application/json" }),
+          headers: buildRequestHeaders(),
           signal,
         },
       ),
     );
     const data = await handleResponse(response, "getMachineReadings:");
-    return validateApiContract(
-      ListaLeiturasTelemetriaSchema,
-      data,
-      "getMachineReadings",
+    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
+  },
+
+  async sendTelemetry(reading: TelemetryInput) {
+    const payload = withTelemetryIdentity(reading);
+    const response = await withTimeout((signal) =>
+      fetch("/api/telemetria/", {
+        method: "POST",
+        headers: new Headers({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify(payload),
+        signal,
+      }),
     );
+    return handleResponse(response, "sendTelemetry:");
+  },
+
+  async queueTelemetry(reading: TelemetryInput) {
+    const payload = withTelemetryIdentity(reading);
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return telemetryService.sendTelemetry(payload);
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active || navigator.serviceWorker.controller;
+    if (!worker) throw new Error("Service Worker indisponível para guardar telemetria.");
+
+    worker.postMessage({ type: "QUEUE_TELEMETRY", payload });
+    return { status: "queued" };
   },
 
   async getOperators(): Promise<Operator[]> {
-    const headers = apiHeaders({ Accept: "application/json" });
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/operario/`, { cache: "no-store", headers, signal }),
+      fetch(`${API_URL}/operario/`, {
+        cache: "no-store",
+        headers: buildRequestHeaders(),
+        signal,
+      }),
     );
     const data = await handleResponse(response, "getOperators:");
     return validateApiContract(OperatorSchema.array(), data, "getOperators");
   },
 
-  async sendTelemetry(reading: TelemetryInput) {
-    const payload = validateApiContract(
-      TelemetryInputSchema,
-      reading,
-      "sendTelemetry",
-    );
-    const headers = apiHeaders({
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    });
-    const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/telemetria/`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal,
-      }),
-    );
-    const data = await handleResponse(response, "sendTelemetry:");
-    return data;
-  },
-
-  async queueTelemetry(reading: TelemetryInput) {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
-      return telemetryService.sendTelemetry(reading);
-    }
-
-    const registration = await navigator.serviceWorker.ready;
-    const worker = registration.active || navigator.serviceWorker.controller;
-    worker?.postMessage({
-      type: "QUEUE_TELEMETRY",
-      payload: reading,
-      headers: {},
-    });
-
-    return { status: "queued" };
-  },
-
   async getPrescricoes(machineId: string): Promise<Prescricao[]> {
-    const headers = apiHeaders({ Accept: "application/json" });
     const response = await withTimeout((signal) =>
       fetch(
         `${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`,
-        { cache: "no-store", headers, signal },
+        { cache: "no-store", headers: buildRequestHeaders(), signal },
       ),
     );
     const data = await handleResponse(response, "getPrescricoes:");
@@ -301,7 +246,7 @@ export const telemetryService = {
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/prescricoes/${encodeURIComponent(machineId)}/`, {
         cache: "no-store",
-        headers: apiHeaders({ Accept: "application/json" }),
+        headers: buildRequestHeaders(),
         signal,
       }),
     );
@@ -313,57 +258,11 @@ export const telemetryService = {
     );
   },
 
-  async getAnomalias(machineId: string): Promise<AnomaliaAnalise> {
-    const response = await withTimeout((signal) =>
-      fetch(
-        `${API_URL}/anomalias/?maquina_id=${encodeURIComponent(machineId)}`,
-        {
-          cache: "no-store",
-          headers: apiHeaders({ Accept: "application/json" }),
-          signal,
-        },
-      ),
-    );
-    const data = await handleResponse(response, "getAnomalias:");
-    return validateApiContract(AnomaliaAnaliseSchema, data, "getAnomalias");
-  },
-
-  async updateDecision(
-    decisionId: string,
-    status: Decision["status"],
-    outcomeTexto?: string,
-  ): Promise<Decision> {
-    if (!decisionId) {
-      throw new Error("A prescriÃ§Ã£o nÃ£o possui uma Decision associada.");
-    }
-
-    const payload: { status: Decision["status"]; outcome_texto?: string } = {
-      status,
-    };
-    if (outcomeTexto?.trim()) payload.outcome_texto = outcomeTexto.trim();
-
-    const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/decisions/${encodeURIComponent(decisionId)}/`, {
-        method: "PATCH",
-        cache: "no-store",
-        headers: apiHeaders({
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(payload),
-        signal,
-      }),
-    );
-    const data = await handleResponse(response, "updateDecision:");
-    return validateApiContract(DecisionSchema, data, "updateDecision");
-  },
-
   async getRelatorio(options?: {
     formato?: "json" | "csv";
     machineId?: string;
     period?: number;
   }): Promise<Relatorio> {
-    const headers = apiHeaders({ Accept: "application/json" });
     const params = new URLSearchParams({
       formato: options?.formato ?? "json",
     });
@@ -371,7 +270,7 @@ export const telemetryService = {
     if (options?.period != null) params.set("periodo", String(options.period));
     const url = `${API_URL}/relatorio/?${params.toString()}`;
     const response = await withTimeout((signal) =>
-      fetch(url, { cache: "no-store", headers, signal }),
+      fetch(url, { cache: "no-store", headers: buildRequestHeaders(), signal }),
     );
     const data = await handleResponse(response, "getRelatorio:");
 
