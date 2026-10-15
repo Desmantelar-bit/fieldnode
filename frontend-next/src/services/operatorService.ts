@@ -1,5 +1,4 @@
 import { resolveApiUrl } from '@/services/telemetryService';
-import { handleUnauthorizedResponse } from '@/services/authService';
 import { OperatorSchema, type Operator } from '@/types/telemetry';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -86,8 +85,6 @@ export async function createOperator(input: OperatorInput): Promise<Operator> {
     clearTimeout(timer);
   }
 
-  if (!response.ok) throw await parseError(response);
-  handleUnauthorizedResponse(response);
   if (!response.ok) throw await parseError(response);
 
   const parsed = OperatorSchema.safeParse(await response.json());

@@ -17,7 +17,7 @@ const items = [
 ] as const;
 
 export function Sidebar() {
-  const pathname = usePathname() ?? '';
+  const pathname = usePathname();
 
   return (
     <>
@@ -31,7 +31,7 @@ export function Sidebar() {
         {/* Ícones centralizados (horizontal e verticalmente) na pílula flutuante. */}
         <div className="app-nav__cluster flex w-full flex-1 flex-col items-center justify-center gap-1.5">
           {items.map(({ icon: Icon, href, label }) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            const isActive = pathname === href || pathname?.startsWith(`${href}/`) === true;
             return (
               <Link
                 key={href}
@@ -73,7 +73,7 @@ export function Sidebar() {
         className="app-nav app-nav--bar fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-1 rounded-[1.5rem] px-2 py-1.5 lg:hidden"
       >
         {items.map(({ icon: Icon, href, label, short }) => {
-          const isActive = pathname === href || pathname.startsWith(`${href}/`);
+          const isActive = pathname === href || pathname?.startsWith(`${href}/`) === true;
           return (
             <Link
               key={href}

@@ -78,7 +78,8 @@ export function UserProfile({ className = '' }: { className?: string }) {
     try {
       await logout();
     } finally {
-      // O backend não oferece revogação remota; a sessão local já foi limpa.
+      // Sempre sai: `logout()` já limpou a sessão local antes de avisar o
+      // backend, então nem o servidor fora do ar prende alguém logado aqui.
       router.replace('/login');
     }
   }

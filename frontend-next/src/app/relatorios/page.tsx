@@ -5,7 +5,6 @@ import { CalendarRange, FileText, RefreshCw, SlidersHorizontal } from 'lucide-re
 import { AppShell } from '@/components/AppShell';
 import { ReportPreview } from '@/components/ReportPreview';
 import { telemetryService, resolveApiUrl } from '@/services/telemetryService';
-import { handleUnauthorizedResponse } from '@/services/authService';
 import type { EstadoRequisicao } from '@/types/api';
 import type { Relatorio } from '@/types/telemetry';
 
@@ -89,7 +88,6 @@ export default function RelatoriosPage() {
         }
       }
       const response = await fetch(url, { headers });
-      handleUnauthorizedResponse(response);
       if (response.status === 404 || response.status === 501) {
         setExportErrorMessage('O endpoint de exportação de relatório (/api/relatorio/exportar/) ainda não está disponível no backend.');
         setExportState('error');

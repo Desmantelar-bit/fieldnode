@@ -2,68 +2,74 @@
 
 Data: 15/10/2026
 
-## A. Resultado
+## Resultado verificado
 
-- Backend: raiz do repositório, principalmente `api_tcc/`, `setup/` e
-  `manage.py`.
-- Frontend: `frontend-next/`.
-- Branch de trabalho consolidada: `feature/merge-front-novo`.
-- Branch final: `main`, atualizada por fast-forward após este commit.
-- `frontfieldnode/`: removido da árvore principal. Era um gitlink aninhado, não
-  uma segunda fonte canônica. A cópia foi preservada fora do workspace em
-  `C:\Users\Usuario\fieldnode-archive-20261015\frontfieldnode`.
+- Repositório final: raiz `C:\Users\Usuario\fieldnode`, branch `main`.
+- Backend preservado em `api_tcc/`, `setup/` e `manage.py`.
+- Frontend oficial consolidado em `frontend-next/`, a partir do clone Git
+  independente `Front Full Node`.
+- O clone ainda está presente localmente durante esta auditoria para permitir
+  revisão final e preservação do histórico; sua remoção ocorre somente após o
+  bundle de segurança e o commit desta consolidação.
 
-O resultado mantém uma única raiz Git e nenhuma dependência operacional do
-checkout antigo do frontend.
+## Auditoria dos dois projetos
 
-## B. Decisões de consolidação
+O clone tinha histórico próprio, remoto `https://github.com/acfurlaneto/frontfieldnode`
+e HEAD `bce3d91`. A branch `main` estava limpa. A raiz tinha HEAD `3692aab`,
+com a consolidação anterior já commitada, mas o clone foi disponibilizado como
+diretório não rastreado e não podia ser tratado como já incorporado.
 
-O backend da raiz foi preservado. O frontend integrado já existente em
-`frontend-next/` foi mantido porque contém as correções mais recentes de
-contrato, autenticação, estados da interface e segurança. A revisão histórica
-aninhada não foi copiada por cima.
+Foram comparados os arquivos rastreados de frontend e backend. O frontend do
+clone foi adotado como fonte visual e funcional prioritária. O backend do clone
+era uma revisão anterior e não continha as migrations, eventos, decisões,
+DLQ, normalização e serviços presentes na raiz; por isso o backend da raiz foi
+preservado. A alteração útil recuperada do clone foi o fluxo de cadastro,
+junto às telas e serviços de autenticação correspondentes.
 
-Foi criada a referência recuperável
-`safety/pre-consolidation-20261015` antes da remoção estrutural. Nenhuma
-migration, configuração local, banco ou segredo foi incluído na consolidação.
+## Cadastro e autenticação
 
-## C. Integração técnica
+- `POST /api/auth/register/`: público, valida senha com os validadores Django,
+  usa `create_user`, cria token DRF e nunca aceita campos administrativos.
+- `POST /api/auth/login/`: contrato anterior preservado, incluindo renovação de
+  token expirado.
+- `POST /api/auth/logout/`: exige token e revoga a sessão no backend.
+- `GET /api/auth/me/`: exige token e retorna somente o perfil básico.
+- Usuários criados no cadastro são verificados como não `staff` e não
+  `superuser` no teste automatizado.
 
-O contrato documentado usa `FIELDNODE_SERVER_API_URL` para o proxy server-side
-do Next. A chave `FIELDNODE_API_KEY` permanece restrita ao backend e aos
-clientes de ingestão; não foi reintroduzida no bundle do browser. As rotas
-principais e o endpoint de prescrição por máquina permanecem no frontend e no
-backend canônicos, conforme `CONTRATO_FRONT_BACK.md` e
-`docs/CONTRATO_FRONT_BACK_FRONTEND.md`.
+## Testes executados
 
-## D. Testes e verificações
+| Verificação | Resultado | Evidência |
+|---|---|---|
+| `manage.py check` | PASSOU | nenhum problema reportado |
+| `manage.py makemigrations --check --dry-run` | PASSOU | `No changes detected` |
+| `manage.py test api_tcc.tests.test_auth` | PASSOU | 7 testes |
+| `manage.py test api_tcc` | PASSOU | 287 testes, 121,419 s |
+| `npm run lint` | PASSOU | ESLint sem erro |
+| `npm run build` | BLOQUEADO | compilou, tipou e gerou 12 páginas, mas travou em `Collecting build traces` com `.next/trace` em uso por outro processo |
+| `git diff --check` | PASSOU | sem erro de whitespace |
 
-| Verificação | Comando | Resultado | Observação |
-|---|---|---|---|
-| Django check | `venv\Scripts\python.exe manage.py check` | PASSOU | Nenhum problema reportado. |
-| Django suite | `venv\Scripts\python.exe manage.py test api_tcc --verbosity=1` | PASSOU | 285 testes; banco de teste criado e destruído pelo runner. |
-| Migrations | `venv\Scripts\python.exe manage.py makemigrations --check --dry-run` | PASSOU | Nenhuma migration pendente. |
-| Lint frontend | `npm run lint` em `frontend-next` | PASSOU | ESLint concluiu sem saída de erro. |
-| Build frontend | `NODE_OPTIONS=--use-system-ca npm run build` | PASSOU | Next compilou, tipou e gerou as 14 páginas. |
-| Docker | `docker version; docker compose ps` | PASSOU | `db`, `mosquitto`, `web` saudáveis; `worker` ativo. |
-| Pytest genérico | `venv\Scripts\python.exe -m pytest` | FALHOU | Antes da remoção, coletava o gitlink aninhado e falhava também por configuração Django ausente. |
-| Fluxos HTTP completos | — | NÃO VERIFICADO | Ainda exige executar login, telemetria, prescrição, mapa e relatórios contra ambiente de teste. |
+Os testes Django emitiram avisos já conhecidos de versão do scikit-learn,
+fallback do Gemini e locks do SQLite em testes concorrentes; ainda assim a
+suíte terminou com 287/287 aprovados. Isso não prova validação física,
+comercial, hardware ou execução live do Gemini.
 
-## E. Git
+## Git e preservação
 
-- Candidata de backup/integracão: `feature/merge-front-novo`.
-- Estratégia: preservar a branch, remover o gitlink em commit separado e fazer
-  fast-forward para `main`; não criar merge vazio.
-- Referência de recuperação: `safety/pre-consolidation-20261015`.
-- Commit da consolidação: este commit, identificado pelo histórico Git da
-  branch `feature/merge-front-novo`.
-- Commit final da `main`: o mesmo commit após o fast-forward, verificado no
-  estado final do repositório.
-- Remoto: não publicado nesta etapa.
+- Branch ativa: `main`.
+- Branch de backup existente: `safety/pre-consolidation-20261015`.
+- Branch `feature/merge-front-novo` aponta para o mesmo histórico recente da
+  consolidação anterior; não foi criado merge artificial.
+- O histórico do clone independente foi preservado em bundle fora da árvore
+  antes da remoção do diretório.
+- Não houve force push nem reescrita do remoto.
 
-## F. Pendências reais
+## Pendências reais
 
-- Validar os fluxos frontend-backend por HTTP com dados não produtivos.
-- A outbox web continua sem autorização server-side para enviar a chave de
-  ingestão, conforme já documentado; isso é uma limitação de contrato, não um
-  motivo para expor segredo no browser.
+- O build precisa ser repetido sem o processo que mantém `.next/trace` aberto.
+- Fluxos completos no navegador e validação HTTP integrada ainda não foram
+  executados nesta rodada.
+- A integração do clone prova consolidação de código e contratos, não prova
+  sensor físico, ESP32, ESP-NOW, campo, autonomia, retenção física ou compra.
+- Segredos históricos continuam exigindo rotação ou revogação pelos donos dos
+  serviços; apagar um arquivo atual não reescreve o passado.

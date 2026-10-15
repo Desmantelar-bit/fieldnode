@@ -38,6 +38,36 @@ class TokenAuthTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn("token", response.data)
 
+    def test_cadastro_publico_cria_usuario_comum_e_retorna_token(self):
+        response = self.client.post(
+            reverse("auth-register"),
+            {
+                "username": "operador-novo",
+                "email": "operador@example.com",
+                "password": "Senha-forte-123!",
+                "first_name": "Operador",
+                "last_name": "Novo",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(username="operador-novo")
+        self.assertTrue(user.check_password("Senha-forte-123!"))
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertEqual(response.data["token"], Token.objects.get(user=user).key)
+
+    def test_cadastro_rejeita_usuario_duplicado(self):
+        response = self.client.post(
+            reverse("auth-register"),
+            {"username": "ADMIN-TOKEN", "password": "Senha-forte-123!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("username", response.data["errors"])
+
     def test_token_autoriza_escrita_em_endpoint_de_cadastro(self):
         login_response = self.client.post(
             reverse("auth-login"),

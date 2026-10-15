@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Activity, Search, Tractor, X } from "lucide-react";
 import { resolveApiUrl } from "@/services/telemetryService";
-import { handleUnauthorizedResponse } from "@/services/authService";
 import { METRIC_THRESHOLDS, type MetricKey } from "@/lib/metricThresholds";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
@@ -509,7 +508,6 @@ export default function MapClient({
             return h;
           })(),
         });
-        handleUnauthorizedResponse(response);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const normalized = Array.isArray(data) ? normalizeApiPositions(data) : [];

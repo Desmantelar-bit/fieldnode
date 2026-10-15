@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { resolveApiUrl } from '@/services/telemetryService';
-import { handleUnauthorizedResponse } from '@/services/authService';
 
 const API_URL = resolveApiUrl();
 
@@ -29,7 +28,6 @@ export function ApiStatusIndicator() {
           cache: 'no-store',
           headers,
         });
-        handleUnauthorizedResponse(res);
 
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -45,7 +43,6 @@ export function ApiStatusIndicator() {
             cache: 'no-store',
             headers,
           }).catch(() => null);
-          if (fallbackRes) handleUnauthorizedResponse(fallbackRes);
 
           if (active) {
             // Qualquer resposta HTTP < 500 comprova que o backend está ativo e respondendo

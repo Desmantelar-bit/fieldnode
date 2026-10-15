@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
+import { resolveApiUrl } from "@/services/telemetryService";
+
+const API_URL = resolveApiUrl();
 
 export function ServiceWorkerBridge() {
   useEffect(() => {
@@ -20,11 +23,32 @@ export function ServiceWorkerBridge() {
       return;
     }
 
+    let active = true;
+
     navigator.serviceWorker
       .register('/sw.js')
+      .then(async (registration) => {
+        await navigator.serviceWorker.ready;
+        if (!active) return;
+
+        const worker =
+          registration.active ||
+          registration.waiting ||
+          registration.installing ||
+          navigator.serviceWorker.controller;
+
+        worker?.postMessage({
+          type: 'FIELDNODE_CONFIG',
+          apiUrl: API_URL,
+        });
+      })
       .catch((error) => {
         console.warn('[FieldNode] Service Worker indisponivel:', error);
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return null;

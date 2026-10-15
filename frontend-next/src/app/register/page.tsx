@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { FieldNodeLogo } from "@/components/FieldNodeLogo";
-import { isAuthenticated, isAuthAvailable, type AuthError } from "@/services/authService";
+import { register, isAuthenticated, isAuthAvailable, type AuthError } from "@/services/authService";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Cadastro — FieldNode
-   Interface informativa: o backend atual nao expoe endpoint de cadastro.
+   Integrado ao endpoint POST /api/auth/register/ via authService.
 
    Mesma resolução de base do login: por padrão a chamada vai para a mesma
    origem, via o rewrite /api/* do next.config.ts. Sem aviso de variável de
@@ -31,7 +31,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [formState] = useState<FormState>("idle");
+  const [formState, setFormState] = useState<FormState>("idle");
   const [error, setError] = useState<AuthError | null>(null);
 
   /* redireciona se já autenticado */
@@ -59,12 +59,22 @@ export default function RegisterPage() {
       return;
     }
 
-    setError({
-      field: "general",
-      message: "O cadastro de usuários ainda não está disponível nesta API.",
-    });
-    return;
+    setFormState("loading");
 
+    try {
+      await register({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+      });
+      setFormState("success");
+      setTimeout(() => router.push("/dashboard"), 1200);
+    } catch (err) {
+      setFormState("error");
+      setError(err as AuthError);
+    }
   }
 
   const isLoading = formState === "loading";

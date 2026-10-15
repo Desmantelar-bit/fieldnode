@@ -3,7 +3,6 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Download } from 'lucide-react';
 import { resolveApiUrl } from '@/services/telemetryService';
-import { handleUnauthorizedResponse } from '@/services/authService';
 
 type ReportMachineOption = {
   maquina_id?: string | null;
@@ -79,7 +78,6 @@ export function ReportButton({
         }
       }
       const res = await fetch(url, { headers });
-      handleUnauthorizedResponse(res);
       if (res.status === 404 || res.status === 501) {
         alert('O serviço de exportação de relatório (/api/relatorio/exportar/) ainda não está habilitado no backend.');
         return;

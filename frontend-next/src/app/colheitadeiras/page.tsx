@@ -1,40 +1,21 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState, ErrorState } from '@/components/EmptyState';
 import { MetricCard } from '@/components/MetricCard';
 import { TelemetryMachineCard } from '@/components/TelemetryMachineCard';
-import { LoadingState } from '@/components/ui/FeedbackStates';
 import { telemetryService } from '@/services/telemetryService';
-import type { Telemetry } from '@/types/telemetry';
 
-export default function HarvestersPage() {
-  const [readings, setReadings] = useState<Telemetry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-  useEffect(() => {
-    let active = true;
-    telemetryService.getLatestReadings().then((result) => {
-      if (active) setReadings(result);
-    }).catch(() => {
-      if (active) setError('A API de últimas leituras não respondeu. Confira o Django e tente novamente.');
-    });
-    return () => { active = false; };
-  }, []);
+export default async function HarvestersPage() {
+  let readings;
 
-  if (error) {
+  try {
+    readings = await telemetryService.getLatestReadings();
+  } catch {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Operacao" title="Maquinas agricolas">
-        <ErrorState title="Nao consegui carregar as maquinas." message={error} />
-      </AppShell>
-    );
-  }
-
-  if (!readings) {
-    return (
-      <AppShell active="/colheitadeiras" eyebrow="Operacao" title="Maquinas agricolas">
-        <LoadingState mensagem="Carregando telemetria..." />
+        <ErrorState title="Nao consegui carregar as maquinas." message="A API de ultimas leituras nao respondeu. Sem drama teatral: confira o Django e tente de novo." />
       </AppShell>
     );
   }

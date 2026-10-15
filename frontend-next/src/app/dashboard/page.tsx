@@ -1,6 +1,3 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import { telemetryService } from '@/services/telemetryService';
 import { AppShell } from '@/components/AppShell';
 import { ChatFAB } from '@/components/ChatFAB';
@@ -10,7 +7,9 @@ import { FleetMap } from '@/components/FleetMap';
 import { ReportButton } from '@/components/ReportButton';
 import { DashboardMachineData } from '@/components/DashboardMachineData';
 import { FieldNodeLogo } from '@/components/FieldNodeLogo';
-import { SkeletonGrid } from '@/components/SkeletonGrid';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type FleetStatus = Awaited<ReturnType<typeof telemetryService.getFleetStatus>>;
 type TelemetryReadings = Awaited<ReturnType<typeof telemetryService.getLatestReadings>>;
@@ -52,60 +51,37 @@ function FleetData({ machines, readings }: { machines: FleetStatus; readings: Te
   );
 }
 
-export default function DashboardPage() {
-  const [dashboard, setDashboard] = useState<{
-    loading: boolean;
-    machines: FleetStatus;
-    readings: TelemetryReadings;
-    error: string | null;
-  }>({ loading: true, machines: [], readings: [], error: null });
+export default async function DashboardPage() {
+  let machines: FleetStatus = [];
+  let readings: TelemetryReadings = [];
+  let reportError: string | null = null;
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadDashboard() {
-      try {
-        const machines = await telemetryService.getFleetStatus();
-        const readings = await telemetryService.getLatestReadings().catch(() => []);
-        if (active) setDashboard({ loading: false, machines, readings, error: null });
-      } catch (err) {
-        if (active) {
-          setDashboard({
-            loading: false,
-            machines: [],
-            readings: [],
-            error: err instanceof Error ? err.message : 'Falha ao carregar dados do dashboard.',
-          });
-        }
-      }
-    }
-
-    void loadDashboard();
-    return () => { active = false; };
-  }, []);
-
-  if (dashboard.loading) {
-    return (
-      <AppShell active="/dashboard" title="Central de Operações">
-        <SkeletonGrid />
-      </AppShell>
-    );
+  try {
+    machines = await telemetryService.getFleetStatus();
+  } catch (err) {
+    reportError = err instanceof Error ? err.message : 'Falha ao carregar dados do dashboard.';
   }
 
-  if (dashboard.error) {
+  if (!reportError) {
+    try {
+      readings = await telemetryService.getLatestReadings();
+    } catch {
+      readings = [];
+    }
+  }
+
+  if (reportError) {
     return (
       <AppShell
         active="/dashboard"
         title="Central de Operações"
         titleSlot={<FieldNodeLogo variant="horizontal" asLink={false} />}
       >
-        <ErrorState title="Dashboard indisponível" message={dashboard.error} />
-        <ChatFAB machines={dashboard.machines} />
+        <ErrorState title="Dashboard indisponível" message={reportError} />
+        <ChatFAB machines={machines} />
       </AppShell>
     );
   }
-
-  const { machines, readings } = dashboard;
 
   return (
     <AppShell
@@ -113,7 +89,14 @@ export default function DashboardPage() {
       title="Central de Operações"
       titleSlot={<FieldNodeLogo variant="horizontal" asLink={false} />}
       actions={
-        <ReportButton machines={machines} />
+        <div className="flex items-center gap-2">
+          <ReportButton machines={machines} />
+          <div className="status-pill status-pill--normal hidden items-center px-2.5 py-1.5 sm:flex">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--status-normal)]">
+              Sync ativo
+            </span>
+          </div>
+        </div>
       }
     >
       <FleetData machines={machines} readings={readings} />

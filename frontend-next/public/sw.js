@@ -1,12 +1,15 @@
-const CACHE_NAME = 'fieldnode-runtime-v3';
+const CACHE_NAME = 'fieldnode-runtime-v2';
 const STATIC_CACHE = 'fieldnode-static-v2';
 const TELEMETRY_SYNC_TAG = 'fieldnode-telemetria-sync';
 const DB_NAME = 'fieldnode-offline';
 const DB_VERSION = 1;
 const TELEMETRY_STORE = 'telemetria-pendente';
-const TELEMETRY_URL = '/api/telemetria/';
 
-const PRECACHE_URLS = ["/manifest.json", "/icon-192.png", "/icon-512.png"];
+let apiConfig = {
+  apiUrl: "/api",
+};
+
+const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -24,16 +27,11 @@ self.addEventListener("activate", (event) => {
           Promise.all(
             cacheNames
               .filter(
-                (cacheName) =>
-                  cacheName.startsWith("fieldnode-") &&
-                  ![CACHE_NAME, STATIC_CACHE].includes(cacheName),
+                (cacheName) => ![CACHE_NAME, STATIC_CACHE].includes(cacheName),
               )
               .map((cacheName) => caches.delete(cacheName)),
           ),
         ),
-      sanitizeQueuedHeaders().catch((error) => {
-        console.warn("[SW] Pending telemetry credentials could not be sanitized.", error);
-      }),
       self.clients.claim(),
     ]),
   );
@@ -41,67 +39,62 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   const message = event.data || {};
+
+  if (message.type === "FIELDNODE_CONFIG") {
+    apiConfig = {
+      apiUrl: normalizeApiUrl(message.apiUrl || apiConfig.apiUrl),
+    };
+    return;
+  }
+
   if (message.type === "QUEUE_TELEMETRY") {
     event.waitUntil(
-      queueTelemetry(message.payload).then(requestSync),
+      queueTelemetry(message.payload, message.headers || {}).then(requestSync),
     );
   }
 });
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+
   if (isTelemetryPost(request)) {
     event.respondWith(sendOrQueueTelemetry(request));
     return;
   }
+
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
-    event.respondWith(fetch(request));
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(request));
     return;
   }
 
-  if (isStaticAsset(url.pathname)) {
-    event.respondWith(cacheFirst(request));
-    return;
-  }
-
-  event.respondWith(fetch(request));
+  event.respondWith(cacheFirst(request));
 });
 
-function isStaticAsset(pathname) {
-  return (
-    pathname.startsWith("/_next/static/") ||
-    pathname.startsWith("/brand/") ||
-    pathname === "/manifest.json" ||
-    pathname === "/favicon.ico" ||
-    /^\/icon-\d+\.png$/.test(pathname)
-  );
-}
-
- self.addEventListener("sync", (event) => {
+self.addEventListener("sync", (event) => {
   if (event.tag === TELEMETRY_SYNC_TAG) {
     event.waitUntil(syncTelemetriaData());
   }
 });
 
 async function sendOrQueueTelemetry(request) {
-  const headers = new Headers(request.headers);
-  headers.delete("X-API-Key");
-  headers.delete("Authorization");
-  const safeRequest = new Request(request, { headers });
+  const requestForNetwork = request.clone();
+  const requestForQueue = request.clone();
 
   try {
-    const response = await fetch(safeRequest.clone());
-    if (response.status === 408 || response.status === 429 || response.status >= 500) {
-      await queueRequest(safeRequest);
+    const response = await fetch(requestForNetwork);
+    if (!response.ok && shouldRetryStatus(response.status)) {
+      await queueRequest(requestForQueue);
       await requestSync();
-      return queuedResponse("Backend indisponivel. Leitura guardada para reenvio.");
+      return queuedResponse(
+        "Backend indisponivel. Leitura guardada para reenvio.",
+      );
     }
     return response;
   } catch {
-    await queueRequest(safeRequest);
+    await queueRequest(requestForQueue);
     await requestSync();
     return queuedResponse("Sem conexao. Leitura guardada para reenvio.");
   }
@@ -112,28 +105,22 @@ async function syncTelemetriaData() {
   const items = await readAll(db);
 
   for (const item of items) {
-    item.payload = withTelemetryIdentity(item.payload);
-    await putItem(db, item);
-    const response = await fetch(TELEMETRY_URL, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(item.payload),
-    });
+    const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
+    const response = await fetch(
+      item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
+      {
+        method: "POST",
+        headers: buildHeaders(item.headers),
+        body: JSON.stringify(item.payload),
+      },
+    );
 
-    if (response.ok) {
+    if (response.ok || response.status === 400 || response.status === 401) {
       await deleteItem(db, item.localId);
       continue;
     }
 
-    await notifyClients({
-      type: "TELEMETRY_SYNC_BLOCKED",
-      status: response.status,
-      pending: items.length,
-    });
-    if (response.status === 408 || response.status === 429 || response.status >= 500) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    return;
+    throw new Error(`HTTP ${response.status}`);
   }
 
   await notifyClients({ type: "TELEMETRY_SYNCED", count: items.length });
@@ -141,14 +128,24 @@ async function syncTelemetriaData() {
 
 async function queueRequest(request) {
   const payload = await request.json();
-  await queueTelemetry(payload);
+  const headers = {};
+  request.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  await queueTelemetry(payload, headers, request.url);
 }
 
-async function queueTelemetry(payload) {
+async function queueTelemetry(
+  payload,
+  headers = {},
+  url = `${apiConfig.apiUrl}/telemetria/`,
+) {
   const db = await openDb();
   const item = {
     localId: crypto.randomUUID(),
     payload,
+    headers,
+    url,
     createdAt: new Date().toISOString(),
   };
   await putItem(db, item);
@@ -157,8 +154,15 @@ async function queueTelemetry(payload) {
 
 function isTelemetryPost(request) {
   if (request.method !== "POST") return false;
+
   const url = new URL(request.url);
-  return url.origin === self.location.origin && url.pathname === TELEMETRY_URL;
+  const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
+  const apiTelemetryPath = `${apiUrl.pathname.replace(/\/$/, "")}/telemetria/`;
+  const isSameApiHost =
+    url.origin === apiUrl.origin && url.pathname === apiTelemetryPath;
+  const isProxiedApi = url.pathname === "/api/telemetria/";
+
+  return isSameApiHost || isProxiedApi;
 }
 
 async function requestSync() {
@@ -174,55 +178,79 @@ async function requestSync() {
   }
 }
 
-async function sanitizeQueuedHeaders() {
-  const db = await openDb();
-  const items = await readAll(db);
-  for (const item of items) {
-    if (item.headers) {
-      delete item.headers["X-API-Key"];
-      delete item.headers["x-api-key"];
-      delete item.headers.Authorization;
-      delete item.headers.authorization;
-      delete item.headers["Proxy-Authorization"];
-      delete item.headers["proxy-authorization"];
-      await putItem(db, item);
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
     }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return (
+      cached ||
+      jsonResponse(
+        { status: "offline", message: "Dados em cache nao disponiveis." },
+        503,
+      )
+    );
   }
 }
 
-function buildHeaders() {
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    if (request.mode === "navigate") {
+      return caches.match("/dashboard") || caches.match("/");
+    }
+    return new Response("", { status: 404 });
+  }
+}
+
+function buildHeaders(headers) {
   return {
+    ...headers,
     Accept: "application/json",
     "Content-Type": "application/json",
   };
 }
 
-function withTelemetryIdentity(payload) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return payload;
-  }
-
-  const machineId = typeof payload.maquina_id === "string" ? payload.maquina_id : "";
-  return {
-    ...payload,
-    device_id:
-      typeof payload.device_id === "string" && payload.device_id.trim()
-        ? payload.device_id
-        : machineId.trim().toUpperCase(),
-    message_id:
-      typeof payload.message_id === "string" && payload.message_id.trim()
-        ? payload.message_id
-        : typeof payload.id === "string" && payload.id.trim()
-          ? payload.id
-          : crypto.randomUUID(),
-  };
+function queuedResponse(message) {
+  return jsonResponse({ status: "queued", message, offline: true }, 202);
 }
 
-function queuedResponse(message) {
-  return new Response(JSON.stringify({ status: "queued", message, offline: true }), {
-    status: 202,
+function jsonResponse(body, status) {
+  return new Response(JSON.stringify(body), {
+    status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function shouldRetryStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function normalizeApiUrl(value) {
+  const trimmed = String(value || "").replace(/\/+$|\/$/, "");
+  if (!trimmed) return "/api";
+  if (
+    trimmed === "/api" ||
+    trimmed.endsWith("/api") ||
+    trimmed.includes("/api/")
+  ) {
+    return trimmed;
+  }
+  return `${trimmed}/api`;
 }
 
 function openDb() {
@@ -264,20 +292,4 @@ function tx(db, mode, action) {
 async function notifyClients(message) {
   const clientsList = await self.clients.matchAll({ includeUncontrolled: true });
   clientsList.forEach((client) => client.postMessage(message));
-}
-
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE);
-      await cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    return new Response("", { status: 404 });
-  }
 }

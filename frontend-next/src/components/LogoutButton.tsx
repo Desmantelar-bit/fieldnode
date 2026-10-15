@@ -19,8 +19,9 @@ import { logout } from '@/services/authService';
                   seriam redundantes. A variante fica disponível para telas
                   densas onde um ícone seja preferível a um menu.
 
-  O backend atual não oferece revogação de token; `logout()` encerra a sessão
-  localmente. O redirecionamento acontece no `finally`.
+   Sobre o fluxo: `logout()` limpa a sessão local ANTES de avisar o backend, de
+   modo que a saída funciona mesmo offline ou com o servidor fora do ar. Por
+   isso o redirecionamento acontece no `finally` — nunca se fica preso logado.
    ────────────────────────────────────────────────────────────────────────── */
 
 type LogoutButtonProps = {

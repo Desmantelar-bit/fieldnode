@@ -35,9 +35,6 @@ export const StatusRiscoSchema = z.preprocess(
 
 export const LeituraTelemetriaInputSchema = z.object({
   id: z.string().uuid().optional(),
-  device_id: z.string().min(1).optional(),
-  message_id: z.string().min(1).optional(),
-  sequence_number: z.coerce.number().int().nonnegative().optional(),
   maquina_id: z.string().min(1),
   temperatura: z.coerce.number(),
   vibracao: z.coerce.number(),

@@ -443,12 +443,18 @@ O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e man
 
 MIT
 
-## Estado da integracao do frontend
+## Estado da integração do frontend
 
-O frontend integrado fica em `frontend-next/`. A rota `/register` permanece
-como interface informativa, mas o backend atual nao expoe endpoint de cadastro.
-O login usa `POST /api/auth/login/` e `Authorization: Token <token>`. O logout
-limpa a sessao local; nao ha endpoint DRF de revogacao ou verificacao de token.
+O frontend oficial consolidado fica em `frontend-next/`, incorporado do clone
+`Front Full Node` após comparação de páginas, serviços, assets e contratos. O
+backend principal da raiz foi preservado e recebeu os endpoints de autenticação
+necessários à integração.
+
+O cadastro público usa `POST /api/auth/register/`, cria um usuário Django
+comum com senha hasheada e devolve um token DRF. O login usa
+`POST /api/auth/login/`, o logout revoga o token em `POST /api/auth/logout/` e
+`GET /api/auth/me/` verifica a sessão. Nenhum desses fluxos concede `staff` ou
+`superuser` ao cliente.
 
 Para o proxy same-origin do Next, configure `FIELDNODE_SERVER_API_URL` no
 ambiente do servidor Next (por exemplo, `http://127.0.0.1:8000/api`). Nao use

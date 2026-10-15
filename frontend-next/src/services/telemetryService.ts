@@ -19,7 +19,6 @@ import {
   TelemetryInputSchema,
 } from '@/schemas';
 import type { z } from 'zod';
-import { handleUnauthorizedResponse } from '@/services/authService';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -66,7 +65,6 @@ async function handleResponse<T = unknown>(
   response: Response,
   label = "",
 ): Promise<T> {
-  handleUnauthorizedResponse(response);
   if (!response.ok) {
     let text = "";
     try {
@@ -102,15 +100,6 @@ function validateApiContract<T extends z.ZodTypeAny>(
   }
 
   return parseResult.data;
-}
-
-function withTelemetryIdentity(reading: TelemetryInput): TelemetryInput {
-  const payload = validateApiContract(TelemetryInputSchema, reading, "telemetryInput");
-  return {
-    ...payload,
-    device_id: payload.device_id || payload.maquina_id.trim().toUpperCase(),
-    message_id: payload.message_id || crypto.randomUUID(),
-  };
 }
 
 function buildRequestHeaders(contentType?: string): Headers {
@@ -181,36 +170,6 @@ export const telemetryService = {
     return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
   },
 
-  async sendTelemetry(reading: TelemetryInput) {
-    const payload = withTelemetryIdentity(reading);
-    const response = await withTimeout((signal) =>
-      fetch("/api/telemetria/", {
-        method: "POST",
-        headers: new Headers({
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(payload),
-        signal,
-      }),
-    );
-    return handleResponse(response, "sendTelemetry:");
-  },
-
-  async queueTelemetry(reading: TelemetryInput) {
-    const payload = withTelemetryIdentity(reading);
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
-      return telemetryService.sendTelemetry(payload);
-    }
-
-    const registration = await navigator.serviceWorker.ready;
-    const worker = registration.active || navigator.serviceWorker.controller;
-    if (!worker) throw new Error("Service Worker indisponível para guardar telemetria.");
-
-    worker.postMessage({ type: "QUEUE_TELEMETRY", payload });
-    return { status: "queued" };
-  },
-
   async getOperators(): Promise<Operator[]> {
     const response = await withTimeout((signal) =>
       fetch(`${API_URL}/operario/`, {
@@ -221,6 +180,40 @@ export const telemetryService = {
     );
     const data = await handleResponse(response, "getOperators:");
     return validateApiContract(OperatorSchema.array(), data, "getOperators");
+  },
+
+  async sendTelemetry(reading: TelemetryInput) {
+    const payload = validateApiContract(TelemetryInputSchema, reading, "sendTelemetry");
+    const response = await withTimeout((signal) =>
+      fetch(`${API_URL}/telemetria/`, {
+        method: "POST",
+        headers: buildRequestHeaders("application/json"),
+        body: JSON.stringify(payload),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, "sendTelemetry:");
+    return data;
+  },
+
+  async queueTelemetry(reading: TelemetryInput) {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return telemetryService.sendTelemetry(reading);
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active || navigator.serviceWorker.controller;
+    worker?.postMessage({
+      type: "QUEUE_TELEMETRY",
+      payload: reading,
+      headers: {
+        ...(typeof window !== "undefined" && localStorage.getItem("fn-auth-token")
+          ? { Authorization: `Token ${localStorage.getItem("fn-auth-token")}` }
+          : {}),
+      },
+    });
+
+    return { status: "queued" };
   },
 
   async getPrescricoes(machineId: string): Promise<Prescricao[]> {

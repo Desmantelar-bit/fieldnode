@@ -1,13 +1,7 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { ErrorState, EmptyState } from '@/components/EmptyState';
-import { LoadingState } from '@/components/ui/FeedbackStates';
 import { StatusBadge, riskTone } from '@/components/StatusBadge';
 import { telemetryService } from '@/services/telemetryService';
-import type { AnalisePrescricao } from '@/types/telemetry';
 
 function sourceLabel(source: string) {
   if (source === 'ia_generativa') return 'Explicação gerada por IA';
@@ -21,31 +15,12 @@ const sourceToneClass = {
   CRITICO: 'border-[color:var(--status-critico)]/20 bg-[color:var(--status-critico)]/8 text-[color:var(--status-critico)]',
 } as const;
 
-type PrescriptionState =
-  | { status: 'loading' }
-  | { status: 'success'; data: AnalisePrescricao }
-  | { status: 'error'; message: string };
-
-export default function PrescricaoPage() {
-  const params = useParams<{ id: string }>();
-  const maquinaId = params?.id ?? '';
-  const [state, setState] = useState<PrescriptionState>({ status: 'loading' });
-
-  useEffect(() => {
-    let active = true;
-    setState({ status: 'loading' });
-    telemetryService.getAnalisePrescricao(maquinaId).then((data) => {
-      if (active) setState({ status: 'success', data });
-    }).catch((error: unknown) => {
-      if (active) {
-        setState({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Erro desconhecido',
-        });
-      }
-    });
-    return () => { active = false; };
-  }, [maquinaId]);
+export default async function PrescricaoPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: maquinaId } = await params;
 
   if (!maquinaId) {
     return (
@@ -55,26 +30,11 @@ export default function PrescricaoPage() {
     );
   }
 
-  if (state.status === 'loading') {
+  try {
+    const analise = await telemetryService.getAnalisePrescricao(maquinaId);
+    const texto   = analise.explicacao_operador || analise.recomendacao_tecnica || 'Nenhuma ação necessária.';
+
     return (
-      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
-        <LoadingState mensagem="Carregando recomendação..." />
-      </AppShell>
-    );
-  }
-
-  if (state.status === 'error') {
-    return (
-      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
-        <ErrorState title="Não consegui carregar a prescrição." message={`${state.message} — tente novamente.`} />
-      </AppShell>
-    );
-  }
-
-  const analise = state.data;
-  const texto = analise.explicacao_operador || analise.recomendacao_tecnica || 'Nenhuma ação necessária.';
-
-  return (
       <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
         <div className="space-y-5">
           <div>
@@ -114,5 +74,16 @@ export default function PrescricaoPage() {
           </section>
         </div>
       </AppShell>
-  );
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro desconhecido';
+    return (
+      <AppShell active="/colheitadeiras" eyebrow="Manutenção" title="Prescrição">
+        <ErrorState
+          title="Não consegui carregar a prescrição."
+          message={`${message} — tente novamente.`}
+        />
+      </AppShell>
+    );
+  }
 }
