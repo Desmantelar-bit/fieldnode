@@ -1,11 +1,12 @@
 # =============================================================================
 # FieldNode — docker-compose.yml
 #
-# Quatro serviços:
+# Cinco serviços:
 #   db         MySQL 8 com healthcheck real
 #   mosquitto  Broker MQTT com healthcheck via mosquitto_sub
 #   web        Django + Gunicorn (porta 8000)
 #   worker     python manage.py mqtt_listen
+#   frontend   Next.js 15 standalone (porta 3000)
 #
 # Uso:
 #   cp .env.example .env
@@ -138,6 +139,22 @@ services:
       db:
         condition: service_healthy
       mosquitto:
+        condition: service_healthy
+
+  # ── frontend (Next.js 15) ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      FIELDNODE_SERVER_API_URL: http://web:8000/api
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    depends_on:
+      web:
         condition: service_healthy
 
 # =============================================================================

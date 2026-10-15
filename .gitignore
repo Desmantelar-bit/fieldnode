@@ -1,52 +1,71 @@
-# Ignorar arquivos compilados
-# Ignorar arquivos de compilação de frontend
-# Ignorar arquivos de configuração do editor
-# Ignorar arquivos de logs
-# Ignorar arquivos de media (uploads)
-# Ignorar arquivos do sistema operacional
-# Ignorar arquivos do staticfiles quando coletados
-# Ignorar arquivos e diretórios do Python
-# Ignorar bancos de dados locais
-# Ignorar configurações locais
-# Ignorar o virtualenv
+# Compilação e caches Python
 **/__pycache__/
-*.css.map
-*.log
-*.mo
-*.pot
 *.py[cod]
 *.pyc
 *.pyd
 *.pyo
+.Python
+*.mo
+*.pot
+.pytest_cache/
+
+# Ambientes virtuais
+venv/
+venv.bak/
+.venv/
+env/
+env.bak/
+
+# Logs e outputs de execução
+*.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Bancos de dados locais e backups
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+*.sqlite3.*.bak
+*.bak
+simulators/*.db
+artifacts/**/*.sqlite3
+artifacts/**/*.db
+
+# Frontend e Node
+node_modules/
+.next/
+**/.next/
+*.tsbuildinfo
+**/*.tsbuildinfo
+*.css.map
 *.sass-cache
-*.swp
+
+# Arquivos de media gerados e uploads
+media/
+staticfiles/
+
+# Arquivos binários descartáveis e gravações
+*.webm
+FieldNode_Proposta_TCC_v5.docx
+
+# Sistema operacional
 .DS_Store
+Thumbs.db
+*.swp
+
+# Variáveis de ambiente locais
 .env
 .env.*
 **/.env
 **/.env*
 !.env.example
 !**/.env.example
-.idea/
-.Python
-.venv/
-.vscode/
-__pycache__/
-db.sqlite3
-db.sqlite3-journal
-simulators/*.db
-env.bak/
-env/
 local_settings.py
-media/
-node_modules/
-npm-debug.log
-staticfiles/
-Thumbs.db
-venv.bak/
-venv/
-yarn-debug.log
-yarn-error.log
 
-# IDE/Tooling Cache
+# IDE e Tooling Caches
+.vscode/
+.idea/
 .kilo/
+.kiro/
+.nanocoder/
