@@ -113,7 +113,7 @@ ROOT_URLCONF = 'setup.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -278,3 +278,24 @@ LOGGING = {
         },
     },
 }
+
+# Configurações do Swagger (drf-yasg)
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Token': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'Token de autenticação. Exemplo: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b',
+        },
+        'APIKey': {
+            'type': 'apiKey',
+            'name': 'X-API-Key',
+            'in': 'header',
+            'description': 'Chave de ingestão de telemetria.',
+        },
+    },
+    'USE_SESSION_AUTH': False,
+}
+SWAGGER_USE_COMPAT_RENDERERS = False
+
