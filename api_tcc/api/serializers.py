@@ -426,3 +426,34 @@ class DecisionSerializer(serializers.ModelSerializer):
 
     def get_metodologia(self, obj):
         return obj.detalhes.get("metodologia") if isinstance(obj.detalhes, dict) else None
+
+
+class EventSerializer(serializers.ModelSerializer):
+    machine = serializers.UUIDField(source="machine.id", read_only=True)
+    machine_id = serializers.UUIDField(source="machine.id", read_only=True)
+    machine_external_code = serializers.CharField(
+        source="machine.external_code", read_only=True
+    )
+    leitura_origem_id = serializers.UUIDField(
+        source="leitura_origem.id", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.Event
+        fields = [
+            "id",
+            "machine",
+            "machine_id",
+            "machine_external_code",
+            "leitura_origem",
+            "leitura_origem_id",
+            "tipo",
+            "severidade",
+            "status",
+            "trust_score_herdado",
+            "priority_score",
+            "criado_em",
+            "dados_contexto",
+        ]
+        read_only_fields = fields
+

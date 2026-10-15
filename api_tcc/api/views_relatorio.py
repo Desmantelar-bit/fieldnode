@@ -1,18 +1,22 @@
-"""Exportação de relatórios executivos FieldNode em formato Excel."""
+"""Exportação de relatórios executivos FieldNode em formato Excel e CSV."""
 
+import csv
 from io import BytesIO
 
+from django.conf import settings
+from django.db import models
 from django.http import HttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from openpyxl import Workbook
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 
-from django.conf import settings
 from api_tcc.models import Colheitadeira, LeituraTelemetria, Machine, RegistroAnalise
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machine_for_request
+from api_tcc.services.relatorios import preparar_dados_relatorio, _gerar_relatorio_csv_exportar
 
 
 def _is_demo_publico(request) -> bool:
@@ -20,7 +24,12 @@ def _is_demo_publico(request) -> bool:
 
 
 class RelatorioExportarView(APIView):
-    """Gera um relatório .xlsx com resumo, telemetria e eventos de IA."""
+    """
+    GET /api/relatorio/exportar/?maquina_id=COLH-01&formato=xlsx
+    GET /api/relatorio/exportar/?maquina_id=COLH-01&formato=csv&data_inicio=2026-01-01&data_fim=2026-01-31
+
+    Exporta relatório operacional da máquina em formato Excel (.xlsx, padrão) ou CSV (;).
+    """
 
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
@@ -39,15 +48,63 @@ class RelatorioExportarView(APIView):
         if machine is None:
             return HttpResponse("Máquina não encontrada", status=404)
 
-        if not Colheitadeira.objects.filter(maquina_id=maquina_id).exists():
-            return HttpResponse("Máquina não encontrada", status=404)
+        formato = request.query_params.get("formato", "").lower()
+        accept = request.META.get("HTTP_ACCEPT", "")
 
-        leituras_qs = LeituraTelemetria.objects.filter(maquina_id=maquina_id)
-        leituras_qs = leituras_qs.filter(machine=machine)
-        leituras = leituras_qs.order_by("timestamp")
-        analises = RegistroAnalise.objects.filter(maquina_id=maquina_id).order_by(
-            "criado_em"
+        # Exportação CSV
+        if formato == "csv" or "text/csv" in accept:
+            return self._exportar_csv(request, maquina_id, machine)
+
+        # Exportação Excel (.xlsx, padrão)
+        return self._exportar_xlsx(machine, maquina_id)
+
+    def _exportar_csv(self, request, maquina_id, machine=None):
+        data_inicio = request.query_params.get("data_inicio")
+        data_fim = request.query_params.get("data_fim")
+
+        if data_inicio and not parse_date(data_inicio):
+            return HttpResponse("data_inicio inválida; use AAAA-MM-DD", status=400)
+        if data_fim and not parse_date(data_fim):
+            return HttpResponse("data_fim inválida; use AAAA-MM-DD", status=400)
+
+        di = parse_date(data_inicio) if data_inicio else None
+        df = parse_date(data_fim) if data_fim else None
+
+        if di and df and df < di:
+            return HttpResponse("data_fim deve ser posterior a data_inicio", status=400)
+
+        dados, data_inicio_parsed, data_fim_parsed = preparar_dados_relatorio(
+            maquina_id, di, df
         )
+        if not dados and machine and machine.external_code != maquina_id:
+            dados, data_inicio_parsed, data_fim_parsed = preparar_dados_relatorio(
+                machine.external_code, di, df
+            )
+
+        if not dados:
+            response = HttpResponse(content_type="text/csv; charset=utf-8")
+            response["Content-Disposition"] = f'attachment; filename="relatorio_sem_dados_{maquina_id}.csv"'
+            response.write("\ufeff")
+            writer = csv.writer(response, delimiter=";", lineterminator="\n")
+            writer.writerow(["Relatório FieldNode"])
+            writer.writerow(["Máquina", maquina_id])
+            writer.writerow(["Status", "Sem dados para o período informado"])
+            writer.writerow(["Orientação", "Selecione outro período ou aguarde novas leituras de telemetria."])
+            return response
+
+        return _gerar_relatorio_csv_exportar(
+            maquina_id, data_inicio_parsed, data_fim_parsed,
+            dados["stats"], dados["leituras"], dados["prescricoes"]
+        )
+
+    def _exportar_xlsx(self, machine, maquina_id):
+        leituras_qs = LeituraTelemetria.objects.filter(
+            models.Q(machine=machine) | models.Q(maquina_id=machine.external_code) | models.Q(maquina_id=maquina_id)
+        )
+        leituras = leituras_qs.order_by("timestamp")
+        analises = RegistroAnalise.objects.filter(
+            models.Q(maquina_id=machine.external_code) | models.Q(maquina_id=maquina_id)
+        ).order_by("criado_em")
 
         workbook = Workbook()
         resumo = workbook.active

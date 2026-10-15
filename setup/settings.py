@@ -206,7 +206,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'api_tcc.authentication.ExpiringTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
@@ -220,6 +220,7 @@ REST_FRAMEWORK = {
 }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
+TOKEN_TTL_HOURS = env_config('TOKEN_TTL_HOURS', default=24, cast=int)
 
 # Configuração de logging para deduplicação e correlação (S7-T2, S7-T3)
 LOGGING = {

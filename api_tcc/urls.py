@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
-from rest_framework.authtoken.views import obtain_auth_token
+from api_tcc.api.views_auth import ExpiringAuthTokenView
 from api_tcc.api import viewsets
 from api_tcc.api.views_ingestao import (
     AnomaliaView,
@@ -19,6 +19,8 @@ from api_tcc.api.views_ingestao import (
 )
 from api_tcc.api.views_health import HealthView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
+from api_tcc.api.views_events import EventListView, EventDetailView
+from api_tcc.api.views_decisions import DecisionListView
 from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
@@ -41,22 +43,25 @@ router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colhe
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("auth/login/", obtain_auth_token, name="auth-login"),
+    path("auth/login/", ExpiringAuthTokenView.as_view(), name="auth-login"),
     path("telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"),
     path("telemetria/lote/", IngestaoLoteView.as_view(), name="ingestao-telemetria-lote"),
     path("anomalias/", AnomaliaView.as_view(), name="anomalias"),
     path("leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),
     path("manutencao/", ManutencaoView.as_view(), name="manutencao"),
     path("metricas/", MetricasView.as_view(), name="metricas"),
-    path("machines/<uuid:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
+    path("machines/<str:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
     path("health/", HealthView.as_view(), name="api-health"),
     path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
+    path("events/", EventListView.as_view(), name="events-list"),
+    path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
+    path("decisions/", DecisionListView.as_view(), name="decisions-list"),
+    path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),
     path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
     path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
     path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
     path("prescricoes/<str:maquina_id>/", PrescricaoMaquinaView.as_view(), name="prescricao-maquina"),
-    path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),
     path("relatorio/", RelatorioView.as_view(), name="relatorio"),
     path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),

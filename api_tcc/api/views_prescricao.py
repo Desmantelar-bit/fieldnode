@@ -51,20 +51,26 @@ class PrescricaoView(APIView):
     O campo status retorna NORMAL / ATENCAO / CRITICO com base em comportamento anômalo.
     O sistema NAO afirma prever o momento exato da falha, pois isso exigiria dataset histórico
     de quebras reais que não está disponível. O objetivo é a recomendação preditiva/preventiva.
+
+    GET calcula a análise sem persistir; POST calcula e persiste explicitamente uma Decision.
     """
 
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
-    def get(self, request, maquina_id):
-        if get_machine_for_request(request, maquina_id) is None:
+    def _processar(self, request, maquina_id, forcar_persistencia: bool = False):
+        machine = get_machine_for_request(request, maquina_id)
+        if machine is None:
             return Response(
                 {"status": "erro", "detalhe": "máquina não disponível para este usuário"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        deve_persistir = forcar_persistencia
+
         try:
-            resultado = analisar_maquina(maquina_id)
+            resultado = analisar_maquina(machine.external_code)
             metricas_seguras = _valor_json_seguro(resultado.metricas)
-            machine = Machine.objects.get(external_code=maquina_id.strip().upper())
+
             decision = (
                 Decision.objects.filter(
                     machine=machine,
@@ -76,19 +82,23 @@ class PrescricaoView(APIView):
                 .order_by("-criado_em")
                 .first()
             )
-            if decision is None:
+
+            if decision is None and deve_persistir:
                 decision = persistir_decision_da_analise(resultado)
-            agentic_decision = (
-                Decision.objects.filter(
-                    machine=decision.machine,
-                    status=Decision.Status.PENDENTE,
-                    detalhes__metodologia="agentic_llm_poc",
+
+            if decision is not None:
+                agentic_decision = (
+                    Decision.objects.filter(
+                        machine=decision.machine,
+                        status=Decision.Status.PENDENTE,
+                        detalhes__metodologia="agentic_llm_poc",
+                    )
+                    .order_by("-criado_em")
+                    .first()
                 )
-                .order_by("-criado_em")
-                .first()
-            )
-            if agentic_decision is not None:
-                decision = agentic_decision
+                if agentic_decision is not None:
+                    decision = agentic_decision
+
         except Exception as exc:
             logger.exception(
                 "Erro ao processar prescricao para maquina %s: %s",
@@ -100,11 +110,23 @@ class PrescricaoView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        if decision.detalhes.get("metodologia") == "agentic_llm_poc":
-            explicacao = {"texto": decision.texto, "fonte": "agentic_llm_poc"}
-            metodologia = "agentic_llm_poc"
-            recomendacao = decision.texto
+        if decision is not None:
+            decision_id = str(decision.id)
+            decision_status = decision.status
+            recomendacao_tecnica = decision.acao_recomendada
+
+            if decision.detalhes.get("metodologia") == "agentic_llm_poc":
+                explicacao = {"texto": decision.texto, "fonte": "agentic_llm_poc"}
+                metodologia = "agentic_llm_poc"
+                recomendacao = decision.texto
+            else:
+                explicacao = gerar_explicacao_natural(resultado)
+                metodologia = resultado.metodologia
+                recomendacao = resultado.recomendacao
         else:
+            decision_id = None
+            decision_status = None
+            recomendacao_tecnica = resultado.recomendacao or "Nenhuma ação corretiva necessária."
             explicacao = gerar_explicacao_natural(resultado)
             metodologia = resultado.metodologia
             recomendacao = resultado.recomendacao
@@ -113,15 +135,22 @@ class PrescricaoView(APIView):
             {
                 "maquina_id": resultado.maquina_id,
                 "status": resultado.status,
+                "preview": not deve_persistir,
                 "metodologia": metodologia,
                 "motivos": resultado.motivos,
                 "metricas": metricas_seguras,
                 "recomendacao": recomendacao,
-                "recomendacao_tecnica": decision.acao_recomendada,
-                "decision_id": str(decision.id),
-                "decision_status": decision.status,
+                "recomendacao_tecnica": recomendacao_tecnica,
+                "decision_id": decision_id,
+                "decision_status": decision_status,
                 "explicacao_operador": explicacao["texto"],
                 "fonte_explicacao": explicacao["fonte"],
                 "gerado_em": timezone.now().isoformat(),
             }
         )
+
+    def get(self, request, maquina_id):
+        return self._processar(request, maquina_id, forcar_persistencia=False)
+
+    def post(self, request, maquina_id):
+        return self._processar(request, maquina_id, forcar_persistencia=True)

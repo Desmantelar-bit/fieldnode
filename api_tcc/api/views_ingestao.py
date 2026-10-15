@@ -238,17 +238,21 @@ class MachineDataHealthView(APIView):
     """
 
     def get(self, request, machine_id):
-        try:
-            machine = Machine.objects.get(id=machine_id)
-        except Machine.DoesNotExist:
+        machine = get_machine_for_request(request, machine_id)
+        if machine is None:
+            try:
+                uuid_val = uuid_lib.UUID(str(machine_id))
+                m_exists = Machine.objects.filter(id=uuid_val).exists()
+            except (ValueError, AttributeError):
+                m_exists = Machine.objects.filter(external_code=str(machine_id).strip().upper()).exists()
+
+            if m_exists:
+                return Response(
+                    {"status": "erro", "detalhe": "machine nao disponivel no dataset demo"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
             return Response(
                 {"status": "erro", "detalhe": "machine nao encontrada"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        if not request_can_access_machine(request, machine):
-            return Response(
-                {"status": "erro", "detalhe": "machine nao disponivel no dataset demo"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -422,18 +426,42 @@ class UltimaLeituraView(APIView):
                     ) t3 ON t1.maquina_id = t3.maquina_id
                     {demo_where}
                     ORDER BY t1.maquina_id
-                    LIMIT 10
                 """, params)
 
             rows = cursor.fetchall()
 
+        # Paginação configurável e suporte a frotas com mais de 10 máquinas
+        try:
+            limit = int(request.query_params.get('limit') or request.query_params.get('page_size') or 50)
+            limit = max(1, min(limit, 200))
+        except (TypeError, ValueError):
+            limit = 50
+
+        try:
+            if 'page' in request.query_params:
+                page = max(1, int(request.query_params.get('page', 1)))
+                offset = (page - 1) * limit
+            else:
+                offset = max(0, int(request.query_params.get('offset', 0)))
+        except (TypeError, ValueError):
+            offset = 0
+
         # Soft delete é respeitado também nesta rota de leitura rápida. Assim,
         # uma máquina inativada não reaparece no dashboard por ter histórico.
-        from api_tcc.models import Colheitadeira
+        from api_tcc.models import Colheitadeira, Machine
         maquinas_ativas = set(
             Colheitadeira.objects.filter(ativo=True).values_list("maquina_id", flat=True)
+        ) | set(
+            Machine.objects.filter(ativo=True).values_list("external_code", flat=True)
         )
-        rows = [row for row in rows if row[0] in maquinas_ativas]
+        rows = [
+            row for row in rows
+            if row[0] in maquinas_ativas or (len(row) > 7 and row[7] in maquinas_ativas)
+        ]
+        total_maquinas_ativas = len(rows)
+
+        if not maquina:
+            rows = rows[offset:offset + limit]
 
         resultado = []
         for row in rows:
@@ -482,7 +510,11 @@ class UltimaLeituraView(APIView):
                 ),
             })
 
-        return Response(resultado)
+        response = Response(resultado)
+        response['X-Total-Count'] = str(total_maquinas_ativas if 'total_maquinas_ativas' in locals() else len(resultado))
+        response['X-Limit'] = str(limit if 'limit' in locals() else len(resultado))
+        response['X-Offset'] = str(offset if 'offset' in locals() else 0)
+        return response
 
 
 class ManutencaoView(APIView):
@@ -629,7 +661,11 @@ class RelatorioView(APIView):
             )
             return resposta
         
-        return Response(resultado)
+        response = Response(resultado)
+        response['X-Total-Count'] = str(total_maquinas_ativas if 'total_maquinas_ativas' in locals() else len(resultado))
+        response['X-Limit'] = str(limit if 'limit' in locals() else len(resultado))
+        response['X-Offset'] = str(offset if 'offset' in locals() else 0)
+        return response
     
     def _build_csv_geral(self, dados):
         buf = io.StringIO()
@@ -646,59 +682,8 @@ class RelatorioView(APIView):
         return buf.getvalue()
 
 
-class RelatorioExportarView(APIView):
-    """
-    GET /api/relatorio/exportar/?maquina_id=COLH-01&data_inicio=2025-01-01&data_fim=2025-01-31
-
-    Exportação CSV séria com delimitador ;, filtros de máquina e período,
-    e colunas de resumo/recomendação.
-    """
-    permission_classes = [IsAuthenticatedOrPublicDemo]
-
-    def get(self, request):
-        maquina_id = request.query_params.get('maquina_id')
-        data_inicio = request.query_params.get('data_inicio')
-        data_fim = request.query_params.get('data_fim')
-
-        if not maquina_id:
-            return Response(
-                {"status": "erro", "detalhe": "maquina_id é obrigatório"},
-                status=400,
-            )
-
-        from api_tcc.services.relatorios import preparar_dados_relatorio, _gerar_relatorio_csv_exportar
-        from django.utils.dateparse import parse_date
-
-        if data_inicio and not parse_date(data_inicio):
-            return Response({"status": "erro", "detalhe": "data_inicio inválida; use AAAA-MM-DD"}, status=400)
-        if data_fim and not parse_date(data_fim):
-            return Response({"status": "erro", "detalhe": "data_fim inválida; use AAAA-MM-DD"}, status=400)
-
-        di = parse_date(data_inicio) if data_inicio else None
-        df = parse_date(data_fim) if data_fim else None
-
-        if di and df and df < di:
-            return Response({"status": "erro", "detalhe": "data_fim deve ser posterior a data_inicio"}, status=400)
-
-        dados, data_inicio_parsed, data_fim_parsed = preparar_dados_relatorio(
-            maquina_id, di, df
-        )
-
-        if not dados:
-            response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="relatorio_sem_dados_{maquina_id}.csv"'
-            response.write('\ufeff')
-            writer = csv.writer(response, delimiter=';', lineterminator='\n')
-            writer.writerow(['Relatório FieldNode'])
-            writer.writerow(['Máquina', maquina_id])
-            writer.writerow(['Status', 'Sem dados para o período informado'])
-            writer.writerow(['Orientação', 'Selecione outro período ou aguarde novas leituras de telemetria.'])
-            return response
-
-        return _gerar_relatorio_csv_exportar(
-            maquina_id, data_inicio_parsed, data_fim_parsed,
-            dados['stats'], dados['leituras'], dados['prescricoes']
-        )
+# Unificado em api_tcc.api.views_relatorio para suportar XLSX e CSV sem conflito
+from api_tcc.api.views_relatorio import RelatorioExportarView
 
 
 def _serializar_prescricao(p) -> dict:
@@ -759,13 +744,32 @@ class PrescricaoTesteView(APIView):
 
 class DecisionActionView(APIView):
     """
-    PATCH /api/decisions/<id>/
-
-    Registra a acao humana sobre uma Decision sem permitir edicao generica da
-    recomendacao original.
+    GET /api/decisions/<id>/   — consulta detalhes da Decision
+    PATCH /api/decisions/<id>/ — registra acao humana sobre uma Decision
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
+    def get(self, request, decision_id):
+        try:
+            decision = (
+                Decision.objects
+                .select_related("machine", "event", "decidido_por")
+                .get(id=decision_id)
+            )
+        except Decision.DoesNotExist:
+            return Response(
+                {"status": "erro", "detalhe": "Decision nao encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not request_can_access_machine(request, decision.machine):
+            return Response(
+                {"status": "erro", "detalhe": "Decision nao disponivel para este usuario"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(DecisionSerializer(decision).data, status=status.HTTP_200_OK)
 
     def patch(self, request, decision_id):
         serializer = DecisionActionSerializer(data=request.data)
@@ -812,14 +816,14 @@ class DecisionActionView(APIView):
 class PrescricaoView(APIView):
     """
     GET /api/prescricoes/?maquina_id=COLH-01
+    POST /api/prescricoes/ (com maquina_id)
 
-    Retorna array de prescrições para a máquina especificada.
-    Usa os campos reais do banco: titulo, descricao, status, data_geracao.
+    GET analisa sem persistir; POST analisa e persiste explicitamente uma Decision.
     """
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
-    def get(self, request):
-        maquina_id = request.query_params.get('maquina_id')
+    def _executar(self, request, forcar_persistencia: bool = False):
+        maquina_id = request.data.get('maquina_id') or request.query_params.get('maquina_id')
         if not maquina_id:
             return Response(
                 {"status": "erro", "detalhe": "maquina_id é obrigatório"},
@@ -831,9 +835,32 @@ class PrescricaoView(APIView):
                 status=404,
             )
 
+        deve_persistir = forcar_persistencia
+
         analise = analisar_maquina(maquina_id)
-        decision = persistir_decision_da_analise(analise)
+        if deve_persistir:
+            decision = persistir_decision_da_analise(analise)
+            decision_id = str(decision.id)
+            decision_status = decision.status
+        else:
+            machine = get_machine_for_request(request, maquina_id)
+            existing = (
+                Decision.objects.filter(machine=machine, status=Decision.Status.PENDENTE)
+                .order_by("-criado_em")
+                .first()
+                if machine else None
+            )
+            decision_id = str(existing.id) if existing else None
+            decision_status = existing.status if existing else None
+
         payload = _serializar_analise(analise)
-        payload["decision_id"] = str(decision.id)
-        payload["decision_status"] = decision.status
+        payload["decision_id"] = decision_id
+        payload["decision_status"] = decision_status
+        payload["preview"] = not deve_persistir
         return Response(payload)
+
+    def get(self, request):
+        return self._executar(request, forcar_persistencia=False)
+
+    def post(self, request):
+        return self._executar(request, forcar_persistencia=True)

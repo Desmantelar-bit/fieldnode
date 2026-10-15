@@ -50,11 +50,12 @@ A variável `CORS_ALLOWED_ORIGINS` é configurável via `.env`. O valor padrão 
 
 ### A.4 Convenções de Compatibilidade Obrigatórias
 
-1. O campo `maquina_id` é o identificador legado (string, ex: `"COLH-01"`) normalizado como `.strip().upper()`. Qualquer sistema que o envie deve respeitar esta normalização.
-2. A identidade canônica de dispositivo é `external_code` no modelo `Machine` (UUID interno: `machine.id`). Os dois identificadores coexistem.
-3. Campos `null` são válidos em várias respostas (ex.: `trust_score`, `latitude`, `longitude`). O frontend **não deve tratar `null` como erro**.
-4. O sistema possui um modo `DEMO_MODE` que expõe um subconjunto de máquinas marcadas como `is_demo=True` para acesso anônimo. O frontend deve distinguir claramente dados de demonstração de dados de produção.
-5. O campo `Deprecation: true` com `Sunset: 2026-12-31` está presente no header de resposta de `/api/prescricoes/lista/`. O frontend não deve depender desse endpoint para novas funcionalidades.
+1. `Machine.id` é a identidade canônica interna (UUID); `Machine.external_code` é o identificador externo textual e normalmente corresponde ao legado `maquina_id` (ex.: `COLH-01`). Não substitua um pelo outro.
+2. Os serializers de `Event` e `Decision` expõem o UUID em `machine` (e também em `machine_id` no Event) e expõem o código textual separadamente em `machine_external_code`. O frontend deve preservar ambos.
+3. `get_machine_for_request()` aceita UUID ou `external_code` textual nas rotas/filtros que usam essa função (incluindo Events, Decisions, prescrições e Machine Health). Isso não significa que todo endpoint aceite ambos: use o formato documentado para cada rota.
+4. Campos `null` são válidos em várias respostas (ex.: `trust_score`, `latitude`, `longitude`). O frontend **não deve tratar `null` como erro**.
+5. O sistema possui um modo `DEMO_MODE` que expõe um subconjunto de máquinas marcadas como `is_demo=True` para acesso anônimo. O frontend deve distinguir claramente dados de demonstração de dados de produção.
+6. O campo `Deprecation: true` com `Sunset: 2026-12-31` está presente no header de resposta de `/api/prescricoes/lista/`. O frontend não deve depender desse endpoint para novas funcionalidades.
 
 ---
 
@@ -66,9 +67,10 @@ A variável `CORS_ALLOWED_ORIGINS` é configurável via `.env`. O valor padrão 
 
 | Campo | Valor |
 |---|---|
-| Handler | `rest_framework.authtoken.views.obtain_auth_token` (DRF built-in) |
+| Handler | `ExpiringAuthTokenView.post()` (`api_tcc/api/views_auth.py`) |
 | Permissão | Pública |
 | Throttle | Nenhum implementado |
+| Validade | `TOKEN_TTL_HOURS` (padrão 24h; `setup/settings.py`) |
 
 **Corpo da requisição:**
 ```json
@@ -81,7 +83,10 @@ A variável `CORS_ALLOWED_ORIGINS` é configurável via `.env`. O valor padrão 
 **Resposta 200 OK:**
 ```json
 {
-  "token": "string (40 chars hex)"
+  "token": "string (40 chars hex)",
+  "expires_in": "int (segundos restantes)",
+  "user_id": "int",
+  "username": "string"
 }
 ```
 
@@ -96,6 +101,8 @@ A variável `CORS_ALLOWED_ORIGINS` é configurável via `.env`. O valor padrão 
 ```
 Authorization: Token <token>
 ```
+
+Tokens expirados são rejeitados por `ExpiringTokenAuthentication` com HTTP 401. Um novo `POST /api/auth/login/` com credenciais válidas substitui o token expirado; não há endpoint separado de refresh ou logout. O cliente deve iniciar novo login ao receber 401 por token expirado.
 
 ---
 
@@ -284,7 +291,7 @@ Authorization: Token <token>
 | Handler | `UltimaLeituraView.get()` |
 | Autenticação | Token DRF **ou** Demo público |
 | Parâmetro opcional | `?maquina_id=COLH-01` |
-| Limite | Máximo 10 máquinas distintas (sem paginação implementada) |
+| Paginação | `limit` ou `page_size` (padrão 50, máximo 200), com `page` (1-based) ou `offset` (padrão 0) |
 
 **Resposta 200 OK:** array de objetos por máquina:
 
@@ -316,9 +323,9 @@ Authorization: Token <token>
 ]
 ```
 
-> **ATENÇÃO:** O filtro de máquinas ativas usa `Colheitadeira.ativo=True`. Apenas máquinas com registro `Colheitadeira` correspondente aparecem neste endpoint.
+A resposta permanece um array JSON. Metadados de paginação são enviados nos headers `X-Total-Count`, `X-Limit` e `X-Offset`. Sem `maquina_id`, `page` calcula offset como `(page - 1) * limit`; `offset` é usado quando `page` não foi enviado. Com `maquina_id`, a consulta é específica para uma máquina e não é fatiada.
 
-> **LIMITAÇÃO CONHECIDA:** Máximo de 10 máquinas sem paginação. Frotas maiores exigem implementação de paginação (ver seção I).
+> **ATENÇÃO:** A listagem respeita o escopo de organização do usuário autenticado ou o subconjunto demo público, e remove máquinas inativas. O total reportado é calculado depois dessa filtragem.
 
 **Arquivo:** `api_tcc/api/views_ingestao.py` L346–L485
 
@@ -406,7 +413,7 @@ Suporta também: `POST`, `GET /api/colheitadeira/{id}/`, `PUT /api/colheitadeira
 | Campo | Valor |
 |---|---|
 | Handler | `MachineDataHealthView.get()` |
-| Parâmetro de rota | `machine_id` — **UUID da `Machine` canônica** (não o `maquina_id` textual) |
+| Parâmetro de rota | `machine_id` — string que pode ser UUID da `Machine` ou `external_code` textual (ex.: `COLH-01`) |
 | Autenticação | Token DRF **ou** Demo público (verificado via `request_can_access_machine`) |
 
 **Resposta 200 OK** (com dados):
@@ -513,13 +520,86 @@ Idêntico ao `/api/anomalias/` em estrutura. Mesmo handler interno (`analisar_ma
 
 ### B.8 Prescrições e Decisões — S4
 
+#### `GET /api/events/`
+
+| Campo | Valor |
+|---|---|
+| Handler | `EventListView.get()` (`api_tcc/api/views_events.py`) |
+| Autenticação | Token DRF válido ou demo público; lista somente máquinas acessíveis ao usuário |
+| Query params | `maquina_id` (UUID interno ou `external_code`), `tipo`, `severidade`, `status`, `page` (padrão 1), `page_size` (padrão 20, máximo 100) |
+| Ordenação | `criado_em` decrescente |
+
+**Resposta 200 OK:** objeto paginado com `count: int`, `page: int`, `page_size: int`, `pages: int`, `next: URL | null`, `previous: URL | null` e `results: Event[]`. Cada evento contém:
+
+```json
+{
+  "id": "UUID",
+  "machine": "UUID da Machine",
+  "machine_id": "UUID da Machine (alias serializado)",
+  "machine_external_code": "string",
+  "leitura_origem": "UUID da leitura | null",
+  "leitura_origem_id": "UUID da leitura | null",
+  "tipo": "TEMP_ALTA | VIBRACAO_ALTA | ANOMALIA_ML | ANOMALIA_ESTATISTICA | TENDENCIA_RISCO",
+  "severidade": "NORMAL | ATENCAO | CRITICO",
+  "status": "ABERTO | FECHADO",
+  "trust_score_herdado": "float | null",
+  "priority_score": "decimal 0..1 | null",
+  "criado_em": "ISO 8601",
+  "dados_contexto": "object"
+}
+```
+
+Sem `maquina_id`, o escopo é todas as máquinas autorizadas; usuário sem máquinas acessíveis recebe página vazia. Máquina não acessível/inexistente em filtro retorna 404. Página inválida retorna 400.
+
+#### `GET /api/events/{event_id}/`
+
+Consulta um evento pelo UUID. Resposta 200 usa o mesmo `EventSerializer`; evento inexistente ou fora do escopo retorna 404. Handler: `EventDetailView.get()`.
+
+#### `GET /api/decisions/`
+
+| Campo | Valor |
+|---|---|
+| Handler | `DecisionListView.get()` (`api_tcc/api/views_decisions.py`) |
+| Autenticação | Token DRF válido ou demo público; lista somente decisões de máquinas acessíveis |
+| Query params | `maquina_id` (UUID interno ou `external_code`), `status`, `severidade`, `page` (padrão 1), `page_size` (padrão 20, máximo 100) |
+| Ordenação | `criado_em` decrescente |
+
+**Resposta 200 OK:** envelope de paginação igual ao de Events. Cada elemento contém os campos abaixo; `event`, `confianca`, autor, horário e outcome podem ser `null` conforme o estado/origem:
+
+```json
+{
+  "id": "UUID",
+  "machine": "UUID da Machine",
+  "machine_external_code": "string",
+  "event": "UUID do Event | null",
+  "texto": "string",
+  "acao_recomendada": "string",
+  "severidade": "NORMAL | ATENCAO | CRITICO",
+  "confianca": "float 0..1 | null",
+  "status": "PENDENTE | APROVADA | REJEITADA | EXECUTADA | EXPIRADA",
+  "criado_em": "ISO 8601",
+  "decidido_por": "int (user.id) | null",
+  "decidido_por_username": "string | null",
+  "decidido_em": "ISO 8601 | null",
+  "outcome_texto": "string | null",
+  "metodologia": "string | null"
+}
+```
+
+Máquina não acessível/inexistente em filtro retorna 404; página inválida retorna 400. A listagem é leitura; não cria nem atualiza Decisions.
+
+#### `GET /api/decisions/{decision_id}/`
+
+Consulta uma decisão por UUID usando `DecisionActionView.get()`. Resposta 200 usa `DecisionSerializer`; recurso inexistente ou fora do escopo retorna 404. A rota também aceita `PATCH` para a transição descrita abaixo.
+
 #### `GET /api/prescricoes/{maquina_id}/`
 
 | Campo | Valor |
 |---|---|
 | Handler | `api_tcc/api/views_prescricao.py` — `PrescricaoView.get()` |
 | Autenticação | Token DRF **ou** Demo público |
-| Parâmetro de rota | `maquina_id` — string textual (ex: `COLH-01`) |
+| Parâmetro de rota | `maquina_id` — `Machine.id` UUID ou `external_code` textual (ex.: `COLH-01`) |
+| Efeito | GET somente leitura; `POST` persiste/reutiliza uma Decision |
 
 **Resposta 200 OK:**
 ```json
@@ -537,19 +617,20 @@ Idêntico ao `/api/anomalias/` em estrutura. Mesmo handler interno (`analisar_ma
   },
   "recomendacao": "string | null",
   "recomendacao_tecnica": "string",
-  "decision_id": "UUID string",
-  "decision_status": "PENDENTE | APROVADA | REJEITADA | EXECUTADA | EXPIRADA",
+  "decision_id": "UUID string | null",
+  "decision_status": "PENDENTE | APROVADA | REJEITADA | EXECUTADA | EXPIRADA | null",
+  "preview": "bool (true em GET; false em POST)",
   "explicacao_operador": "string",
   "fonte_explicacao": "determinístico | ia_generativa | fallback_determinístico | agentic_llm_poc",
   "gerado_em": "ISO 8601 string"
 }
 ```
 
-> **NOTA:** Este endpoint executa `analisar_maquina()` e persiste ou reutiliza uma `Decision` pendente. **Tem efeito colateral de escrita no banco** a cada chamada (se não houver `Decision` pendente equivalente dentro de 30 minutos).
+`GET` executa `analisar_maquina()` sem escrita. Pode retornar uma Decision pendente existente, mas não cria nem atualiza registros. `POST /api/prescricoes/{maquina_id}/` executa a mesma análise e persiste/reutiliza uma Decision pendente; a persistência é explícita e idempotente na janela de deduplicação do serviço.
 
 > **NOTA — LLM:** O campo `explicacao_operador` pode vir do Gemini API (se `GEMINI_API_KEY` configurada e circuito fechado) ou do fallback determinístico. O frontend **não deve tratar como fato clínico ou diagnóstico definitivo**.
 
-**Arquivo:** `api_tcc/api/views_prescricao.py` L48–L127
+**Arquivo:** `api_tcc/api/views_prescricao.py` — `PrescricaoView.get()`, `.post()` e `_processar()`
 
 ---
 
@@ -561,9 +642,9 @@ Idêntico ao `/api/anomalias/` em estrutura. Mesmo handler interno (`analisar_ma
 | Autenticação | Token DRF **ou** Demo público |
 | Parâmetro obrigatório | `?maquina_id=COLH-01` |
 
-Comportamento idêntico a `GET /api/prescricoes/{maquina_id}/` usando `analisar_maquina()`. Retorna o resultado do pipeline + `decision_id` + `decision_status`.
+Executa `analisar_maquina()` sem escrita, retornando o resultado do pipeline e, se já houver, `decision_id`/`decision_status` de uma Decision pendente existente. `POST /api/prescricoes/?maquina_id=...` (ou `maquina_id` no JSON) solicita persistência explícita.
 
-**Arquivo:** `api_tcc/api/views_ingestao.py` L812–L839
+**Arquivo:** `api_tcc/api/views_ingestao.py` — `PrescricaoView.get()`, `.post()` e `_executar()`
 
 ---
 
@@ -604,7 +685,7 @@ Retorna histórico do modelo `Prescricao` (legado). Novas implementações devem
 | Campo | Valor |
 |---|---|
 | Handler | `DecisionActionView.patch()` |
-| Autenticação | **Token DRF obrigatório** — `IsAuthenticated` (sem demo público) |
+| Autenticação | Usuário autenticado; demo anônimo não pode alterar decisões |
 | Parâmetro de rota | `decision_id` — UUID da `Decision` |
 
 **Corpo da requisição** (campos extras rejeitados por `StrictSerializer`):
@@ -831,17 +912,14 @@ Retorna entradas de falha não resolvidas. Destinado a uso administrativo.
 
 | Campo | Valor |
 |---|---|
-| Handler | `RelatorioExportarView` (dois handlers distintos — ver abaixo) |
+| Handler | `api_tcc.api.views_relatorio.RelatorioExportarView.get()` |
 | Autenticação | Token DRF **ou** Demo público |
 | Parâmetros obrigatórios | `?maquina_id=COLH-01` |
 | Parâmetros opcionais | `?data_inicio=AAAA-MM-DD&data_fim=AAAA-MM-DD` |
 
-> **ATENÇÃO — DOIS HANDLERS COM O MESMO NOME:**
-> - `api_tcc/api/views_ingestao.py` — exporta CSV (delimitador `;`, `Content-Disposition: attachment`)
-> - `api_tcc/api/views_relatorio.py` — exporta Excel `.xlsx`
-> A URL `/api/relatorio/exportar/` está mapeada para `RelatorioExportarView` de `views_relatorio.py` (Excel). O handler CSV de `views_ingestao.py` está acessível via o mesmo caminho (conflito de importação — **PENDÊNCIA**).
+**Formato:** `formato=csv` ou `Accept: text/csv` seleciona CSV separado por `;`; sem isso, retorna XLSX. `data_inicio` e `data_fim` são validados e aplicados no CSV; a exportação XLSX atual não os aplica. A URL está registrada uma única vez em `api_tcc/urls.py` para `api_tcc.api.views_relatorio.RelatorioExportarView`; `RelatorioView` em `views_ingestao.py` atende a rota distinta `/api/relatorio/`. Não foi encontrado conflito de handler.
 
-**Arquivo:** `api_tcc/urls.py` L61, `api_tcc/api/views_ingestao.py` L649–L701, `api_tcc/api/views_relatorio.py`
+**Arquivos:** `api_tcc/urls.py` — rota `relatorio-exportar`; `api_tcc/api/views_relatorio.py` — `RelatorioExportarView.get()`
 
 ---
 
@@ -1128,13 +1206,14 @@ Decision.status:
   (outros estados são terminais — sem transição de saída)
 ```
 
-### G.2 Não Há Endpoint de Listagem de Decisions
+### G.2 Listagem e Consulta
 
-> **PENDÊNCIA ALTA:** Não existe `GET /api/decisions/` para listar decisões de uma máquina. O frontend só obtém `decision_id` e `decision_status` embutidos na resposta de `GET /api/prescricoes/{maquina_id}/`. Para exibir um painel de decisões, é necessário implementar este endpoint no backend.
-
-### G.3 Não Há Endpoint de Listagem de Events
-
-> **PENDÊNCIA ALTA:** O modelo `Event` (com tipos `TEMP_ALTA`, `VIBRACAO_ALTA`, `ANOMALIA_ML`, etc.) não tem endpoint REST de listagem exposto. Os Events são criados automaticamente na ingestão mas não podem ser consultados via API atualmente.
+- `GET /api/events/` lista Events paginados e permite filtrar por `maquina_id`, `tipo`, `severidade` e `status`.
+- `GET /api/events/{event_id}/` consulta um Event pelo UUID.
+- `GET /api/decisions/` lista Decisions paginadas e permite filtrar por `maquina_id`, `status` e `severidade`.
+- `GET /api/decisions/{decision_id}/` consulta uma Decision pelo UUID.
+- As duas listagens limitam os resultados às máquinas do usuário/organização; acesso anônimo, quando `DEMO_MODE` está ativo, fica restrito a máquinas demo.
+- Os contratos de campo e erros estão na seção B.8. Não há pendência de endpoint de histórico neste momento.
 
 ### G.4 Campos Auditados na Decision Após PATCH
 
@@ -1151,6 +1230,10 @@ O campo `decidido_por` é preenchido **apenas uma vez** — se a decision já ti
 O campo `Decision.detalhes.metodologia` pode conter `"agentic_llm_poc"`. Neste caso, `GET /api/prescricoes/{maquina_id}/` retorna o texto da decision agentic em vez do pipeline determinístico.
 
 **Status:** funcionalidade experimental — não depender desta branch como comportamento estável.
+
+### G.6 Semântica HTTP da Prescrição
+
+`GET /api/prescricoes/` e `GET /api/prescricoes/{maquina_id}/` são somente leitura, inclusive quando enviados parâmetros antigos `persist=true` ou `preview`. Para persistir uma Decision, use `POST` na mesma rota suportada e aguarde a resposta confirmada pelo backend. A resposta de GET indica `preview: true`; a resposta de POST indica `preview: false`.
 
 ---
 
@@ -1205,8 +1288,8 @@ O frontend deve tratar os seguintes HTTP status:
 
 ### H.5 Identidade das Entidades
 
-- **Usar `maquina_id` (string legado)** em query params e referências internas ao frontend.
-- **Usar `Machine.id` (UUID)** ao acessar `/api/machines/{uuid}/health/`.
+- Usar o identificador indicado pela rota: filtros `maquina_id` aceitam UUID ou `external_code` em Events/Decisions e em handlers baseados em `get_machine_for_request`; `/api/leituras/ultimas/?maquina_id=` filtra pelo identificador textual legado.
+- Preservar `Machine.id` (UUID) e `Machine.external_code` (string) como valores distintos. Em respostas de Events/Decisions, `machine` é UUID e `machine_external_code` é texto.
 - **Nunca substituir** um UUID de Decision ou Machine por uma string genérica — preservar o ID exato retornado pela API.
 - Após `PATCH /api/decisions/{id}/`, atualizar o estado local da decision com a resposta do servidor — não assumir sucesso pelo clique.
 
@@ -1219,6 +1302,7 @@ O frontend deve tratar os seguintes HTTP status:
 ### H.7 Atualização de Dados Após Mutações
 
 - Após `PATCH /api/decisions/{id}/`, invalidar/refetch o estado da decision e da prescrição associada.
+- Para gerar/persistir prescrição, usar `POST`; GET não grava. Atualizar o estado visual somente após a resposta 2xx e consumir o `decision_id` retornado.
 - Após qualquer operação bem-sucedida de escrita, não assumir consistência imediata do dado agregado (`MachineDataHealth`) — ele é atualizado assincronamente na ingestão.
 
 ---
@@ -1227,43 +1311,36 @@ O frontend deve tratar os seguintes HTTP status:
 
 | Recurso | Implementação encontrada | Contrato comprovado | Pendência ou risco | Arquivos de referência |
 |---|---|---|---|---|
-| **Autenticação Token** | `POST /api/auth/login/` → `{"token": "..."}` | ✅ VERIFICADO | Sem expiração/refresh implementado | `api_tcc/urls.py:44`, `setup/settings.py:208` |
-| **X-API-Key (ingestão)** | Header `X-API-Key` validado no handler | ✅ VERIFICADO | Segredo de servidor — jamais expor no frontend | `views_ingestao.py:166-168` |
-| **Máquinas / Colheitadeiras** | `GET /api/colheitadeira/` com serializer aninhado | ✅ VERIFICADO | Limite 10 máquinas em `/leituras/ultimas/` sem paginação — **ALTO** | `viewsets.py`, `serializers.py` |
-| **Telemetria — ingestão** | `POST /api/telemetria/` com idempotência `(device_id, message_id)` | ✅ VERIFICADO | Endpoint apenas para ESP32/gateway | `views_ingestao.py:148` |
-| **Telemetria — leitura** | `GET /api/telemetria/` + `GET /api/leituras/ultimas/` | ✅ VERIFICADO | `leituras/ultimas/` limitado a 10 máquinas sem paginação — **ALTO** | `views_ingestao.py:221,346` |
-| **Trust Score (por leitura)** | `LeituraTelemetria.trust_score` calculado na ingestão | ✅ VERIFICADO | Histórico anterior a S3 tem `null` | `services/data_health.py` |
-| **Trust Score (agregado)** | `GET /api/machines/{uuid}/health/` | ✅ VERIFICADO | `machine_id` deve ser UUID, não string textual — risco de confusão — **MÉDIO** | `views_ingestao.py:232` |
-| **Anomalias (threshold)** | `GET /api/anomalias/` executa pipeline síncrono | ✅ VERIFICADO | Não persiste histórico de anomalias — só classifica estado atual — **MÉDIO** | `views_ingestao.py:120`, `ia/pipeline.py` |
-| **Anomalias (Isolation Forest)** | Modelo `.pkl` carregado na ingestão | ⚠️ CONDICIONAL | `.pkl` pode não existir — sistema degrada graciosamente | `ia/deteccao_multivariada.py`, `services/anomaly_detection.py` |
-| **Eventos (Event model)** | Modelo `Event` completo com tipos e severidades | ❌ SEM ENDPOINT | **BLOQUEADOR:** não há `GET /api/events/` para listar eventos por máquina | `models.py:303` |
-| **Decisions — listagem** | Modelo `Decision` completo | ❌ SEM ENDPOINT | **BLOQUEADOR:** não há `GET /api/decisions/` para listar por máquina | `models.py:381` |
-| **Decisions — ação (PATCH)** | `PATCH /api/decisions/{uuid}/` com validação de transição | ✅ VERIFICADO | Apenas autenticados com membership podem agir | `views_ingestao.py:760` |
-| **Prescrições (legado)** | `GET /api/prescricoes/lista/` depreciado | ⚠️ DEPRECIADO | Header `Sunset: 2026-12-31` — não usar em novas funcionalidades — **MÉDIO** | `views_ingestao.py:717` |
-| **Prescrições / análise atual** | `GET /api/prescricoes/{maquina_id}/` | ✅ VERIFICADO | Efeito colateral de escrita (persiste Decision) — **MÉDIO** | `views_prescricao.py` |
-| **GPS / Posição** | `GET /api/maquinas/posicao/` (dados reais) | ✅ VERIFICADO | Retorna vazio se sem leituras com lat/lng | `views_gps.py:53` |
-| **GPS / Demo** | `GET /api/mapas/demo/` | ✅ VERIFICADO — DADOS SIMULADOS | Posição e telemetria completamente artificiais | `views_gps.py:27` |
-| **Relatório JSON** | `GET /api/relatorio/` | ✅ VERIFICADO | `eficiencia_operacional` é métrica sintética (maquinas_ativas/total_leituras*100) | `views_ingestao.py:591` |
-| **Relatório Excel** | `GET /api/relatorio/exportar/` → `.xlsx` | ✅ VERIFICADO | Handler conflitante com CSV no mesmo path — **MÉDIO** | `views_relatorio.py`, `urls.py:61` |
-| **Inconsistência de campo de erro** | Alguns endpoints usam `detalhe`, outros `detalhes` | ⚠️ INCONSISTÊNCIA | Frontend deve tentar ambos os campos — **BAIXO** | `views_ingestao.py` múltiplos |
-| **Multi-tenant (Organization)** | Modelos `Organization` e `Membership` existem | ⚠️ PARCIAL | Endpoints não expõem Organization via API — acesso filtrado implicitamente | `models.py:577`, `permissions.py` |
-| **Expiração de token** | Não implementada | ❌ AUSENTE | Token DRF padrão não expira — **MÉDIO** em produção | `setup/settings.py:208` |
-| **Paginação** | Não implementada em nenhum endpoint | ❌ AUSENTE | `/leituras/ultimas/` limitado a 10 máquinas — **ALTO** para frotas maiores | `views_ingestao.py:424` |
+| **Autenticação Token** | `POST /api/auth/login/` entrega token e `expires_in`; autenticação rejeita token expirado | VERIFICADO: TTL padrão de 24h, configurável por `TOKEN_TTL_HOURS`; novo login substitui credencial expirada | BAIXO: não há endpoint próprio de refresh/logout; autenticar novamente | `api_tcc/api/views_auth.py`, `api_tcc/authentication.py`, `setup/settings.py` |
+| **X-API-Key (ingestão)** | Header `X-API-Key` validado no handler | VERIFICADO: credencial máquina-a-máquina separada do token do frontend | BLOQUEADOR DE SEGURANÇA se chave privada for colocada no bundle; mantê-la somente em servidor/gateway | `api_tcc/api/views_ingestao.py` |
+| **Máquinas / identidade** | `Machine.id` UUID, `external_code` textual; Health resolve UUID ou código externo | VERIFICADO: Events/Decisions serializam UUID em `machine` e código em `machine_external_code` | MÉDIO: consumir cada endpoint conforme tipo documentado; não colapsar os dois identificadores | `api_tcc/models.py`, `api_tcc/permissions.py`, `api_tcc/api/serializers.py` |
+| **Máquinas / Colheitadeiras** | `GET /api/colheitadeira/` via ViewSet e serializer aninhado | VERIFICADO: recurso legado de configuração, distinto da entidade canônica `Machine` | Nenhuma pendência relacionada aos itens desta revisão | `api_tcc/api/viewsets.py`, `api_tcc/api/serializers.py` |
+| **Telemetria — ingestão** | `POST /api/telemetria/` com idempotência `(device_id, message_id)` e X-API-Key | VERIFICADO: validação, throttling e ACK documentados na seção B | Não enviar a chave privada pelo frontend público | `api_tcc/api/views_ingestao.py`, `api_tcc/services/telemetria.py` |
+| **Telemetria — leitura** | `GET /api/telemetria/` e `GET /api/leituras/ultimas/` | VERIFICADO: últimas leituras paginadas por limit/page_size + page/offset; headers `X-Total-Count`, `X-Limit`, `X-Offset`; teste cobre frota >10 | MÉDIO: o handler fatia em memória após buscar resultados; revisar paginação no banco se volume crescer significativamente | `api_tcc/api/views_ingestao.py`, `api_tcc/tests/test_contract_fixes.py` |
+| **Trust Score** | Trust por leitura e agregado em `/api/machines/{machine_id}/health/` | VERIFICADO: ausências são `null`/`sem_dados`; IDs retornados distinguem UUID e `external_code` | Histórico anterior ao cálculo pode não ter score; não fabricar padrões | `api_tcc/services/data_health.py`, `api_tcc/api/views_ingestao.py` |
+| **Anomalias** | `GET /api/anomalias/` executa análise da máquina; Event engine persiste eventos quando regras da ingestão os produzem | VERIFICADO: resposta imediata de análise não equivale a histórico; modelo `.pkl` é condicional | MÉDIO: não tratar análise sob demanda como registro persistido nem afirmar saída interna de ML não serializada | `api_tcc/api/views_ingestao.py`, `api_tcc/ia/pipeline.py`, `api_tcc/services/anomaly_detection.py` |
+| **Eventos** | `GET /api/events/` e `GET /api/events/{event_id}/` | VERIFICADO: paginação, filtros, serializer e escopo por máquina/organização | Nenhuma pendência de endpoint de leitura | `api_tcc/api/views_events.py`, `api_tcc/api/serializers.py`, `api_tcc/urls.py` |
+| **Decisions — leitura** | `GET /api/decisions/` e `GET /api/decisions/{decision_id}/` | VERIFICADO: paginação, filtros, serializer e isolamento multi-tenant | Nenhuma pendência de endpoint de histórico | `api_tcc/api/views_decisions.py`, `api_tcc/api/views_ingestao.py`, `api_tcc/urls.py` |
+| **Decisions — ação** | `PATCH /api/decisions/{decision_id}/` | VERIFICADO: transições válidas, membership e auditoria; resposta confirma novo estado | Cliente só deve atualizar UI após 2xx | `api_tcc/api/views_ingestao.py`, `api_tcc/services/decisions.py` |
+| **Prescrições** | GET nos dois endpoints é read-only; POST persiste/reutiliza Decision | VERIFICADO por teste: GET não grava; POST retorna status/decision_id | Integração deve mover gravações legadas de GET para POST | `api_tcc/api/views_prescricao.py`, `api_tcc/api/views_ingestao.py`, `api_tcc/tests/test_decisions.py` |
+| **Prescrições (legado)** | `GET /api/prescricoes/lista/` depreciado | VERIFICADO: `Deprecation: true`, `Sunset: 2026-12-31` | MÉDIO: não usar em novas funcionalidades | `api_tcc/api/views_ingestao.py` |
+| **GPS / Posição** | `GET /api/maquinas/posicao/` com dados disponíveis | VERIFICADO: resposta pode ser vazia quando sem coordenadas | Não inferir localização ausente | `api_tcc/views_gps.py` |
+| **GPS / Demo** | `GET /api/mapas/demo/` | VERIFICADO: dados simulados | MÉDIO: sinalizar como demonstração, nunca como telemetria real | `api_tcc/views_gps.py` |
+| **Relatórios** | `GET /api/relatorio/` JSON/CSV; `GET /api/relatorio/exportar/` XLSX/CSV | VERIFICADO: rotas diferentes; exportação é registrada uma única vez e seleciona formato por query/header | MÉDIO: intervalo de datas só é aplicado ao CSV, não ao XLSX | `api_tcc/urls.py`, `api_tcc/api/views_ingestao.py`, `api_tcc/api/views_relatorio.py` |
+| **Erros** | Formatos DRF e respostas próprias variam | VERIFICADO: `detail`, `detalhe`, `detalhes` aparecem em rotas distintas | BAIXO: frontend deve extrair fallback dos três nomes | `api_tcc/api/views_*.py` |
+| **Multi-tenant** | `Organization`/`Membership` filtram consultas e ações | VERIFICADO nas permissões e listagens Events/Decisions | Não inferir autorização pela UI; servidor é a autoridade | `api_tcc/models.py`, `api_tcc/permissions.py` |
 
 ### Classificação de Prioridade
 
-| Prioridade | Pendência |
+| Prioridade | Pendência ou risco remanescente |
 |---|---|
-| 🔴 **BLOQUEADOR** | `GET /api/events/` inexistente — painel de eventos não pode ser implementado |
-| 🔴 **BLOQUEADOR** | `GET /api/decisions/` inexistente — painel de histórico de decisões não pode ser implementado |
-| 🟠 **ALTO** | Paginação ausente em `/leituras/ultimas/` — frota com > 10 máquinas não é suportada |
-| 🟠 **ALTO** | Sem renovação/expiração de token — sessão infinita em produção |
-| 🟡 **MÉDIO** | Confusão `machine_id` (UUID) vs. `maquina_id` (string) — risco de erro de path na URL |
-| 🟡 **MÉDIO** | `GET /api/prescricoes/{maquina_id}/` tem efeito colateral de escrita — não é um GET puro |
-| 🟡 **MÉDIO** | Conflito de handler para `/api/relatorio/exportar/` (CSV vs. Excel) |
-| 🟡 **MÉDIO** | `DEMO_MODE` expõe dados artificiais de GPS — necessita sinalização visual clara |
-| 🟢 **BAIXO** | Inconsistência `detalhe` vs. `detalhes` nos payloads de erro |
-| 🟢 **BAIXO** | Endpoint `/api/prescricoes/lista/` depreciado mas ainda ativo |
+| BLOQUEADOR | Nenhum dos itens bloqueadores anteriores permanece: eventos e decisões possuem endpoints de listagem/detalhe e escopo de autorização. |
+| ALTO | Nenhum dos riscos altos anteriores permanece: `/api/leituras/ultimas/` suporta paginação e tokens têm TTL configurável. |
+| MÉDIO | Paginação de últimas leituras ainda é aplicada em memória; avaliar paginação SQL se o tamanho da frota/volume justificar. |
+| MÉDIO | Prescrições existentes que dependiam de escrita via GET precisam migrar a persistência para POST. |
+| MÉDIO | A exportação XLSX não aplica `data_inicio`/`data_fim`, embora CSV aceite esses filtros. |
+| BAIXO | Sem refresh/logout dedicado; o cliente deve solicitar novo login após expiração do token. |
+| BAIXO | Há formatos de erro inconsistentes e a lista legada de prescrições está depreciada; o frontend deve usar fallbacks e evitar novos usos. |
 
 ---
 

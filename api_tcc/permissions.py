@@ -52,10 +52,24 @@ def get_machines_for_request(request):
     return get_machines_for_user(request.user)
 
 
-def get_machine_for_request(request, external_code: str):
+import uuid as _uuid_lib
+
+
+def get_machine_for_request(request, external_code: str | None):
+    if not external_code:
+        return None
+    ident = str(external_code).strip()
+    try:
+        uuid_val = _uuid_lib.UUID(ident)
+        m = get_machines_for_request(request).filter(id=uuid_val).first()
+        if m is not None:
+            return m
+    except (ValueError, AttributeError):
+        pass
     return get_machines_for_request(request).filter(
-        external_code=str(external_code).strip().upper(),
+        external_code=ident.upper(),
     ).first()
+
 
 
 def machine_from_object(obj: Any) -> Machine | None:

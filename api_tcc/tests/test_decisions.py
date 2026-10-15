@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api_tcc.models import Decision, Event, Machine, Membership, Organization
+from api_tcc.models import Decision, Event, Machine, Membership, Organization, RegistroAnalise
 from api_tcc.services.decisions import (
     DECISION_DEDUP_WINDOW,
     validar_transicao_decision,
@@ -61,7 +61,7 @@ class DecisionPrescricaoIntegrationTest(TestCase):
     def test_prescricao_persiste_decision_e_retorna_decision_id(self):
         machine = self._registrar_janela_critica()
 
-        response = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        response = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("decision_id", response.data)
@@ -76,11 +76,23 @@ class DecisionPrescricaoIntegrationTest(TestCase):
         self.assertIsNone(decision.outcome_texto)
         self.assertEqual(Decision.objects.filter(machine=machine).count(), 1)
 
+    def test_get_prescricao_nao_persiste_decision(self):
+        machine = self._registrar_janela_critica()
+        analises_antes = RegistroAnalise.objects.count()
+
+        response = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["preview"])
+        self.assertIsNone(response.data["decision_id"])
+        self.assertFalse(Decision.objects.filter(machine=machine).exists())
+        self.assertEqual(RegistroAnalise.objects.count(), analises_antes)
+
     def test_prescricao_idempotente_reutiliza_decision_pendente_na_janela(self):
         self._registrar_janela_critica()
 
-        primeira = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
-        segunda = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        primeira = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        segunda = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
 
         self.assertEqual(primeira.status_code, 200)
         self.assertEqual(segunda.status_code, 200)
@@ -89,13 +101,13 @@ class DecisionPrescricaoIntegrationTest(TestCase):
 
     def test_decision_fora_da_janela_nao_bloqueia_nova_decision(self):
         machine = self._registrar_janela_critica()
-        primeira = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        primeira = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
         antiga = Decision.objects.get(id=primeira.data["decision_id"])
         Decision.objects.filter(id=antiga.id).update(
             criado_em=timezone.now() - DECISION_DEDUP_WINDOW - timedelta(minutes=1)
         )
 
-        response = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        response = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Decision.objects.filter(machine=machine).count(), 2)
@@ -103,12 +115,12 @@ class DecisionPrescricaoIntegrationTest(TestCase):
 
     def test_aprovada_nao_participa_da_deduplicacao(self):
         machine = self._registrar_janela_critica()
-        primeira = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        primeira = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
         Decision.objects.filter(id=primeira.data["decision_id"]).update(
             status=Decision.Status.APROVADA
         )
 
-        response = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        response = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Decision.objects.filter(machine=machine).count(), 2)
@@ -117,8 +129,8 @@ class DecisionPrescricaoIntegrationTest(TestCase):
         machine_a = self._registrar_janela_critica("COLH-DEC-A")
         machine_b = self._registrar_janela_critica("COLH-DEC-B")
 
-        response_a = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-A")
-        response_b = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-B")
+        response_a = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-A")
+        response_b = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-B")
 
         self.assertEqual(response_a.status_code, 200)
         self.assertEqual(response_b.status_code, 200)
@@ -130,7 +142,7 @@ class DecisionPrescricaoIntegrationTest(TestCase):
         machine = self._registrar_janela_critica()
         event = Event.objects.filter(machine=machine).latest("criado_em")
 
-        response = self.client.get("/api/prescricoes/?maquina_id=COLH-DEC-01")
+        response = self.client.post("/api/prescricoes/?maquina_id=COLH-DEC-01")
 
         decision = Decision.objects.get(id=response.data["decision_id"])
         self.assertEqual(decision.event, event)
