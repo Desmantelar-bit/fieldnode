@@ -29,8 +29,6 @@ db.sqlite3-journal
 *.sqlite3.*.bak
 *.bak
 simulators/*.db
-artifacts/**/*.sqlite3
-artifacts/**/*.db
 
 # Frontend e Node
 node_modules/
@@ -47,7 +45,6 @@ staticfiles/
 
 # Arquivos binários descartáveis e gravações
 *.webm
-FieldNode_Proposta_TCC_v5.docx
 
 # Sistema operacional
 .DS_Store
@@ -69,3 +66,6 @@ local_settings.py
 .kilo/
 .kiro/
 .nanocoder/
+
+# Artefatos de sessão e outputs temporários de agentes
+artifacts/

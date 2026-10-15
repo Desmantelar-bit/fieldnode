@@ -1,13 +1,11 @@
 # FieldNode
 
-Protótipo técnico de telemetria offline-first e inteligência operacional para máquinas agrícolas. Ingestão Django, dashboard Next.js e sincronização tolerante a falhas de rede rural.
+Plataforma de telemetria e inteligência operacional para máquinas agrícolas.
+Ingestão Django, dashboard Next.js, análise de anomalias e sincronização tolerante a falhas de rede rural.
 
 ---
 
 ## Arquitetura
-
-**Nota:** O diretório oficial do frontend é o `frontend-next/`, construído em
-Next.js. Versões legadas e scaffolds não utilizados foram removidos da base.
 
 ```mermaid
 graph TD
@@ -31,32 +29,6 @@ graph TD
     NEXT -->|"SSR + fetch"| API
     USER -->|"HTTP"| NEXT
     SW -->|"reenvio same-origin; autorização pendente"| API
-```
-
----
-
-## Fluxo de Ingestão
-
-```mermaid
-sequenceDiagram
-    participant SOURCE as Fonte de telemetria
-    participant API as Django API
-    participant DB as Banco
-    participant IA as Análise operacional
-
-    SOURCE->>API: POST /api/telemetria/ (UUID + X-API-Key)
-    API->>API: valida API key
-    API->>API: valida payload (range de sensores)
-    API->>DB: UUID já existe?
-    alt duplicata
-        DB-->>API: sim
-        API-->>SOURCE: 200 duplicata ignorada
-    else novo
-        DB-->>API: não
-        API->>DB: INSERT LeituraTelemetria
-        API->>IA: agendar anomalias + estado + manutencao
-        API-->>SOURCE: 201 ok + id
-    end
 ```
 
 ---
@@ -99,32 +71,28 @@ flowchart LR
 
 ---
 
-## Estado do ciclo atual
+## O que está implementado
 
-### O que está implementado e evidenciado neste ciclo
-
-- ingestão HTTP autenticada por `X-API-Key`, validação de payload e deduplicação;
-- persistência em SQLite/MySQL, com identidade de máquina, mensagem, sequência, timestamp e hash no cliente de borda;
+- ingestão HTTP autenticada por `X-API-Key`, validação de payload e deduplicação por UUID;
+- persistência em SQLite/MySQL, com identidade de máquina, sequência, timestamp e hash no cliente de borda;
 - cliente Python de bancada com outbox SQLite, prioridades A/B/C, retry, ACK e cursor contíguo;
-- Trust Score heurístico e estado agregado de qualidade dos dados;
+- Trust Score heurístico e estado agregado de qualidade dos dados por máquina;
 - geração determinística de eventos e decisões persistentes, com aprovação ou rejeição por usuário autenticado e registro de outcome;
-- detecção de anomalias com Isolation Forest, usada como sinal complementar, e regras ponderadas para triagem operacional;
-- dashboard Next.js; Service Worker com cache de assets e fila local de telemetria, sem credenciais privilegiadas;
-- testes automatizados e artefatos de ensaio de resiliência documentados em `docs/PROTOCOLO_TESTE_RESILIENCIA_OFFLINE.md` e `artifacts/resilience/`.
+- detecção de anomalias com Isolation Forest como sinal complementar, e regras ponderadas para triagem operacional;
+- dashboard Next.js com service worker: cache de assets e fila local de telemetria sem credenciais privilegiadas;
+- autenticação por token DRF com registro público, login, logout e verificação de sessão.
 
-Essas evidências são de código, testes e bancada de software. A leitura usada nas demonstrações é simulada; isso não comprova sensor físico calibrado, operação em campo, execução mecânica ou resultado econômico.
+As evidências são de código, testes e bancada de software. As leituras usadas nas demonstrações são simuladas; isso não comprova sensor físico calibrado, operação em campo, execução mecânica ou resultado econômico.
 
-### Roadmap futuro
+## Roadmap
 
-- integração física com ESP32 e sensores identificados, incluindo calibração, energia e reinicialização;
-- implementação e medição de ESP-NOW ou outro transporte aprovado; a integração física ainda não está comprovada;
-- medição específica de retenção e capacidade de armazenamento por 30 dias no hardware-alvo;
-- validação progressiva em bancada física e campo, com alcance, estabilidade e condições registradas;
-- avaliação de CAN/J1939, ISOBUS e integrações com fabricantes, sem afirmar suporte antes de existir adaptador e ensaio verificável;
-- dataset operacional rotulado e avaliação supervisionada de manutenção, se houver volume e protocolo de rotulagem suficientes;
-- evolução da autenticação do MVP e repetição dos ensaios oficiais no Compose quando o ambiente estiver disponível.
-
-O roadmap preserva a direção do produto, mas não transforma intenção em resultado. O repositório não sustenta a afirmação de que o FieldNode já prevê falhas mecânicas com modelo supervisionado, armazena 30 dias em ESP32 ou opera por ESP-NOW em ambiente rural.
+- integração física com ESP32 e sensores identificados, incluindo calibração e energia;
+- medição de ESP-NOW ou outro transporte aprovado em bancada física;
+- medição de retenção e capacidade de armazenamento de 30 dias no hardware-alvo;
+- validação progressiva em campo, com alcance, estabilidade e condições registradas;
+- avaliação de CAN/J1939, ISOBUS e integrações com fabricantes;
+- dataset operacional rotulado e avaliação supervisionada de manutenção;
+- evolução da autenticação do MVP para cookie httpOnly + CSRF.
 
 ---
 
@@ -144,7 +112,7 @@ Edite o `.env` e preencha no mínimo:
 
 | Variável | O que colocar |
 | --- | --- |
-| `SECRET_KEY` | Chave secreta Django (veja comentário no .env.example) |
+| `SECRET_KEY` | Chave secreta Django |
 | `FIELDNODE_API_KEY` | UUID para autenticação de ingestão |
 | `DB_PASSWORD` | Senha do usuário MySQL |
 | `DB_ROOT_PASSWORD` | Senha do root MySQL |
@@ -173,13 +141,13 @@ docker compose exec web python manage.py popular_tudo
 
 | O quê | URL |
 | --- | --- |
-| Dashboard | [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) |
-| API health | [http://127.0.0.1:8000/api/health/](http://127.0.0.1:8000/api/health/) |
-| Swagger | [http://127.0.0.1:8000/swagger/](http://127.0.0.1:8000/swagger/) |
+| API health | http://127.0.0.1:8000/api/health/ |
+| Swagger | http://127.0.0.1:8000/swagger/ |
+| Django Admin | http://127.0.0.1:8000/admin/ |
 
-> O frontend Next.js **não é incluído** na composição Docker padrão do backend.
-> Para rodar o dashboard Next.js junto, execute `cd frontend-next && npm ci && npm run dev`
-> e configure `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api` no `.env`.
+> O frontend Next.js é servido separadamente na porta 3000.
+> Execute `cd frontend-next && npm ci && npm run dev` e configure
+> `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api` no `.env` do frontend.
 
 ### Comandos úteis
 
@@ -215,13 +183,11 @@ docker compose down -v
 ### Testar fluxo MQTT
 
 ```bash
-# Publicar uma leitura via broker containerizado
 docker compose exec mosquitto mosquitto_pub \
   -h localhost -p 1883 \
   -t "fieldnode/COLH-01/leitura" \
   -m '{"id":"550e8400-e29b-41d4-a716-446655440001","maquina_id":"COLH-01","temperatura":78.5,"vibracao":0.42,"rpm":1850,"timestamp":"2026-10-06T12:00:00Z"}'
 
-# Verificar nos logs do worker
 docker compose logs worker --tail=10
 ```
 
@@ -270,13 +236,12 @@ Copie `.env.example` para `.env` e ajuste.
 | `ALLOWED_HOSTS` | Hosts permitidos pelo Django |
 | `CORS_ALLOWED_ORIGINS` | Origens permitidas pelo CORS |
 | `NEXT_PUBLIC_API_URL` | URL da API usada pelo browser |
-| `FIELDNODE_SERVER_API_URL` | URL da API usada pelo servidor Next (container) |
+| `FIELDNODE_SERVER_API_URL` | URL da API usada pelo servidor Next |
 | `USE_SQLITE` | `True` para SQLite em dev |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | Conexão MySQL |
 
-O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz banca técnica levantar a sobrancelha antes do café esfriar.
-
-`FIELDNODE_API_KEY` deve ficar no backend, scripts locais e dispositivos de ingestão. O frontend não recebe segredo via `NEXT_PUBLIC_*`.
+`FIELDNODE_API_KEY` pertence ao backend, scripts locais e dispositivos de ingestão.
+O frontend não recebe segredo via `NEXT_PUBLIC_*`. O `.env` está no `.gitignore`.
 
 ---
 
@@ -284,66 +249,44 @@ O `.env` está no `.gitignore`. Segredo versionado é o tipo de erro que faz ban
 
 | Rota | Descrição |
 | --- | --- |
+| `/` | Redireciona para `/dashboard` |
+| `/login` | Autenticação por token |
+| `/register` | Cadastro público de usuário |
 | `/dashboard` | Visão geral da frota: métricas, grid de máquinas, mapa |
 | `/colheitadeiras` | Leituras recentes por máquina com badge de risco |
 | `/detalhes?id=COLH-01` | Histórico, gráficos e prescrição da máquina |
-| `/mapa` | Mapa de posição em campo (fallback demo se GPS ausente) |
+| `/mapa` | Mapa de posição em campo |
 | `/operarios` | Equipe cadastrada |
 | `/maquinas` | Frota completa cadastrada |
 | `/relatorios` | Geração de relatório JSON e exportação CSV |
 
 ---
 
-## API — Endpoints
+## API — Endpoints principais
+
+A documentação completa fica em `/swagger/`. Os endpoints mais relevantes:
 
 | Endpoint | Método | Autenticação | Descrição |
 | --- | --- | --- | --- |
-| `/api/auth/login/` | POST | usuario/senha | Retorna token DRF para operacoes autenticadas |
-| `/api/health/` | GET | — | Checagem de saúde |
+| `/api/auth/login/` | POST | usuario/senha | Retorna token DRF |
+| `/api/auth/register/` | POST | pública | Cadastro de usuário |
+| `/api/auth/logout/` | POST | Token | Revoga token |
+| `/api/auth/me/` | GET | Token | Perfil do usuário |
+| `/api/health/` | GET | — | Health check da API e banco |
 | `/api/telemetria/` | POST | `X-API-Key` | Ingestão com deduplicação UUID |
-| `/api/telemetria/` | GET | — | Últimas 50 leituras (debug) |
-| `/api/leituras/ultimas/` | GET | — | Última leitura por máquina com `status_risco` |
-| `/api/colheitadeira/` | GET | — | Frota cadastrada |
-| `/api/colheitadeira/` | POST/PATCH/DELETE | `Authorization: Token <token>` | Cadastro administrativo de maquinas |
-| `/api/operario/` | GET | — | Operários cadastrados |
-| `/api/operario/` | POST/PATCH/DELETE | `Authorization: Token <token>` | Cadastro administrativo de operarios |
-| `/api/anomalias/` | GET | — | Agenda detecção de anomalias (Isolation Forest) |
-| `/api/manutencao/` | GET | — | Agenda análise de manutenção baseada em regras e sinais disponíveis |
-| `/api/prescricoes/` | GET | — | Agenda geração de prescrição |
-| `/api/prescricoes/lista/` | GET | — | Histórico de prescrições por máquina |
-| `/api/relatorio/` | GET | — | Relatório operacional JSON ou CSV |
-| `/api/relatorio/exportar/` | GET | — | Exportação CSV com delimitador `;` |
-| `/api/maquinas/posicao/` | GET | — | Posição GPS da frota |
-| `/api/metricas/` | GET | — | Leituras válidas, inválidas e taxa de rejeição |
-| `/api/status-mqtt/` | GET | — | Status de conectividade MQTT |
+| `/api/leituras/ultimas/` | GET | Token / Demo | Última leitura por máquina |
+| `/api/anomalias/` | GET | Token / Demo | Detecção de anomalias |
+| `/api/manutencao/` | GET | Token / Demo | Análise preditiva de manutenção |
+| `/api/events/` | GET | Token / Demo | Eventos priorizados |
+| `/api/decisions/` | GET | Token / Demo | Fila de decisões |
+| `/api/decisions/<uuid>/` | POST, PATCH | Token | Aprovação/rejeição de decisão |
+| `/api/prescricoes/lista/` | GET | Token / Demo | Histórico de prescrições |
+| `/api/relatorio/` | GET | Token / Demo | Relatório operacional |
+| `/api/relatorio/exportar/` | GET | Token / Demo | Exportação CSV/XLSX |
+| `/api/maquinas/posicao/` | GET | Token / Demo | Coordenadas GPS da frota |
 
-Com `DEMO_MODE=True`, endpoints públicos de leitura operacional retornam somente dados associados a `Machine.is_demo=True`. Isso não libera escrita, não substitui autorização e não marca máquina real como demonstração.
-
-### Autenticacao administrativa
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/auth/login/ \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "sua-senha"}'
-```
-
-Resposta:
-
-```json
-{"token": "token-gerado-pelo-drf"}
-```
-
-Use o token nas operacoes de escrita dos cadastros:
-
-```bash
-Authorization: Token token-gerado-pelo-drf
-```
-
-No frontend, o MVP guarda esse token em `localStorage` como
-`fn-auth-token`. Isso e aceitavel para o TCC/prototipo, mas e uma
-divida tecnica explicita: em producao, o ideal e migrar para cookie `httpOnly`
-com uma estrategia de CSRF adequada, porque XSS lendo token em `localStorage`
-nao e teoria, e so uma terca-feira ruim.
+Com `DEMO_MODE=True`, endpoints públicos de leitura retornam somente dados de `Machine.is_demo=True`.
+Isso não libera escrita nem substitui autorização.
 
 ### Exemplo de ingestão
 
@@ -377,7 +320,7 @@ Reenviar o mesmo `id` retorna `200` sem duplicar o banco:
 
 ---
 
-## Simulador MQTT com Fallback HTTP
+## Simulador MQTT
 
 ```bash
 # MQTT normal
@@ -387,94 +330,57 @@ python scripts/simular_mqtt.py
 MQTT_PORT=1884 DEMO_CYCLES=1 python scripts/simular_mqtt.py
 ```
 
-O simulador detecta `Connection refused`, entra em modo demo e envia diretamente para `/api/telemetria/` com coordenadas GPS reais. O sistema não para — degrada com graciosidade.
+O simulador detecta `Connection refused`, entra em modo fallback e envia diretamente
+para `/api/telemetria/`. O sistema não para — degrada com graciosidade.
 
 ---
 
 ## Testes
 
 ```bash
-# 3 casos de telemetria: ingestão válida, inválida e duplicada
-python manage.py test api_tcc.tests.test_telemetria --verbosity=2
-
 # Suite completa do backend
 python manage.py test api_tcc
 
-# Validação rápida do fluxo end-to-end
+# Módulo específico
+python manage.py test api_tcc.tests.test_telemetria --verbosity=2
+
+# Fluxo end-to-end via scripts
 python scripts/teste_fluxo_completo.py
 ```
 
-Build do frontend com verificação de tipos:
+Build e type-check do frontend:
 
 ```bash
-cd frontend-next && npm run build
+cd frontend-next
+npm run build
 ```
-
-## Semana 10 - demonstração closed loop
-
-O roteiro reproduzível da banca está em [docs/ROTEIRO_DEMO_BANCA.md](docs/ROTEIRO_DEMO_BANCA.md). Ele usa o `EdgeClient` real em `scripts/s10_closed_loop_demo.py` e demonstra a cadeia:
-
-```text
-leitura -> trust_score -> Event -> Decision pendente -> aprovação humana -> outcome
-```
-
-O executor automatiza somente a parte de telemetria e consulta da Decision. A aprovação continua no dashboard autenticado; não existe atalho que altere o estado diretamente no banco. O material de perguntas técnicas está em [docs/INVESTOR_CTO_PRESSURE_TEST.md](docs/INVESTOR_CTO_PRESSURE_TEST.md).
-
-Para uma execução preparada no Compose:
-
-```powershell
-docker compose up --build -d
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py popular_tudo
-python scripts/s10_closed_loop_demo.py --device-id COLH-01 --machine-id COLH-01
-```
-
-O fluxo completo só é considerado validado depois de três ensaios Compose consecutivos com aprovação humana, outcome e rastreabilidade conferidos. Sem Docker Desktop ou sem a execução observada, o estado correto é **não verificado**, não “demo pronta”.
 
 ---
 
 ## Resiliência Offline
 
-O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém payloads offline em IndexedDB; respostas de `/api/` ficam na rede para não reutilizar dados autenticados entre sessões. A fila remove headers de credenciais e preserva itens quando a API rejeita a sincronização. O backend atual exige `X-API-Key` em `POST /api/telemetria/`, então o navegador não consegue concluir ingestão sem um contrato server-side seguro; a ingestão operacional é feita pelos clientes de dispositivo/borda. A outbox SQLite do cliente Python mantém retry, ACK e deduplicação. Isso é evidência de software/bancada: não comprova buffer físico de 30 dias, ESP32, ESP-NOW, autonomia ou operação em campo.
+O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém
+payloads offline em IndexedDB. Respostas de `/api/` ficam na rede para não reutilizar
+dados autenticados entre sessões. A fila remove headers de credenciais e preserva itens
+quando a API rejeita a sincronização.
+
+A ingestão operacional confiável é feita pelos clientes de dispositivo/borda (outbox SQLite
+com retry, ACK e deduplicação). O service worker do browser é uma camada complementar de
+resiliência, não substituta.
+
+---
+
+## Segurança — notas relevantes
+
+- Token de autenticação fica em `localStorage` no MVP — dívida técnica explícita.
+  Em produção, migrar para cookie `httpOnly` + CSRF adequado.
+- `FIELDNODE_API_KEY` nunca deve entrar no bundle do frontend via `NEXT_PUBLIC_*`.
+- Se uma API key anterior foi exposta no frontend, rotacione `FIELDNODE_API_KEY`
+  no backend e nos dispositivos. Apagar o arquivo atual não reescreve o histórico Git.
+- `DEBUG=False` e `ALLOWED_HOSTS` configurados antes de qualquer exposição pública.
 
 ---
 
 ## Licença
 
 MIT
-
-## Estado da integração do frontend
-
-O frontend oficial consolidado fica em `frontend-next/`, incorporado do clone
-`Front Full Node` após comparação de páginas, serviços, assets e contratos. O
-backend principal da raiz foi preservado e recebeu os endpoints de autenticação
-necessários à integração.
-
-O cadastro público usa `POST /api/auth/register/`, cria um usuário Django
-comum com senha hasheada e devolve um token DRF. O login usa
-`POST /api/auth/login/`, o logout revoga o token em `POST /api/auth/logout/` e
-`GET /api/auth/me/` verifica a sessão. Nenhum desses fluxos concede `staff` ou
-`superuser` ao cliente.
-
-Para o proxy same-origin do Next, configure `FIELDNODE_SERVER_API_URL` no
-ambiente do servidor Next (por exemplo, `http://127.0.0.1:8000/api`). Nao use
-`NEXT_PUBLIC_FIELDNODE_API_KEY`: a chave `FIELDNODE_API_KEY` pertence somente
-ao backend/cliente de dispositivo e nunca deve ser incorporada ao bundle web.
-`NEXT_PUBLIC_API_URL` e opcional; quando aponta diretamente ao Django, o
-navegador precisa de CORS configurado para a origem real.
-
-O Service Worker nao armazena respostas de API. A fila IndexedDB persiste e
-tenta reenviar payloads sem armazenar API key/token; quando o backend rejeita a
-ingestao web, o item permanece pendente em vez de ser descartado. A sincronizacao
-web ainda depende de um contrato server-side autenticado; a ingestao operacional
-funcional permanece no cliente de borda, que possui outbox SQLite.
-
-Se `NEXT_PUBLIC_FIELDNODE_API_KEY` foi configurada em uma compilacao anterior,
-considere a chave correspondente exposta e rotacione `FIELDNODE_API_KEY` no
-backend/dispositivos. O Service Worker novo sanitiza headers em filas IndexedDB
-existentes sem remover os payloads pendentes.
-
-O contrato auditado da aplicacao de origem foi preservado em
-`docs/CONTRATO_FRONT_BACK_FRONTEND.md`. Ele registra expectativas do frontend
-e pendencias que ainda dependem de validacao funcional contra o backend. O
-adendo de integração e a matriz de compatibilidade estao no final desse arquivo.

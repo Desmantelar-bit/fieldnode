@@ -12,8 +12,8 @@ export default async function OperatorsPage() {
     return (
       <AppShell active="/operarios" eyebrow="Equipe" title="Operários">
         <ErrorState
-          title="Não consegui carregar os operários."
-          message="A API de operários não respondeu. Verifique se o backend está rodando."
+          title="não conseguimos carregar os operadores."
+          message="o serviço de operadores não respondeu no momento. verifique se o backend está ativo e tente novamente."
         />
       </AppShell>
     );

@@ -21,21 +21,21 @@ export default function DashboardError({
           <AlertTriangle size={24} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--status-critico)]">
-          API indisponível
+          conexão indisponível
         </p>
         <h1 className="mt-2 text-xl font-bold text-[var(--text-1)]">
-          O dashboard perdeu a conexão
+          o dashboard perdeu o sinal com a frota.
         </h1>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--text-3)]">
-          Não foi possível buscar os dados da frota. Verifique se a API Django está
-          rodando e tente novamente.
+          não conseguimos consultar os dados mais recentes da telemetria.
+          verifique se o serviço da API está ativo e tente novamente.
         </p>
         <button
           type="button"
           onClick={reset}
           className="mt-6 rounded-xl bg-[var(--panel-glass-mid)] px-5 py-2.5 text-sm font-semibold text-[var(--text-1)] transition hover:bg-[var(--panel-glass-strong)] active:scale-95"
         >
-          Tentar novamente
+          tentar novamente
         </button>
       </section>
     </main>

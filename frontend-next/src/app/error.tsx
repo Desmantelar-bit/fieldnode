@@ -30,18 +30,18 @@ export default function GlobalError({
 
         {/* Rótulo */}
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--status-critico)] mb-2">
-          Falha inesperada
+          sinal interrompido
         </p>
 
         {/* Título */}
         <h1 className="text-2xl font-bold text-[var(--text-1)] mb-3">
-          Algo deu errado
+          não conseguimos alcançar essa parte do sistema agora.
         </h1>
 
         {/* Descrição — sem expor detalhes internos */}
         <p className="text-sm leading-relaxed text-[var(--text-3)] mb-8">
-          O FieldNode encontrou um erro inesperado. Tente novamente ou recarregue
-          a página. Se o problema persistir, verifique a conexão com a API.
+          ocorreu uma instabilidade inesperada na interface ou na comunicação.
+          você pode tentar restabelecer a conexão ou retornar à visão geral.
         </p>
 
         {/* Ações */}
@@ -51,26 +51,26 @@ export default function GlobalError({
             onClick={reset}
             className="inline-flex items-center justify-center rounded-xl bg-[var(--lime)] px-6 py-2.5 text-sm font-semibold text-[var(--brand-on-accent)] transition hover:brightness-110 active:scale-95"
           >
-            Tentar novamente
+            tentar restabelecer
           </button>
           <a
             href="/dashboard"
             className="inline-flex items-center justify-center rounded-xl bg-[var(--panel-glass-mid)] px-6 py-2.5 text-sm font-semibold text-[var(--text-1)] transition hover:bg-[var(--panel-glass-strong)] active:scale-95"
           >
-            Ir para o Dashboard
+            ir para o dashboard
           </a>
         </div>
 
         {/* Digest para suporte (sem stack trace) */}
         {error?.digest && (
           <p className="mt-8 text-xs text-[var(--muted)]">
-            Referência: {error.digest}
+            referência de rastreio: {error.digest}
           </p>
         )}
 
         {/* Marca */}
         <p className="mt-4 text-xs text-[var(--muted)]">
-          FieldNode · Inteligência Operacional
+          fieldnode · inteligência operacional
         </p>
       </div>
     </main>

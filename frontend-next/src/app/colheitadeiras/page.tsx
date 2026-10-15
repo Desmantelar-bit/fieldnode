@@ -15,7 +15,7 @@ export default async function HarvestersPage() {
   } catch {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Operacao" title="Maquinas agricolas">
-        <ErrorState title="Nao consegui carregar as maquinas." message="A API de ultimas leituras nao respondeu. Sem drama teatral: confira o Django e tente de novo." />
+        <ErrorState title="não conseguimos alcançar as máquinas." message="o serviço de telemetria não respondeu no momento. verifique se a API Django está ativa e tente novamente." />
       </AppShell>
     );
   }
@@ -34,7 +34,7 @@ export default async function HarvestersPage() {
         </section>
 
         {readings.length === 0 ? (
-          <EmptyState title="Nenhuma maquina encontrada." message="Quando a telemetria chegar, os cards aparecem aqui com temperatura, vibracao, RPM e risco." />
+          <EmptyState title="ainda não há sinais por aqui." message="assim que os pacotes de telemetria forem ingeridos, os cards aparecerão aqui com temperatura, vibração, RPM e status operacional." />
         ) : (
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {readings.map((reading) => (

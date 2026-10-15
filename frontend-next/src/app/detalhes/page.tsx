@@ -60,7 +60,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   if (!machineId) {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title="Máquina não selecionada">
-        <EmptyState title="Nenhuma máquina selecionada." message="Volte para máquinas e escolha uma leitura." />
+        <EmptyState title="nenhuma máquina selecionada." message="selecione uma máquina na listagem para inspecionar seus sensores e histórico operacional." />
       </AppShell>
     );
   }
@@ -68,7 +68,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   if (estado.tipo === 'erro') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title={`Máquina ${machineId}`}>
-        <ErrorState title="Não consegui carregar o histórico." message={estado.mensagem} />
+        <ErrorState title="não conseguimos carregar o histórico." message={estado.mensagem} />
       </AppShell>
     );
   }
@@ -76,7 +76,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   if (estado.tipo === 'vazio') {
     return (
       <AppShell active="/colheitadeiras" eyebrow="Detalhes" title={`Máquina ${machineId}`}>
-        <EmptyState title="Nenhuma leitura encontrada." message="Esta máquina ainda não tem telemetria registrada." />
+        <EmptyState title="ainda não há sinais por aqui." message="esta máquina ainda não transmitiu pacotes de telemetria para a central." />
       </AppShell>
     );
   }
