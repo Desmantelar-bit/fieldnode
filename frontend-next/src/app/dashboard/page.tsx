@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const [readings, setReadings] = useState<TelemetryReadings>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mqttStatus, setMqttStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
+  const [telemetryFreshness, setTelemetryFreshness] = useState<'recent' | 'stale' | 'unknown'>('unknown');
 
   useEffect(() => {
     let active = true;
@@ -51,9 +51,9 @@ export default function DashboardPage() {
         const response = await fetch('/api/status-mqtt/', { cache: 'no-store' });
         if (!response.ok) throw new Error('status unavailable');
         const status = await response.json();
-        if (active) setMqttStatus(status.status === 'online' ? 'online' : 'offline');
+        if (active) setTelemetryFreshness(status.status === 'recente' ? 'recent' : status.status === 'desatualizada' ? 'stale' : 'unknown');
       } catch {
-        if (active) setMqttStatus('unknown');
+        if (active) setTelemetryFreshness('unknown');
       }
     };
     refreshStatus();
@@ -98,9 +98,9 @@ export default function DashboardPage() {
       actions={
         <div className="flex items-center gap-2">
           <ReportButton machines={machines} />
-          <div className="status-pill status-pill--normal hidden items-center px-2.5 py-1.5 sm:flex">
-            <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${mqttStatus === 'online' ? 'text-[color:var(--status-normal)]' : 'text-[color:var(--status-atencao)]'}`}>
-              {mqttStatus === 'online' ? 'Sync ativo' : mqttStatus === 'offline' ? 'Sync offline' : 'Sync sem status'}
+          <div className={`status-pill ${telemetryFreshness === 'recent' ? 'status-pill--normal' : ''} hidden items-center px-2.5 py-1.5 sm:flex`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${telemetryFreshness === 'recent' ? 'text-[color:var(--status-normal)]' : 'text-[color:var(--status-atencao)]'}`}>
+              {telemetryFreshness === 'recent' ? 'Telemetria recente' : telemetryFreshness === 'stale' ? 'Telemetria desatualizada' : 'Atualidade sem status'}
             </span>
           </div>
         </div>

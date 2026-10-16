@@ -81,7 +81,7 @@ class TokenAuthTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("username", response.data["errors"])
 
-    def test_token_autoriza_escrita_em_endpoint_de_cadastro(self):
+    def test_token_de_usuario_comum_nao_autoriza_alterar_catalogo_global(self):
         login_response = self.client.post(
             reverse("auth-login"),
             {"username": "admin-token", "password": "senha-forte-123"},
@@ -98,8 +98,8 @@ class TokenAuthTest(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Marca.objects.filter(nome="Marca via Token").exists())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(models.Marca.objects.filter(nome="Marca via Token").exists())
 
     def test_escrita_sem_token_e_rejeitada(self):
         response = self.client.post(

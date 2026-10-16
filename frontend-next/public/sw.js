@@ -1,5 +1,5 @@
-const CACHE_NAME = 'fieldnode-runtime-v2';
-const STATIC_CACHE = 'fieldnode-static-v2';
+const CACHE_NAME = 'fieldnode-runtime-v3';
+const STATIC_CACHE = 'fieldnode-static-v3';
 const TELEMETRY_SYNC_TAG = 'fieldnode-telemetria-sync';
 const DB_NAME = 'fieldnode-offline';
 const DB_VERSION = 1;
@@ -47,6 +47,11 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  if (message.type === "CLEAR_PRIVATE_CACHE") {
+    event.waitUntil(caches.delete(CACHE_NAME));
+    return;
+  }
+
   if (message.type === "QUEUE_TELEMETRY") {
     event.waitUntil(
       queueTelemetry(message.payload, message.headers || {}).then(requestSync),
@@ -66,11 +71,24 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith("/api/auth/")) {
+      event.respondWith(fetch(request));
+      return;
+    }
     event.respondWith(networkFirst(request));
     return;
   }
 
-  event.respondWith(cacheFirst(request));
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(() => caches.match("/")),
+    );
+    return;
+  }
+
+  if (isStaticAssetRequest(request)) {
+    event.respondWith(cacheFirst(request));
+  }
 });
 
 self.addEventListener("sync", (event) => {
@@ -163,6 +181,12 @@ function isTelemetryPost(request) {
   const isProxiedApi = url.pathname === "/api/telemetria/";
 
   return isSameApiHost || isProxiedApi;
+}
+
+function isStaticAssetRequest(request) {
+  return ["script", "style", "image", "font", "manifest"].includes(
+    request.destination,
+  );
 }
 
 async function requestSync() {

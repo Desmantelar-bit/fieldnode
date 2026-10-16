@@ -6,6 +6,7 @@ from django.db import connection
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
+from rest_framework.test import APIClient
 
 from api_tcc import models
 from api_tcc.models import LeituraTelemetria, Machine, MachineDataHealth, Membership, Organization
@@ -275,6 +276,7 @@ class MachineDataHealthServiceTest(TestCase):
 
 class MachineDataHealthIntegrationTest(TestCase):
     def setUp(self):
+        self.client = APIClient()
         self.user = User.objects.create_user(username="health-reader")
         self.organization = Organization.objects.create(nome="Health Org")
         Membership.objects.create(
@@ -282,6 +284,7 @@ class MachineDataHealthIntegrationTest(TestCase):
             organization=self.organization,
             role="viewer",
         )
+        self.client.force_authenticate(user=self.user)
 
     def test_dez_leituras_consecutivas_atualizam_health_unico_sem_custo_crescente(self):
         base_ts = _dt(10)
@@ -356,8 +359,6 @@ class MachineDataHealthIntegrationTest(TestCase):
         machine = Machine.objects.get(external_code="COLH-HEALTH")
         machine.organization = self.organization
         machine.save(update_fields=["organization"])
-        self.client.force_login(self.user)
-
         response = self.client.get(f"/api/machines/{machine.id}/health/")
 
         self.assertEqual(response.status_code, 200)
@@ -381,8 +382,6 @@ class MachineDataHealthIntegrationTest(TestCase):
         machine = Machine.objects.create(external_code="COLH-SEM-DADOS")
         machine.organization = self.organization
         machine.save(update_fields=["organization"])
-        self.client.force_login(self.user)
-
         response = self.client.get(f"/api/machines/{machine.id}/health/")
 
         self.assertEqual(response.status_code, 200)
@@ -399,8 +398,6 @@ class MachineDataHealthIntegrationTest(TestCase):
         machine = Machine.objects.get(external_code="COLH-HEALTH")
         machine.organization = self.organization
         machine.save(update_fields=["organization"])
-        self.client.force_login(self.user)
-
         response = self.client.get("/api/leituras/ultimas/")
 
         self.assertEqual(response.status_code, 200)

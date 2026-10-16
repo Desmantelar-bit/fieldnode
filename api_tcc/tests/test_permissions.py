@@ -131,18 +131,105 @@ class PermissaoCRUDTest(TestCase):
         self.operario.refresh_from_db()
         self.assertEqual(self.operario.nome, "Operario CRUD")
 
-    def test_post_com_usuario_autenticado_e_permitido(self):
-        User.objects.create_user(username="admin-crud", password="senha-forte-123")
-        self.assertTrue(self.client.login(username="admin-crud", password="senha-forte-123"))
+    def test_usuario_comum_nao_altera_catalogo_global(self):
+        user = User.objects.create_user(username="user-crud", password="senha-forte-123")
+        self.client.force_authenticate(user=user)
 
         response = self.client.post(
             reverse("marca-list"),
-            {"nome": "Marca Autenticada"},
+            {"nome": "Marca Bloqueada"},
             format="json",
         )
 
+        self.assert_write_blocked(response)
+        self.assertFalse(models.Marca.objects.filter(nome="Marca Bloqueada").exists())
+
+        response = self.client.patch(
+            reverse("marca-detail", args=[self.marca.id]),
+            {"nome": "Marca Alterada"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.marca.refresh_from_db()
+        self.assertEqual(self.marca.nome, "Marca CRUD")
+
+    def test_staff_pode_alterar_catalogo_global(self):
+        user = User.objects.create_superuser(
+            username="staff-crud", password="senha-forte-123", email="staff@example.com"
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(
+            reverse("marca-list"), {"nome": "Marca Staff"}, format="json"
+        )
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Marca.objects.filter(nome="Marca Autenticada").exists())
+        self.assertTrue(models.Marca.objects.filter(nome="Marca Staff").exists())
+
+    def test_ingestao_browser_exige_maquina_da_organizacao_e_role_de_escrita(self):
+        user = User.objects.create_user(username="member-ingest", password="senha-forte-123")
+        org = models.Organization.objects.create(nome="Org de ingestao")
+        machine = models.Machine.objects.create(
+            external_code="COLH-INGEST-01", organization=org
+        )
+        models.Membership.objects.create(user=user, organization=org, role="member")
+        self.client.force_authenticate(user=user)
+
+        payload = {"maquina_id": machine.external_code}
+        response = self.client.post(
+            reverse("ingestao-telemetria"), payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        other_org = models.Organization.objects.create(nome="Outra org")
+        other_machine = models.Machine.objects.create(
+            external_code="COLH-INGEST-02", organization=other_org
+        )
+        response = self.client.post(
+            reverse("ingestao-telemetria"),
+            {"maquina_id": other_machine.external_code},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_ingestao_browser_viewer_nao_pode_escrever(self):
+        user = User.objects.create_user(username="viewer-ingest", password="senha-forte-123")
+        org = models.Organization.objects.create(nome="Org viewer")
+        machine = models.Machine.objects.create(
+            external_code="COLH-INGEST-03", organization=org
+        )
+        models.Membership.objects.create(user=user, organization=org, role="viewer")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(
+            reverse("ingestao-telemetria"),
+            {"maquina_id": machine.external_code},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_escrita_em_colheitadeira_respeita_role_da_organizacao(self):
+        org = models.Organization.objects.create(nome="Org da frota")
+        models.Machine.objects.create(
+            external_code=self.colheitadeira.maquina_id,
+            organization=org,
+            colheitadeira=self.colheitadeira,
+        )
+        member = User.objects.create_user(username="fleet-member")
+        viewer = User.objects.create_user(username="fleet-viewer")
+        models.Membership.objects.create(user=member, organization=org, role="member")
+        models.Membership.objects.create(user=viewer, organization=org, role="viewer")
+        url = reverse("colheitadeira-detail", args=[self.colheitadeira.id])
+        payload = {"status_de_operacao_id": self.colheitadeira.status_de_operacao_id}
+
+        self.client.force_authenticate(user=member)
+        allowed = self.client.patch(url, payload, format="json")
+        self.assertEqual(allowed.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=viewer)
+        denied = self.client.patch(url, payload, format="json")
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_credencial_basica_invalida_nao_libera_escrita(self):
         credentials = base64.b64encode(b"usuario-invalido:senha-invalida").decode("ascii")
@@ -195,12 +282,13 @@ class PermissaoEscritaEmDemoModeTest(TestCase):
         self.assertIn(response.status_code, {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN})
         self.assertTrue(models.Marca.objects.filter(id=self.marca.id).exists())
 
-    def test_usuario_autenticado_pode_escrever_em_demo_mode(self):
-        User.objects.create_user(username="admin-demo", password="senha-forte-123")
-        self.assertTrue(self.client.login(username="admin-demo", password="senha-forte-123"))
+    def test_usuario_comum_nao_pode_alterar_catalogo_em_demo_mode(self):
+        user = User.objects.create_user(username="admin-demo", password="senha-forte-123")
+        self.client.force_authenticate(user=user)
         response = self.client.post(
             reverse("marca-list"),
             {"nome": "Marca Autenticada em Demo"},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(models.Marca.objects.filter(nome="Marca Autenticada em Demo").exists())

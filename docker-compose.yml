@@ -162,6 +162,7 @@ services:
     environment:
       NODE_ENV: production
       FIELDNODE_SERVER_API_URL: http://web:8000/api
+      FIELDNODE_FRONTEND_URL: ${FIELDNODE_FRONTEND_URL:-http://localhost:3000}
       NEXT_PUBLIC_API_URL: http://localhost:8000/api
     depends_on:
       web:

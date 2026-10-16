@@ -284,7 +284,7 @@ class EndpointIngestaoTest(TestCase):
 
     def test_sem_api_key_retorna_401(self):
         payload = _payload_valido(id=str(uuid.uuid4()))
-        response = self.client.post("/api/telemetria/", payload, format="json")
+        response = APIClient().post("/api/telemetria/", payload, format="json")
         self.assertEqual(response.status_code, 401)
 
     def test_temperatura_invalida_retorna_400(self):

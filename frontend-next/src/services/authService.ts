@@ -35,6 +35,23 @@ export function clearSession() {
   } catch { /* storage can be disabled */ }
 }
 
+async function clearPrivateOfflineCache(): Promise<void> {
+  const deletions: Promise<boolean>[] = [];
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    deletions.push(
+      caches.keys().then(async (cacheNames) => {
+        const privateCaches = cacheNames.filter((name) => name.startsWith('fieldnode-runtime-'));
+        await Promise.all(privateCaches.map((name) => caches.delete(name)));
+        return privateCaches.length > 0;
+      }),
+    );
+  }
+  if (typeof navigator !== 'undefined') {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_PRIVATE_CACHE' });
+  }
+  await Promise.all(deletions);
+}
+
 async function parseError(response: Response): Promise<AuthError> {
   const body = await response.json().catch(() => ({})) as Record<string, unknown>;
   const errors = body.errors as Record<string, unknown> | undefined;
@@ -78,13 +95,20 @@ export function register(params: {
 export async function logout(): Promise<void> {
   try {
     await fetch('/api/auth/logout/', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
-  } finally { clearSession(); }
+  } finally {
+    clearSession();
+    await clearPrivateOfflineCache();
+  }
 }
 
 export async function verifyToken(): Promise<AuthUser | null> {
   try {
     const response = await fetch('/api/auth/me/', { credentials: 'same-origin', cache: 'no-store' });
-    if (response.status === 401 || response.status === 403) { clearSession(); return null; }
+    if (response.status === 401 || response.status === 403) {
+      clearSession();
+      await clearPrivateOfflineCache();
+      return null;
+    }
     if (!response.ok) throw new Error(`Falha ao verificar sessão (HTTP ${response.status}).`);
     const user = await response.json() as AuthUser;
     storeUser(user);

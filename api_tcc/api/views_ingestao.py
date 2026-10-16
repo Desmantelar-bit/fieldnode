@@ -63,6 +63,32 @@ class HasValidIngestionAPIKey(BasePermission):
         return bool(supplied and expected and hmac.compare_digest(supplied, expected))
 
 
+class HasIngestionCredential(BasePermission):
+    """Accept device API keys or authorized members sending browser telemetry."""
+    message = 'Credencial inválida ou sem acesso de escrita à máquina.'
+
+    def has_permission(self, request, view):
+        if HasValidIngestionAPIKey().has_permission(request, view):
+            return True
+        if not request.user.is_authenticated:
+            return False
+
+        payloads = request.data.get('leituras') if isinstance(request.data, dict) else None
+        if payloads is None:
+            payloads = [request.data]
+        if not isinstance(payloads, list) or not payloads:
+            return False
+
+        for payload in payloads:
+            if not isinstance(payload, dict):
+                return False
+            external_code = str(payload.get('maquina_id') or '').strip().upper()
+            machine = Machine.objects.filter(external_code=external_code, ativo=True).first()
+            if not machine or not user_can_access_machine(request.user, machine, write=True):
+                return False
+        return True
+
+
 def _is_public_demo_request(request) -> bool:
     return bool(settings.DEMO_MODE and not request.user.is_authenticated)
 
@@ -168,7 +194,7 @@ class IngestaoTelemetriaView(APIView):
     throttle_classes = [IngestaoThrottle]
 
     def get_permissions(self):
-        permission = HasValidIngestionAPIKey if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
+        permission = HasIngestionCredential if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
         return [permission()]
 
     def get_throttles(self):
@@ -296,7 +322,7 @@ class IngestaoLoteView(APIView):
     throttle_classes = [IngestaoThrottle]
 
     def get_permissions(self):
-        permission = HasValidIngestionAPIKey if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
+        permission = HasIngestionCredential if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
         return [permission()]
 
     def post(self, request):
@@ -356,6 +382,8 @@ class UltimaLeituraView(APIView):
     Limitação: retorna máximo 10 máquinas distintas por vez.
     Para frotas maiores, implementar paginação.
     """
+
+    permission_classes = [IsAuthenticatedOrPublicDemo]
 
     def get(self, request):
         if not request.user.is_authenticated and not _is_public_demo_request(request):
@@ -575,16 +603,15 @@ class StatusMQTTView(APIView):
     """
     GET /api/status-mqtt/
 
-    Retorna status de conectividade MQTT e última leitura recebida.
+    Retorna a atualidade da última leitura recebida. Não mede a conexão do broker.
 
     Usado pelo dashboard para mostrar indicador de conexão:
-    - mqtt_conectado: bool (true se última leitura foi há < 10s)
+    - telemetria_atualizada: bool (true se última leitura foi há < 10s)
     - ultima_leitura_segundos_atras: int (tempo em segundos)
-    - status: str ("online" ou "offline")
+    - status: str ("recente" ou "desatualizada")
 
-    Lógica: considera sistema online se recebeu alguma leitura nos últimos 10 segundos.
-    10s é escolhido conservadoramente — deixa espaço para atrasos de rede
-    mantendo responsividade de detecção de desconexão.
+    O intervalo é apenas uma indicação de frescor da telemetria; não comprova
+    conectividade do broker ou do worker MQTT.
     """
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
@@ -595,20 +622,20 @@ class StatusMQTTView(APIView):
 
         if not ultima_leitura:
             return Response({
-                'mqtt_conectado': False,
+                'telemetria_atualizada': False,
                 'ultima_leitura_segundos_atras': None,
-                'status': 'offline',
+                'status': 'sem_dados',
                 'detalhes': 'Nenhuma leitura recebida ainda'
             })
 
         delta = timezone.now() - ultima_leitura.recebido_em
         segundos_atras = int(delta.total_seconds())
-        conectado = segundos_atras < 10
+        atualizada = segundos_atras < 10
 
         return Response({
-            'mqtt_conectado': conectado,
+            'telemetria_atualizada': atualizada,
             'ultima_leitura_segundos_atras': segundos_atras,
-            'status': 'online' if conectado else 'offline',
+            'status': 'recente' if atualizada else 'desatualizada',
         })
 
 

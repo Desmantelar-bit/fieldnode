@@ -6,6 +6,18 @@ export const dynamic = 'force-dynamic';
 
 const SESSION_COOKIE = 'fieldnode_session';
 const API_BASE = (process.env.FIELDNODE_SERVER_API_URL || 'http://127.0.0.1:8000/api').replace(/\/+$/, '');
+const localFrontendOrigins = process.env.NODE_ENV === 'production'
+  ? []
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3005', 'http://127.0.0.1:3005'];
+const configuredFrontendOrigins = [
+  ...(process.env.FIELDNODE_FRONTEND_URL || '')
+  .split(',')
+  .map((value) => {
+    try { return new URL(value.trim()).origin; } catch { return ''; }
+  })
+  .filter(Boolean),
+  ...localFrontendOrigins,
+];
 
 function json(body: unknown, status = 200, headers?: HeadersInit) {
   return Response.json(body, { status, headers });
@@ -16,7 +28,13 @@ async function proxyInternal(request: NextRequest, context: { params: Promise<{ 
   const endpoint = path.join('/');
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const origin = request.headers.get('origin');
-    if (origin && origin !== request.nextUrl.origin) return json({ detail: 'Origem não permitida.' }, 403);
+    if (origin) {
+      let normalizedOrigin = '';
+      try { normalizedOrigin = new URL(origin).origin; } catch { /* Reject malformed origins below. */ }
+      if (!normalizedOrigin || (normalizedOrigin !== request.nextUrl.origin && !configuredFrontendOrigins.includes(normalizedOrigin))) {
+        return json({ detail: 'Origem não permitida.' }, 403);
+      }
+    }
   }
 
   const cookieStore = await cookies();
