@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { resolveApiUrl } from '@/services/telemetryService';
-
-const API_URL = resolveApiUrl();
 
 export function ApiStatusIndicator() {
   const [isOnline, setIsOnline] = useState(true);
@@ -14,16 +11,14 @@ export function ApiStatusIndicator() {
     async function check() {
       try {
         const headers = new Headers({ Accept: 'application/json' });
-        if (typeof window !== 'undefined') {
-          try {
-            const token = localStorage.getItem('fn-auth-token');
-            if (token) headers.set('Authorization', `Token ${token}`);
-          } catch {
-            // storage unavailable
-          }
+        try {
+          const token = localStorage.getItem('fn-auth-token');
+          if (token) headers.set('Authorization', `Token ${token}`);
+        } catch {
+          // storage unavailable
         }
 
-        const res = await fetch(`${API_URL}/health/`, {
+        const res = await fetch(`/api/health/`, {
           signal: AbortSignal.timeout(3000),
           cache: 'no-store',
           headers,
@@ -37,7 +32,7 @@ export function ApiStatusIndicator() {
 
         // Se o endpoint /health/ não existe (404), verifica a raiz de telemetria
         if (res.status === 404) {
-          const fallbackRes = await fetch(`${API_URL}/colheitadeira/`, {
+          const fallbackRes = await fetch(`/api/colheitadeira/`, {
             method: 'HEAD',
             signal: AbortSignal.timeout(3000),
             cache: 'no-store',

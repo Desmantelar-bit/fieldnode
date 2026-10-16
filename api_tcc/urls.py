@@ -44,8 +44,11 @@ router.register(r'colheitadeira', viewsets.ColheitadeiraViewSet, basename='colhe
 urlpatterns = [
     path("", include(router.urls)),
     path("auth/login/", ExpiringAuthTokenView.as_view(), name="auth-login"),
+    path("auth/login", ExpiringAuthTokenView.as_view(), name="auth-login-no-slash"),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
+    path("auth/register", RegisterView.as_view(), name="auth-register-no-slash"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    path("auth/logout", LogoutView.as_view(), name="auth-logout-no-slash"),
     path("auth/me/", MeView.as_view(), name="auth-me"),
     path("telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"),
     path("telemetria/lote/", IngestaoLoteView.as_view(), name="ingestao-telemetria-lote"),

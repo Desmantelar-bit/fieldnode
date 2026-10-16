@@ -37,10 +37,7 @@ function normalizeApiUrl(value: string): string {
 
 export function resolveApiUrl(): string {
   if (typeof window !== "undefined") {
-    const clientUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-    return normalizeApiUrl(clientUrl || "/api");
+    return "/api";
   }
 
   const configuredUrl =

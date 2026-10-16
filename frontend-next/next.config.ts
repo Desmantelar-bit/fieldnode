@@ -6,13 +6,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
-  // O Django usa APPEND_SLASH; sem isto, /api/foo/ e /api/foo entram em loop no dev proxy.
+  // Preserve a barra final ao encaminhar para o Django, que usa APPEND_SLASH.
   skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: `${API_BACKEND}/:path*`,
+        destination: `${API_BACKEND}/:path*/`,
       },
     ];
   },

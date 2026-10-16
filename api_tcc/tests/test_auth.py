@@ -58,6 +58,19 @@ class TokenAuthTest(TestCase):
         self.assertFalse(user.is_superuser)
         self.assertEqual(response.data["token"], Token.objects.get(user=user).key)
 
+    def test_cadastro_publico_aceita_url_sem_barra_final(self):
+        response = self.client.post(
+            reverse("auth-register-no-slash"),
+            {
+                "username": "operador-sem-barra",
+                "password": "Senha-forte-123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.filter(username="operador-sem-barra").exists())
+
     def test_cadastro_rejeita_usuario_duplicado(self):
         response = self.client.post(
             reverse("auth-register"),

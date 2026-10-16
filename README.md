@@ -134,7 +134,7 @@ docker compose exec web python manage.py migrate
 ### 4. (Opcional) Popular com dados de demonstração
 
 ```bash
-docker compose exec web python manage.py popular_tudo
+docker compose exec web python manage.py popular_tudo --username <usuario-cadastrado>
 ```
 
 ### 5. Acessar
