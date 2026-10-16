@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAuthenticated } from '@/services/authService';
+import { verifyToken } from '@/services/authService';
 
 /* ──────────────────────────────────────────────────────────────────────────
    SessionGate — fecha a porta depois do logout.
@@ -33,9 +33,20 @@ export function SessionGate({ children }: { children: ReactNode }) {
   const [denied, setDenied] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated()) return;
-    setDenied(true);
-    router.replace('/login');
+    let active = true;
+    const check = () => verifyToken().then((user) => {
+      if (!active || user) return;
+      setDenied(true);
+      router.replace('/login');
+    }).catch(() => { /* Preserve offline access when the server cannot be reached. */ });
+    check();
+    const interval = window.setInterval(check, 60_000);
+    window.addEventListener('focus', check);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', check);
+    };
   }, [router]);
 
   // Sem sessão: o conteúdo do app nunca é exibido. O SSR continua renderizando

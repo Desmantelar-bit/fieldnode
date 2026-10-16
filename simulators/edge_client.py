@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import sqlite3
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -200,7 +201,7 @@ class EdgeBuffer:
 
 class EdgeClient:
     def __init__(self, buffer: EdgeBuffer, api_url: str, api_key: str, *, timeout: float = 10.0,
-                 max_attempts: int = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
+                 max_attempts: int | None = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
                  session: Any | None = None,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         self.buffer = buffer
@@ -213,14 +214,20 @@ class EdgeClient:
         self.session = session or requests.Session()
         self.sleep = sleep
 
-    def synchronize(self) -> int:
+    def synchronize(self, *, stop_on_retryable_failure: bool = False) -> int:
         synced = 0
         for row in self.buffer.pending():
-            if int(row["attempts"]) >= self.max_attempts:
+            if self.max_attempts is not None and int(row["attempts"]) >= self.max_attempts:
                 self.buffer.mark_error(int(row["id"]), "MAX_ATTEMPTS atingido")
                 continue
             if self._send(row):
                 synced += 1
+            elif stop_on_retryable_failure:
+                status = self.buffer.connection.execute(
+                    "SELECT status FROM outbox WHERE id = ?", (int(row["id"]),)
+                ).fetchone()
+                if status and status["status"] == STATUS_PENDING:
+                    break
         return synced
 
     def _send(self, row: sqlite3.Row) -> bool:
@@ -261,7 +268,7 @@ class EdgeClient:
     def _retryable_failure(self, row: sqlite3.Row, reason: str) -> bool:
         attempt_number = int(row["attempts"])
         row_id = int(row["id"])
-        if attempt_number >= self.max_attempts:
+        if self.max_attempts is not None and attempt_number >= self.max_attempts:
             self.buffer.mark_error(row_id, f"{reason}; MAX_ATTEMPTS atingido")
             return False
         self.buffer.mark_retryable(row_id, reason)
@@ -296,6 +303,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--buffer-path", default="simulators/edge_buffer.db")
     parser.add_argument("--offline", action="store_true", help="gera e persiste sem sincronizar nesta execução")
     parser.add_argument("--sync-only", action="store_true")
+    parser.add_argument("--watch", action="store_true", help="gera continuamente e sincroniza com retry durável")
     parser.add_argument("--timeout", type=float, default=float(os.getenv("EDGE_HTTP_TIMEOUT", "10")))
     parser.add_argument("--max-attempts", type=int, default=int(os.getenv("EDGE_MAX_ATTEMPTS", "5")))
     parser.add_argument("--backoff-base", type=float, default=float(os.getenv("EDGE_BACKOFF_BASE", "2")))
@@ -308,8 +316,73 @@ def main() -> int:
     args = build_parser().parse_args()
     if args.count < 0 or args.max_attempts < 1:
         raise SystemExit("--count e --max-attempts devem ser válidos")
+    if args.watch and (args.interval <= 0 or args.offline or args.sync_only):
+        raise SystemExit("--watch exige --interval positivo e não combina com --offline/--sync-only")
+    if args.watch and not args.api_key:
+        raise SystemExit("FIELDNODE_API_KEY/--api-key é obrigatório para sincronizar")
     buffer = EdgeBuffer(args.buffer_path, args.device_id)
     try:
+        if args.watch:
+            client = EdgeClient(
+                buffer,
+                args.api_url,
+                args.api_key,
+                timeout=args.timeout,
+                max_attempts=None,
+                backoff_base=args.backoff_base,
+                backoff_max=args.backoff_max,
+            )
+            index = 0
+            LOGGER.info(
+                "gateway contínuo ativo device=%s intervalo=%.1fs outbox=%s (Ctrl+C para parar)",
+                args.device_id,
+                args.interval,
+                args.buffer_path,
+            )
+            sync_worker: threading.Thread | None = None
+            try:
+                while True:
+                    payload = generate_payload(args.device_id, buffer.next_sequence(), index)
+                    buffer.enqueue(payload)
+                    LOGGER.info(
+                        "leitura persistida device=%s seq=%s pendentes=%s",
+                        args.device_id,
+                        payload["sequence_number"],
+                        buffer.counts().get(STATUS_PENDING, 0),
+                    )
+                    if sync_worker is None or not sync_worker.is_alive():
+                        def synchronize_pending() -> None:
+                            sync_buffer = EdgeBuffer(args.buffer_path, args.device_id)
+                            try:
+                                EdgeClient(
+                                    sync_buffer,
+                                    args.api_url,
+                                    args.api_key,
+                                    timeout=args.timeout,
+                                    max_attempts=None,
+                                    backoff_base=args.backoff_base,
+                                    backoff_max=args.backoff_max,
+                                ).synchronize(stop_on_retryable_failure=True)
+                            finally:
+                                sync_buffer.close()
+
+                        sync_worker = threading.Thread(
+                            target=synchronize_pending,
+                            name="fieldnode-outbox-sync",
+                            daemon=True,
+                        )
+                        sync_worker.start()
+                    index += 1
+                    time.sleep(args.interval)
+            except KeyboardInterrupt:
+                LOGGER.info("gateway contínuo encerrado pelo operador")
+                LOGGER.info(
+                    "outbox device=%s cursor_contiguo=%d counts=%s",
+                    args.device_id,
+                    buffer.cursor(),
+                    buffer.counts(),
+                )
+                return 0
         if not args.sync_only:
             for index in range(args.count):
                 buffer.enqueue(generate_payload(args.device_id, buffer.next_sequence(), index))

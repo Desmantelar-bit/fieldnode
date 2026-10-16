@@ -1,23 +1,23 @@
 import type { NextConfig } from "next";
 
-const API_BACKEND = process.env.FIELDNODE_SERVER_API_URL ?? "http://127.0.0.1:8000/api";
-
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
-  // O Django usa APPEND_SLASH; sem isto, /api/foo/ e /api/foo entram em loop no dev proxy.
+  // Preserve a barra final ao encaminhar para o Django, que usa APPEND_SLASH.
   skipTrailingSlashRedirect: true,
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_BACKEND}/:path*`,
-      },
-    ];
-  },
   headers() {
     return Promise.resolve([
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: ws: wss:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
+        ],
+      },
       {
         source: "/manifest.json",
         headers: [

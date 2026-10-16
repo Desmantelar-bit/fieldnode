@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { FieldNodeLogo } from "@/components/FieldNodeLogo";
-import { login, isAuthenticated, isAuthAvailable, type AuthError } from "@/services/authService";
+import { login, verifyToken, isAuthAvailable, type AuthError } from "@/services/authService";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Login — FieldNode
@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [error, setError] = useState<AuthError | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated()) router.replace("/dashboard");
+    verifyToken().then((user) => { if (user) router.replace("/dashboard"); }).catch(() => {});
   }, [router]);
 
   useEffect(() => {

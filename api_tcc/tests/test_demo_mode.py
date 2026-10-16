@@ -196,8 +196,9 @@ class DemoModeIsolamentoEndpointsTest(TestCase):
     def test_status_mqtt_usa_somente_leitura_demo(self):
         response = self.client.get(reverse("status-mqtt"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Endpoint retorna status baseado na última leitura demo
         self.assertIn("status", response.data)
+        self.assertIn("telemetria_atualizada", response.data)
+        self.assertNotIn("mqtt_conectado", response.data)
 
     @override_settings(DEMO_MODE=True)
     def test_relatorio_geral_usa_somente_leituras_demo(self):

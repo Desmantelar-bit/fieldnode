@@ -37,10 +37,7 @@ function normalizeApiUrl(value: string): string {
 
 export function resolveApiUrl(): string {
   if (typeof window !== "undefined") {
-    const clientUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.NEXT_PUBLIC_FIELDNODE_SERVER_API_URL;
-    return normalizeApiUrl(clientUrl || "/api");
+    return "/api";
   }
 
   const configuredUrl =
@@ -50,7 +47,7 @@ export function resolveApiUrl(): string {
   return normalizeApiUrl(configuredUrl || "http://127.0.0.1:8000/api");
 }
 
-const API_URL = resolveApiUrl();
+
 const API_TIMEOUT_MS = 10000;
 
 function withTimeout<T>(
@@ -105,21 +102,13 @@ function validateApiContract<T extends z.ZodTypeAny>(
 function buildRequestHeaders(contentType?: string): Headers {
   const headers = new Headers({ Accept: "application/json" });
   if (contentType) headers.set("Content-Type", contentType);
-  if (typeof window !== "undefined") {
-    try {
-      const token = localStorage.getItem("fn-auth-token");
-      if (token) headers.set("Authorization", `Token ${token}`);
-    } catch {
-      // storage unavailable
-    }
-  }
   return headers;
 }
 
 export const telemetryService = {
   async getFleetStatus(): Promise<Machine[]> {
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/colheitadeira/`, {
+      fetch(`${resolveApiUrl()}/colheitadeira/`, {
         cache: "no-store",
         headers: buildRequestHeaders(),
         signal,
@@ -131,8 +120,8 @@ export const telemetryService = {
 
   async getMachinePositions(maquinaId?: string): Promise<MachinePosition[]> {
     const url = maquinaId
-      ? `${API_URL}/maquinas/posicao/?maquina_id=${encodeURIComponent(maquinaId)}`
-      : `${API_URL}/maquinas/posicao/`;
+      ? `${resolveApiUrl()}/maquinas/posicao/?maquina_id=${encodeURIComponent(maquinaId)}`
+      : `${resolveApiUrl()}/maquinas/posicao/`;
     const response = await withTimeout((signal) =>
       fetch(url, {
         cache: "no-store",
@@ -146,7 +135,7 @@ export const telemetryService = {
 
   async getLatestReadings(): Promise<Telemetry[]> {
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/leituras/ultimas/`, {
+      fetch(`${resolveApiUrl()}/leituras/ultimas/`, {
         headers: buildRequestHeaders(),
         signal,
       }),
@@ -158,7 +147,7 @@ export const telemetryService = {
   async getMachineReadings(machineId: string): Promise<Telemetry[]> {
     const response = await withTimeout((signal) =>
       fetch(
-        `${API_URL}/telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
+        `${resolveApiUrl()}/telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
         {
           cache: "no-store",
           headers: buildRequestHeaders(),
@@ -172,7 +161,7 @@ export const telemetryService = {
 
   async getOperators(): Promise<Operator[]> {
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/operario/`, {
+      fetch(`${resolveApiUrl()}/operario/`, {
         cache: "no-store",
         headers: buildRequestHeaders(),
         signal,
@@ -185,7 +174,7 @@ export const telemetryService = {
   async sendTelemetry(reading: TelemetryInput) {
     const payload = validateApiContract(TelemetryInputSchema, reading, "sendTelemetry");
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/telemetria/`, {
+      fetch(`${resolveApiUrl()}/telemetria/`, {
         method: "POST",
         headers: buildRequestHeaders("application/json"),
         body: JSON.stringify(payload),
@@ -206,11 +195,7 @@ export const telemetryService = {
     worker?.postMessage({
       type: "QUEUE_TELEMETRY",
       payload: reading,
-      headers: {
-        ...(typeof window !== "undefined" && localStorage.getItem("fn-auth-token")
-          ? { Authorization: `Token ${localStorage.getItem("fn-auth-token")}` }
-          : {}),
-      },
+      headers: {},
     });
 
     return { status: "queued" };
@@ -219,7 +204,7 @@ export const telemetryService = {
   async getPrescricoes(machineId: string): Promise<Prescricao[]> {
     const response = await withTimeout((signal) =>
       fetch(
-        `${API_URL}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`,
+        `${resolveApiUrl()}/prescricoes/lista/?maquina_id=${encodeURIComponent(machineId)}`,
         { cache: "no-store", headers: buildRequestHeaders(), signal },
       ),
     );
@@ -237,7 +222,7 @@ export const telemetryService = {
 
   async getAnalisePrescricao(machineId: string): Promise<AnalisePrescricao> {
     const response = await withTimeout((signal) =>
-      fetch(`${API_URL}/prescricoes/${encodeURIComponent(machineId)}/`, {
+      fetch(`${resolveApiUrl()}/prescricoes/${encodeURIComponent(machineId)}/`, {
         cache: "no-store",
         headers: buildRequestHeaders(),
         signal,
@@ -261,7 +246,7 @@ export const telemetryService = {
     });
     if (options?.machineId) params.set("maquina_id", options.machineId);
     if (options?.period != null) params.set("periodo", String(options.period));
-    const url = `${API_URL}/relatorio/?${params.toString()}`;
+    const url = `${resolveApiUrl()}/relatorio/?${params.toString()}`;
     const response = await withTimeout((signal) =>
       fetch(url, { cache: "no-store", headers: buildRequestHeaders(), signal }),
     );

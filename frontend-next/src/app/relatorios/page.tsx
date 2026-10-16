@@ -78,16 +78,9 @@ export default function RelatoriosPage() {
     setExportErrorMessage('');
     try {
       const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(selectedMachine)}`;
-      const headers = new Headers({ Accept: '*/*' });
-      if (typeof window !== 'undefined') {
-        try {
-          const token = localStorage.getItem('fn-auth-token');
-          if (token) headers.set('Authorization', `Token ${token}`);
-        } catch {
-          // storage unavailable
-        }
-      }
-      const response = await fetch(url, { headers });
+      const response = await fetch(url, {
+        headers: new Headers({ Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv, */*' }),
+      });
       if (response.status === 404 || response.status === 501) {
         setExportErrorMessage('O endpoint de exportação de relatório (/api/relatorio/exportar/) ainda não está disponível no backend.');
         setExportState('error');

@@ -324,24 +324,32 @@ export function DashboardMachineData({
     setLoading(true);
     setError(null);
 
-    telemetryService
-      .getMachineReadings(selectedMachineId)
-      .then((data) => {
-        if (!cancelled && data.length) setReadings(data);
-      })
-      .catch((err: unknown) => {
-        // Só reporta falha se não houver nada para mostrar — se a leitura
-        // recente já veio no SSR, o painel continua útil.
-        if (!cancelled && initial.length === 0) {
-          setError(err instanceof Error ? err.message : 'Falha ao carregar a máquina.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const refreshReadings = () => {
+      telemetryService
+        .getMachineReadings(selectedMachineId)
+        .then((data) => {
+          if (!cancelled) {
+            setReadings(data);
+            setError(null);
+          }
+        })
+        .catch((err: unknown) => {
+          // Mantém a última série visível durante uma falha temporária da API.
+          if (!cancelled && initial.length === 0) {
+            setError(err instanceof Error ? err.message : 'Falha ao carregar a máquina.');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    refreshReadings();
+    const interval = window.setInterval(refreshReadings, 5000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, [initialReadings, selectedMachineId]);
 

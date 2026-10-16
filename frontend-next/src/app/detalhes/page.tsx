@@ -28,26 +28,63 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   const [machineId, setMachineId]       = useState<string | null>(null);
   const [estado, setEstado]             = useState<EstadoRequisicao<Telemetry[]>>({ tipo: 'carregando' });
   const [showPrescricao, setShowPrescricao] = useState(false);
+  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [falhaAtualizacao, setFalhaAtualizacao] = useState(false);
 
-  const carregar = useCallback((id: string) => {
-    setEstado({ tipo: 'carregando' });
-    telemetryService.getMachineReadings(id)
-      .then((data) =>
-        setEstado(data.length === 0 ? { tipo: 'vazio' } : { tipo: 'sucesso', dados: data }),
-      )
-      .catch((err: unknown) =>
-        setEstado({ tipo: 'erro', mensagem: err instanceof Error ? err.message : 'API de telemetria não respondeu' }),
-      );
+  const carregar = useCallback((id: string, silencioso = false) => {
+    if (!silencioso) setEstado({ tipo: 'carregando' });
+    return telemetryService.getMachineReadings(id)
+      .then((data) => {
+        setEstado(data.length === 0 ? { tipo: 'vazio' } : { tipo: 'sucesso', dados: data });
+        setAtualizadoEm(new Date());
+        setFalhaAtualizacao(false);
+      })
+      .catch((err: unknown) => {
+        if (silencioso) {
+          setFalhaAtualizacao(true);
+          setEstado((anterior) => anterior.tipo === 'sucesso'
+            ? anterior
+            : { tipo: 'erro', mensagem: err instanceof Error ? err.message : 'API de telemetria não respondeu' });
+          return;
+        }
+        setEstado({ tipo: 'erro', mensagem: err instanceof Error ? err.message : 'API de telemetria não respondeu' });
+      });
   }, []);
 
   useEffect(() => {
+    let active = true;
     searchParams.then((params) => {
+      if (!active) return;
       const id = params.id ?? null;
       setMachineId(id);
-      if (!id) { setEstado({ tipo: 'vazio' }); return; }
-      carregar(id);
     });
-  }, [searchParams, carregar]);
+    return () => {
+      active = false;
+    };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!machineId) {
+      setEstado({ tipo: 'vazio' });
+      return;
+    }
+    let active = true;
+    let timeout: number | undefined;
+    const scheduleNext = () => {
+      timeout = window.setTimeout(() => {
+        void carregar(machineId, true).then(() => {
+          if (active) scheduleNext();
+        });
+      }, 5000);
+    };
+    void carregar(machineId).then(() => {
+      if (active) scheduleNext();
+    });
+    return () => {
+      active = false;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [machineId, carregar]);
 
   if (estado.tipo === 'carregando') {
     return (
@@ -156,6 +193,12 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
               </section>
             );
           })}
+          <p className="text-right text-[11px] text-[var(--text-3)]" role="status">
+            {falhaAtualizacao
+              ? 'API indisponível; exibindo a última leitura recebida.'
+              : 'Atualização automática a cada 5 segundos.'}
+            {atualizadoEm && ` Última atualização: ${atualizadoEm.toLocaleTimeString('pt-BR')}.`}
+          </p>
         </div>
       </AppShell>
 

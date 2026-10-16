@@ -110,9 +110,9 @@ class PressaodoCorteSerializer(serializers.ModelSerializer):
         }
 
 
-class TempUmi_AmbienteSerializer(serializers.ModelSerializer):
+class TempUmiAmbienteSerializer(serializers.ModelSerializer):
     class Meta:
-        model = models.TempUmi_Ambiente
+        model = models.TempUmiAmbiente
         fields = '__all__'
         extra_kwargs = {
             'id': {'read_only': True},
@@ -188,9 +188,9 @@ class ColheitadeiraSerializer(serializers.ModelSerializer):
         source="pressao_do_corte",
         write_only=True,
     )
-    temp_umi_ambiente = TempUmi_AmbienteSerializer(read_only=True)
+    temp_umi_ambiente = TempUmiAmbienteSerializer(read_only=True)
     temp_umi_ambiente_id = serializers.PrimaryKeyRelatedField(
-        queryset=models.TempUmi_Ambiente.objects.all(),
+        queryset=models.TempUmiAmbiente.objects.all(),
         source="temp_umi_ambiente",
         write_only=True,
     )

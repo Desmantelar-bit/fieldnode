@@ -24,7 +24,9 @@ from datetime import datetime, timezone
 
 BROKER = os.getenv('MQTT_BROKER', 'localhost')
 PORT = int(os.getenv('MQTT_PORT', '1883'))
-API_URL = os.getenv('FIELDNODE_API_URL', 'http://127.0.0.1:8000/api/telemetria/')
+MQTT_USERNAME = os.getenv('MQTT_USERNAME', '')
+MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', '')
+API_URL = os.getenv('FIELDNODE_API_URL', 'http://127.0.0.1:8000/api/telemetria/').strip()
 API_KEY = os.getenv('FIELDNODE_API_KEY', '')
 DEMO_CYCLES = int(os.getenv('DEMO_CYCLES', '0'))
 
@@ -156,10 +158,12 @@ def main():
     if not API_KEY:
         raise RuntimeError('Defina FIELDNODE_API_KEY no ambiente antes de executar o simulador.')
     client = mqtt.Client()
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     
     try:
         client.connect(BROKER, PORT, 60)
-        print(f"✓ Conectado ao broker MQTT em {BROKER}:{PORT}")
+        print(f"Conectado ao broker MQTT em {BROKER}:{PORT}")
         print("Enviando leituras variadas... (Ctrl+C para parar)\n")
         
         contador = 0
@@ -170,10 +174,10 @@ def main():
                 
                 client.publish(topico, json.dumps(leitura))
                 
-                status = "🔴 CRÍTICO" if leitura["temperatura"] > 85 else \
-                         "🟡 ATENÇÃO" if leitura["temperatura"] > 75 else "🟢 NORMAL"
+                status_label = "[CRITICO]" if leitura["temperatura"] > 85 else \
+                         "[ATENCAO]" if leitura["temperatura"] > 75 else "[NORMAL]"
                 
-                print(f"{status} {maquina_id}: {leitura['temperatura']}°C | "
+                print(f"{status_label} {maquina_id}: {leitura['temperatura']}C | "
                       f"{leitura['vibracao']}g | {leitura['rpm']} RPM")
                 
                 time.sleep(0.5)
@@ -183,9 +187,9 @@ def main():
             time.sleep(2)
             
     except KeyboardInterrupt:
-        print("\n\n✓ Simulação encerrada")
+        print("\n\nSimulacao encerrada")
     except Exception as e:
-        print(f"\n✗ MQTT indisponível: {e}")
+        print(f"\nMQTT indisponivel: {e}")
         loop_fallback_api()
     finally:
         client.disconnect()

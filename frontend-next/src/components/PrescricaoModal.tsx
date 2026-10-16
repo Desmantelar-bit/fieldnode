@@ -112,7 +112,9 @@ export function PrescricaoModal({ machineId, isOpen, onClose }: PrescricaoModalP
                 <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${statusStyle(visibleAnalise.status)}`}>{visibleAnalise.status}</span>
               </div>
               <p className="text-sm font-semibold leading-relaxed">{visibleAnalise.explicacao_operador || visibleAnalise.recomendacao_tecnica || 'Nenhuma ação necessária.'}</p>
-              {visibleAnalise.recomendacao_tecnica && <p className="mt-3 text-xs opacity-75">Conduta técnica: {visibleAnalise.recomendacao_tecnica}</p>}
+              {visibleAnalise.recomendacao_tecnica && visibleAnalise.recomendacao_tecnica !== visibleAnalise.explicacao_operador && (
+                <p className="mt-3 text-xs opacity-75">Conduta técnica: {visibleAnalise.recomendacao_tecnica}</p>
+              )}
               <p className="mt-3 text-[10px] opacity-60">{fonteLabel(visibleAnalise.fonte_explicacao)} · {new Date(visibleAnalise.gerado_em).toLocaleString('pt-BR')}</p>
             </div>
           )}

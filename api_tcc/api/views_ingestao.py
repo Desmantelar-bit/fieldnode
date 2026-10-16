@@ -24,8 +24,8 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from datetime import datetime
+from rest_framework.permissions import BasePermission, IsAuthenticated
+from datetime import datetime, timedelta
 import csv
 import io
 
@@ -50,6 +50,43 @@ from api_tcc.permissions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class HasValidIngestionAPIKey(BasePermission):
+    """Permission gate shared by machine-to-machine ingestion endpoints."""
+    message = 'API key inválida ou ausente.'
+
+    def has_permission(self, request, view):
+        import hmac
+        supplied = request.headers.get('X-API-Key', '')
+        expected = getattr(settings, 'FIELDNODE_API_KEY', '')
+        return bool(supplied and expected and hmac.compare_digest(supplied, expected))
+
+
+class HasIngestionCredential(BasePermission):
+    """Accept device API keys or authorized members sending browser telemetry."""
+    message = 'Credencial inválida ou sem acesso de escrita à máquina.'
+
+    def has_permission(self, request, view):
+        if HasValidIngestionAPIKey().has_permission(request, view):
+            return True
+        if not request.user.is_authenticated:
+            return False
+
+        payloads = request.data.get('leituras') if isinstance(request.data, dict) else None
+        if payloads is None:
+            payloads = [request.data]
+        if not isinstance(payloads, list) or not payloads:
+            return False
+
+        for payload in payloads:
+            if not isinstance(payload, dict):
+                return False
+            external_code = str(payload.get('maquina_id') or '').strip().upper()
+            machine = Machine.objects.filter(external_code=external_code, ativo=True).first()
+            if not machine or not user_can_access_machine(request.user, machine, write=True):
+                return False
+        return True
 
 
 def _is_public_demo_request(request) -> bool:
@@ -155,27 +192,17 @@ class IngestaoTelemetriaView(APIView):
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """
     throttle_classes = [IngestaoThrottle]
-    # Excecao intencional: endpoint maquina-a-maquina protegido por X-API-Key.
-    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        permission = HasIngestionCredential if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
+        return [permission()]
 
     def get_throttles(self):
         if self.request.method == 'POST':
             return super().get_throttles()
         return []
 
-    def _verificar_api_key(self, request) -> bool:
-        api_key = request.headers.get('X-API-Key')
-        return bool(api_key and api_key == settings.FIELDNODE_API_KEY)
-
     def post(self, request):
-        if not self._verificar_api_key(request):
-            logger.warning("Tentativa de ingestão com API key inválida. IP: %s",
-                           request.META.get('REMOTE_ADDR'))
-            return Response(
-                {'status': 'erro', 'detalhes': 'API key inválida ou ausente'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
         resultado, detalhe = registrar_leitura(request.data)
 
         if resultado == "criado":
@@ -208,7 +235,11 @@ class IngestaoTelemetriaView(APIView):
         """Expõe apenas os dados necessários para um ACK verificável no edge."""
         if not leitura_id:
             return {}
-        leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        try:
+            leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        except (LeituraTelemetria.DoesNotExist, ValueError, TypeError):
+            logger.info("ACK omitido: leitura %s indisponível", leitura_id)
+            return {}
         cursor = SyncCursor.objects.filter(device_id=leitura.device_id).first()
         return {
             'message_id': leitura.message_id,
@@ -289,22 +320,12 @@ class IngestaoLoteView(APIView):
     privilegiar o relatório detalhado de debug em campo sobre performance bruta.
     """
     throttle_classes = [IngestaoThrottle]
-    # Excecao intencional: endpoint maquina-a-maquina protegido por X-API-Key.
-    permission_classes = [AllowAny]
 
-    def _verificar_api_key(self, request) -> bool:
-        api_key = request.headers.get('X-API-Key')
-        return bool(api_key and api_key == settings.FIELDNODE_API_KEY)
+    def get_permissions(self):
+        permission = HasIngestionCredential if self.request.method == 'POST' else IsAuthenticatedOrPublicDemo
+        return [permission()]
 
     def post(self, request):
-        if not self._verificar_api_key(request):
-            logger.warning("Tentativa de ingestão em lote com API key inválida. IP: %s",
-                           request.META.get('REMOTE_ADDR'))
-            return Response(
-                {'status': 'erro', 'detalhes': 'API key inválida ou ausente'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
         leituras = request.data.get('leituras', [])
 
         if not isinstance(leituras, list) or not leituras:
@@ -362,29 +383,25 @@ class UltimaLeituraView(APIView):
     Para frotas maiores, implementar paginação.
     """
 
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
     def get(self, request):
         if not request.user.is_authenticated and not _is_public_demo_request(request):
             return Response({'detail': 'Autenticação obrigatória.'}, status=status.HTTP_401_UNAUTHORIZED)
         maquina = request.query_params.get('maquina_id')
         demo_publico = _is_public_demo_request(request)
 
+        user_id = request.user.id if request.user.is_authenticated else -1
         with connection.cursor() as cursor:
             if maquina:
-                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id"
-                demo_filter = "AND m.is_demo = %s" if demo_publico else "AND t1.machine_id IN (SELECT id FROM api_tcc_machine WHERE organization_id IN (SELECT organization_id FROM api_tcc_membership WHERE user_id = %s) AND ativo = 1)"
-                params = [maquina, maquina, maquina]
-                if demo_publico:
-                    params.append(True)
-                else:
-                    params.append(request.user.id)
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t2.total_leituras,
                            t1.machine_id, m_health.external_code,
                            h.trust_score_medio, h.ultima_atualizacao,
                            h.leituras_analisadas, h.sinais_de_alerta
                     FROM api_tcc_leituratelemetria t1
-                    {demo_join}
+                    INNER JOIN api_tcc_machine m ON t1.machine_id = m.id
                     LEFT JOIN api_tcc_machine m_health ON t1.machine_id = m_health.id
                     LEFT JOIN api_tcc_machinedatahealth h ON h.machine_id = t1.machine_id
                     INNER JOIN (
@@ -398,20 +415,20 @@ class UltimaLeituraView(APIView):
                         WHERE maquina_id = %s
                     ) t2 ON t1.maquina_id = t2.maquina_id
                     WHERE t1.maquina_id = %s
-                    {demo_filter}
-                """, params)
+                      AND ((%s = TRUE AND m.is_demo = TRUE)
+                        OR (%s = FALSE AND m.organization_id IN (
+                            SELECT organization_id FROM api_tcc_membership WHERE user_id = %s
+                        ) AND m.ativo = TRUE))
+                """, [maquina, maquina, maquina, demo_publico, demo_publico, user_id])
             else:
-                demo_join = "INNER JOIN api_tcc_machine m ON t1.machine_id = m.id"
-                demo_where = "WHERE m.is_demo = %s" if demo_publico else "WHERE m.organization_id IN (SELECT organization_id FROM api_tcc_membership WHERE user_id = %s) AND m.ativo = 1"
-                params = [True] if demo_publico else [request.user.id]
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
                            t1.timestamp, t3.total_leituras,
                            t1.machine_id, m_health.external_code,
                            h.trust_score_medio, h.ultima_atualizacao,
                            h.leituras_analisadas, h.sinais_de_alerta
                     FROM api_tcc_leituratelemetria t1
-                    {demo_join}
+                    INNER JOIN api_tcc_machine m ON t1.machine_id = m.id
                     LEFT JOIN api_tcc_machine m_health ON t1.machine_id = m_health.id
                     LEFT JOIN api_tcc_machinedatahealth h ON h.machine_id = t1.machine_id
                     INNER JOIN (
@@ -424,9 +441,12 @@ class UltimaLeituraView(APIView):
                         FROM api_tcc_leituratelemetria
                         GROUP BY maquina_id
                     ) t3 ON t1.maquina_id = t3.maquina_id
-                    {demo_where}
+                    WHERE ((%s = TRUE AND m.is_demo = TRUE)
+                        OR (%s = FALSE AND m.organization_id IN (
+                            SELECT organization_id FROM api_tcc_membership WHERE user_id = %s
+                        ) AND m.ativo = TRUE))
                     ORDER BY t1.maquina_id
-                """, params)
+                """, [demo_publico, demo_publico, user_id])
 
             rows = cursor.fetchall()
 
@@ -511,9 +531,9 @@ class UltimaLeituraView(APIView):
             })
 
         response = Response(resultado)
-        response['X-Total-Count'] = str(total_maquinas_ativas if 'total_maquinas_ativas' in locals() else len(resultado))
-        response['X-Limit'] = str(limit if 'limit' in locals() else len(resultado))
-        response['X-Offset'] = str(offset if 'offset' in locals() else 0)
+        response['X-Total-Count'] = str(total_maquinas_ativas)
+        response['X-Limit'] = str(limit)
+        response['X-Offset'] = str(offset)
         return response
 
 
@@ -583,16 +603,15 @@ class StatusMQTTView(APIView):
     """
     GET /api/status-mqtt/
 
-    Retorna status de conectividade MQTT e última leitura recebida.
+    Retorna a atualidade da última leitura recebida. Não mede a conexão do broker.
 
     Usado pelo dashboard para mostrar indicador de conexão:
-    - mqtt_conectado: bool (true se última leitura foi há < 10s)
+    - telemetria_atualizada: bool (true se última leitura foi há < 10s)
     - ultima_leitura_segundos_atras: int (tempo em segundos)
-    - status: str ("online" ou "offline")
+    - status: str ("recente" ou "desatualizada")
 
-    Lógica: considera sistema online se recebeu alguma leitura nos últimos 10 segundos.
-    10s é escolhido conservadoramente — deixa espaço para atrasos de rede
-    mantendo responsividade de detecção de desconexão.
+    O intervalo é apenas uma indicação de frescor da telemetria; não comprova
+    conectividade do broker ou do worker MQTT.
     """
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
@@ -603,20 +622,20 @@ class StatusMQTTView(APIView):
 
         if not ultima_leitura:
             return Response({
-                'mqtt_conectado': False,
+                'telemetria_atualizada': False,
                 'ultima_leitura_segundos_atras': None,
-                'status': 'offline',
+                'status': 'sem_dados',
                 'detalhes': 'Nenhuma leitura recebida ainda'
             })
 
         delta = timezone.now() - ultima_leitura.recebido_em
         segundos_atras = int(delta.total_seconds())
-        conectado = segundos_atras < 10
+        atualizada = segundos_atras < 10
 
         return Response({
-            'mqtt_conectado': conectado,
+            'telemetria_atualizada': atualizada,
             'ultima_leitura_segundos_atras': segundos_atras,
-            'status': 'online' if conectado else 'offline',
+            'status': 'recente' if atualizada else 'desatualizada',
         })
 
 
@@ -631,7 +650,10 @@ class RelatorioView(APIView):
 
     def get(self, request):
         formato = request.query_params.get('formato', 'json')
-        leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
+        periodo_inicio = timezone.now() - timedelta(hours=24)
+        leituras = _filter_public_demo_leituras(
+            LeituraTelemetria.objects.filter(timestamp__gte=periodo_inicio), request
+        )
         
         # Cálculos básicos do relatório
         total_leituras = leituras.count()
@@ -643,7 +665,9 @@ class RelatorioView(APIView):
             + leituras.filter(temperatura__lte=75, vibracao__gt=0.5).count()
         )
         
-        eficiencia = round((maquinas_ativas / max(total_leituras, 1)) * 100, 1) if total_leituras > 0 else 0
+        total_maquinas = get_machines_for_request(request).filter(ativo=True).count()
+        maquinas_com_leituras = leituras.values('machine_id').distinct().count()
+        eficiencia = round((maquinas_com_leituras / total_maquinas) * 100, 1) if total_maquinas else 0
         
         resultado = {
             "periodo": "Últimas 24 horas",
@@ -661,11 +685,7 @@ class RelatorioView(APIView):
             )
             return resposta
         
-        response = Response(resultado)
-        response['X-Total-Count'] = str(total_maquinas_ativas if 'total_maquinas_ativas' in locals() else len(resultado))
-        response['X-Limit'] = str(limit if 'limit' in locals() else len(resultado))
-        response['X-Offset'] = str(offset if 'offset' in locals() else 0)
-        return response
+        return Response(resultado)
     
     def _build_csv_geral(self, dados):
         buf = io.StringIO()
@@ -678,7 +698,7 @@ class RelatorioView(APIView):
         w.writerow(['Total de Leituras', dados['total_leituras']])
         w.writerow(['Máquinas Ativas', dados['maquinas_ativas']])
         w.writerow(['Alertas Gerados', dados['alertas_gerados']])
-        w.writerow(['Eficiência Operacional', f"{dados['eficiencia_operacional']}%"])
+        w.writerow(['Cobertura Operacional', f"{dados['eficiencia_operacional']}%"])
         return buf.getvalue()
 
 

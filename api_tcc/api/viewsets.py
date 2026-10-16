@@ -1,10 +1,43 @@
 from django.conf import settings
 from rest_framework import status, viewsets
 from rest_framework.response import Response
+from rest_framework.permissions import BasePermission
 from drf_yasg.utils import swagger_auto_schema
 from api_tcc import models
 from api_tcc.api import serializers
-from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machines_for_request
+from api_tcc.permissions import (
+    IsAuthenticatedOrPublicDemo,
+    get_machines_for_request,
+    user_can_access_machine,
+)
+
+
+class IsStaffOrReadOnly(BasePermission):
+    """Global reference catalogs are readable, but only staff may mutate them."""
+
+    def has_permission(self, request, view):
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return IsAuthenticatedOrPublicDemo().has_permission(request, view)
+        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+
+
+class MachineMembershipWritePermission(BasePermission):
+    """Limit machine writes to staff or organization members with write roles."""
+
+    def has_permission(self, request, view):
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return IsAuthenticatedOrPublicDemo().has_permission(request, view)
+        if request.method == "POST":
+            return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return True
+        if request.user.is_staff:
+            return True
+        machine = models.Machine.objects.filter(colheitadeira=obj, ativo=True).first()
+        return user_can_access_machine(request.user, machine, write=True)
 
 
 def _make_viewset(model, serializer, descriptions, queryset=None, soft_delete_field=None):
@@ -41,7 +74,7 @@ def _make_viewset(model, serializer, descriptions, queryset=None, soft_delete_fi
         {
             'queryset': queryset if queryset is not None else model.objects.all(),
             'serializer_class': serializer,
-            'permission_classes': [IsAuthenticatedOrPublicDemo],
+            'permission_classes': [IsStaffOrReadOnly],
             'list': list,
             'create': create,
             'retrieve': retrieve,
@@ -69,7 +102,7 @@ OperarioViewSet         = _make_viewset(models.Operario,         serializers.Ope
 PressaoPneusViewSet     = _make_viewset(models.PressaoPneus,     serializers.PressaoPneusSerializer,     _desc('pressão dos pneus'), queryset=models.PressaoPneus.objects.select_related('unidade_de_medida'))
 AlturadoCorteViewSet    = _make_viewset(models.AlturadoCorte,    serializers.AlturadoCorteSerializer,    _desc('altura de corte'), queryset=models.AlturadoCorte.objects.select_related('unidade_de_medida'))
 PressaodoCorteViewSet   = _make_viewset(models.PressaodoCorte,   serializers.PressaodoCorteSerializer,   _desc('pressão de corte'), queryset=models.PressaodoCorte.objects.select_related('unidade_de_medida'))
-TempUmi_AmbienteViewSet = _make_viewset(models.TempUmi_Ambiente, serializers.TempUmi_AmbienteSerializer, _desc('temperatura e umidade do ambiente'))
+TempUmi_AmbienteViewSet = _make_viewset(models.TempUmiAmbiente, serializers.TempUmiAmbienteSerializer, _desc('temperatura e umidade do ambiente'))
 TemperaturaMaquinaViewSet = _make_viewset(models.TemperaturaMaquina, serializers.TemperaturaMaquinaSerializer, _desc('temperatura da máquina'))
 StatusdeOperacaoViewSet = _make_viewset(models.StatusdeOperacao, serializers.StatusdeOperacaoSerializer, _desc('status de operação'))
 EstadodeMovimentoViewSet = _make_viewset(models.EstadodeMovimento, serializers.EstadodeMovimentoSerializer, _desc('estado de movimento'))
@@ -96,7 +129,7 @@ class ColheitadeiraViewSet(viewsets.ModelViewSet):
             return qs.none()
         return qs
 
-    permission_classes = [IsAuthenticatedOrPublicDemo]
+    permission_classes = [MachineMembershipWritePermission]
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

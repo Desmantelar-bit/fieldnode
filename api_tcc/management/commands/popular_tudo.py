@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from api_tcc.models import (
     UnidadedeMedida, Marca, Modelo, Combustivel, PressaoPneus,
     AlturadoCorte, PressaodoCorte, TempUmi_Ambiente, TemperaturaMaquina,
@@ -31,20 +31,24 @@ LEITURAS_POR_MAQUINA = 50
 class Command(BaseCommand):
     help = 'Popula banco de dados com valores realistas para apresentação'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--username',
+            required=True,
+            help='Usuário cadastrado que terá acesso à organização de demonstração.',
+        )
+
     def handle(self, *args, **options):
         self.stdout.write('[INFO] Populando banco de dados...')
 
-        # Garante que existe um superusuário admin
-        admin_user, _ = User.objects.get_or_create(
-            username='admin',
-            defaults={'is_staff': True, 'is_superuser': True},
-        )
-        if not admin_user.has_usable_password():
-            admin_user.set_password('admin')
-            admin_user.save()
+        username = options['username'].strip()
+        try:
+            demo_user = User.objects.get(username=username)
+        except User.DoesNotExist as exc:
+            raise CommandError(f"Usuário '{username}' não encontrado.") from exc
 
         org, _ = Organization.objects.get_or_create(nome='Demo')
-        Membership.objects.get_or_create(user=admin_user, organization=org, defaults={'role': 'admin'})
+        Membership.objects.get_or_create(user=demo_user, organization=org, defaults={'role': 'admin'})
 
         unidade, _ = UnidadedeMedida.objects.get_or_create(nome='bar')
         marca_case, _ = Marca.objects.get_or_create(nome='CASE')
