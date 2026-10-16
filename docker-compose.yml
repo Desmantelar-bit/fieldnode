@@ -144,8 +144,8 @@ services:
   # ── frontend (Next.js 15) ──────────────────────────────────────────────────
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend-next
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "3000:3000"
