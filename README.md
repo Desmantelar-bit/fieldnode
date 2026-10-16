@@ -361,12 +361,39 @@ npm run build
 
 O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém
 payloads offline em IndexedDB. Respostas de `/api/` ficam na rede para não reutilizar
-dados autenticados entre sessões. A fila remove headers de credenciais e preserva itens
-quando a API rejeita a sincronização.
+dados autenticados entre sessões. Na sincronização, respostas 2xx, 400 e 401 removem o
+item; outros erros deixam o item pendente. Portanto, payloads inválidos ou credenciais
+expiradas precisam ser corrigidos antes de depender dessa fila.
 
-A ingestão operacional confiável é feita pelos clientes de dispositivo/borda (outbox SQLite
-com retry, ACK e deduplicação). O service worker do browser é uma camada complementar de
-resiliência, não substituta.
+A ingestão operacional confiável deve ser feita por clientes de dispositivo/borda. O
+`simulators/edge_client.py` oferece outbox SQLite persistente, ACK e deduplicação. Use
+`--offline` para gravar durante a falta de conexão e `--sync-only` quando houver conexão
+novamente. Para ensaiar coleta contínua com buffer e reenvio automático:
+
+```powershell
+$env:FIELDNODE_API_KEY = "<sua chave de ingestão>"
+.\.venv\Scripts\python.exe simulators\edge_client.py `
+  --watch --device-id COLH-01 --interval 5 `
+  --api-url http://127.0.0.1:8000/api/telemetria/
+```
+
+Interrompa com `Ctrl+C`. O modo `--watch` grava primeiro em
+`simulators/edge_buffer.db` e sincroniza em segundo plano; durante uma interrupção do
+backend, a coleta local continua. Esse cliente de bancada usa HTTP, não MQTT.
+
+O simulador MQTT (`scripts/simular_mqtt.py`) envia telemetria continuamente enquanto o
+broker e o listener estão acessíveis. Ele não grava localmente as publicações MQTT que
+falham. Para o ensaio de store-and-forward descrito acima, use o `edge_client.py --watch`,
+que envia por HTTP com outbox local. A análise completa e os dashboards dependem do backend:
+sem conectividade com ele, os dados só são analisados centralmente após a sincronização. O
+projeto ainda não inclui firmware/gateway físico com armazenamento e análise embarcados;
+esse comportamento precisa ser validado no hardware-alvo antes de ser tratado como operação
+de campo.
+
+Se broker, API e banco estão no mesmo computador, remover a conexão externa desse computador
+não desliga os processos locais; outros dispositivos deixam de alcançá-los se não houver
+outra rota de rede. A fila do Service Worker é complementar e não substitui o armazenamento
+local do dispositivo.
 
 ---
 

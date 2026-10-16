@@ -117,6 +117,41 @@ class EdgeClientTest(unittest.TestCase):
         self.assertEqual(row[1], 1)
         self.assertEqual(self.buffer.cursor(), 0)
 
+    def test_continuous_gateway_retries_pending_data_without_attempt_limit(self):
+        first = self.enqueue(0)
+        second = self.enqueue(1)
+        session = FakeSession([
+            requests.ConnectionError("offline"),
+            self.ack_for(first),
+            self.ack_for(second),
+        ])
+        client = EdgeClient(
+            self.buffer,
+            "http://fieldnode/api/telemetria/",
+            "secret",
+            max_attempts=None,
+            session=session,
+            backoff_base=0,
+        )
+
+        self.assertEqual(client.synchronize(stop_on_retryable_failure=True), 0)
+        self.assertEqual(self.buffer.counts().get(STATUS_PENDING), 2)
+        self.assertEqual(len(session.payloads), 1)
+
+        self.buffer.close()
+        self.buffer = EdgeBuffer(self.path, "edge-test")
+        client = EdgeClient(
+            self.buffer,
+            "http://fieldnode/api/telemetria/",
+            "secret",
+            max_attempts=None,
+            session=session,
+            backoff_base=0,
+        )
+        self.assertEqual(client.synchronize(stop_on_retryable_failure=True), 2)
+        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 2)
+        self.assertEqual(self.buffer.cursor(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

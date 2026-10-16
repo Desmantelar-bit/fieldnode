@@ -115,7 +115,7 @@ async function syncTelemetriaData() {
       },
     );
 
-    if (response.ok || response.status === 400 || response.status === 401) {
+    if (response.ok) {
       await deleteItem(db, item.localId);
       continue;
     }
