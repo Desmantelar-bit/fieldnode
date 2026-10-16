@@ -69,7 +69,7 @@ OperarioViewSet         = _make_viewset(models.Operario,         serializers.Ope
 PressaoPneusViewSet     = _make_viewset(models.PressaoPneus,     serializers.PressaoPneusSerializer,     _desc('pressão dos pneus'), queryset=models.PressaoPneus.objects.select_related('unidade_de_medida'))
 AlturadoCorteViewSet    = _make_viewset(models.AlturadoCorte,    serializers.AlturadoCorteSerializer,    _desc('altura de corte'), queryset=models.AlturadoCorte.objects.select_related('unidade_de_medida'))
 PressaodoCorteViewSet   = _make_viewset(models.PressaodoCorte,   serializers.PressaodoCorteSerializer,   _desc('pressão de corte'), queryset=models.PressaodoCorte.objects.select_related('unidade_de_medida'))
-TempUmi_AmbienteViewSet = _make_viewset(models.TempUmi_Ambiente, serializers.TempUmi_AmbienteSerializer, _desc('temperatura e umidade do ambiente'))
+TempUmi_AmbienteViewSet = _make_viewset(models.TempUmiAmbiente, serializers.TempUmiAmbienteSerializer, _desc('temperatura e umidade do ambiente'))
 TemperaturaMaquinaViewSet = _make_viewset(models.TemperaturaMaquina, serializers.TemperaturaMaquinaSerializer, _desc('temperatura da máquina'))
 StatusdeOperacaoViewSet = _make_viewset(models.StatusdeOperacao, serializers.StatusdeOperacaoSerializer, _desc('status de operação'))
 EstadodeMovimentoViewSet = _make_viewset(models.EstadodeMovimento, serializers.EstadodeMovimentoSerializer, _desc('estado de movimento'))

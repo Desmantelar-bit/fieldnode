@@ -62,15 +62,6 @@ export async function createOperator(input: OperatorInput): Promise<Operator> {
   let response: Response;
   try {
     const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' });
-    if (typeof window !== 'undefined') {
-      try {
-        const token = localStorage.getItem('fn-auth-token');
-        if (token) headers.set('Authorization', `Token ${token}`);
-      } catch {
-        // storage unavailable
-      }
-    }
-
     response = await fetch(`${resolveApiUrl()}/operario/`, {
       method: 'POST',
       headers,

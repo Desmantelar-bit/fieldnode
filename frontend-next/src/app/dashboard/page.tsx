@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { telemetryService } from "@/services/telemetryService";
 import { AppShell } from "@/components/AppShell";
 import { ChatFAB } from "@/components/ChatFAB";
-import { ErrorState } from "@/components/EmptyState";
+import { EmptyState, ErrorState } from "@/components/EmptyState";
 import { FleetGrid } from "@/components/FleetGrid";
 import { FleetMap } from "@/components/FleetMap";
 import { ReportButton } from "@/components/ReportButton";
@@ -20,25 +20,49 @@ export default function DashboardPage() {
   const [readings, setReadings] = useState<TelemetryReadings>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mqttStatus, setMqttStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
 
   useEffect(() => {
+    let active = true;
+    let initialLoad = true;
     async function load() {
       try {
         const m = await telemetryService.getFleetStatus();
+        if (!active) return;
         setMachines(m);
+        setError(null);
         try {
           const r = await telemetryService.getLatestReadings();
-          setReadings(r);
+          if (active) setReadings(r);
         } catch {
-          setReadings([]);
+          if (active) setReadings([]);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Falha ao carregar dados do dashboard.");
+        if (active && initialLoad) setError(err instanceof Error ? err.message : "Falha ao carregar dados do dashboard.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
+        initialLoad = false;
       }
     }
     load();
+    const fleetInterval = window.setInterval(load, 30000);
+    const refreshStatus = async () => {
+      try {
+        const response = await fetch('/api/status-mqtt/', { cache: 'no-store' });
+        if (!response.ok) throw new Error('status unavailable');
+        const status = await response.json();
+        if (active) setMqttStatus(status.status === 'online' ? 'online' : 'offline');
+      } catch {
+        if (active) setMqttStatus('unknown');
+      }
+    };
+    refreshStatus();
+    const interval = window.setInterval(refreshStatus, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.clearInterval(fleetInterval);
+    };
   }, []);
 
   if (loading) {
@@ -75,8 +99,8 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <ReportButton machines={machines} />
           <div className="status-pill status-pill--normal hidden items-center px-2.5 py-1.5 sm:flex">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--status-normal)]">
-              Sync ativo
+            <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${mqttStatus === 'online' ? 'text-[color:var(--status-normal)]' : 'text-[color:var(--status-atencao)]'}`}>
+              {mqttStatus === 'online' ? 'Sync ativo' : mqttStatus === 'offline' ? 'Sync offline' : 'Sync sem status'}
             </span>
           </div>
         </div>
@@ -106,6 +130,10 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {machines.length === 0 ? (
+          <EmptyState title="Nenhuma máquina cadastrada" message="Cadastre uma máquina ou aguarde o vínculo da frota para acompanhar a telemetria aqui." />
+        ) : null}
 
         <section aria-label="Máquinas da frota">
           <p className="section-heading mb-3">Máquinas</p>

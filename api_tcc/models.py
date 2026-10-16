@@ -98,7 +98,7 @@ class PressaodoCorte(models.Model):
         return f'Pressão: {self.pressao} - Unidade: {self.unidade_de_medida}'
 
 
-class TempUmi_Ambiente(models.Model):
+class TempUmiAmbiente(models.Model):
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     umidade     = models.FloatField(verbose_name='Umidade (%)')
 
@@ -108,6 +108,10 @@ class TempUmi_Ambiente(models.Model):
 
     def __str__(self):
         return f'Temperatura: {self.temperatura} - Umidade: {self.umidade}'
+
+
+# Mantém compatibilidade com imports legados enquanto a migração renomeia o modelo.
+TempUmi_Ambiente = TempUmiAmbiente
 
 
 class Transbordo(models.Model):

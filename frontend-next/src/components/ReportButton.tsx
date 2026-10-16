@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type MouseEvent } from 'react';
-import { Download } from 'lucide-react';
+import { Download, LoaderCircle } from 'lucide-react';
 import { resolveApiUrl } from '@/services/telemetryService';
 
 type ReportMachineOption = {
@@ -26,10 +26,12 @@ function ExportButton({
   onClick,
   label,
   className,
+  loading,
 }: {
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   label: string;
   className: string;
+  loading: boolean;
 }) {
   return (
     <button
@@ -38,9 +40,11 @@ function ExportButton({
       className={`${btnClass} ${className}`}
       aria-label={label}
       title={label}
+      disabled={loading}
+      aria-busy={loading}
     >
-      <Download size={13} aria-hidden="true" />
-      <span className="hidden sm:inline">{label}</span>
+      {loading ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
+      <span className="hidden sm:inline">{loading ? 'Gerando…' : label}</span>
     </button>
   );
 }
@@ -58,6 +62,7 @@ export function ReportButton({
   const [selectedMachineId, setSelectedMachineId] = useState(
     machineOptions[0]?.maquina_id ?? '',
   );
+  const [exporting, setExporting] = useState(false);
   const exportMachineId = machineId || selectedMachineId;
 
   const handleClick = async (e: MouseEvent<HTMLButtonElement>) => {
@@ -66,17 +71,11 @@ export function ReportButton({
       alert('Selecione uma máquina para gerar o relatório.');
       return;
     }
+    if (exporting) return;
+    setExporting(true);
     const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(exportMachineId)}`;
     try {
       const headers = new Headers({ Accept: '*/*' });
-      if (typeof window !== 'undefined') {
-        try {
-          const token = localStorage.getItem('fn-auth-token');
-          if (token) headers.set('Authorization', `Token ${token}`);
-        } catch {
-          // storage unavailable
-        }
-      }
       const res = await fetch(url, { headers });
       if (res.status === 404 || res.status === 501) {
         alert('O serviço de exportação de relatório (/api/relatorio/exportar/) ainda não está habilitado no backend.');
@@ -94,6 +93,8 @@ export function ReportButton({
       window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 0);
     } catch {
       alert('Não foi possível gerar o relatório agora.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -112,10 +113,10 @@ export function ReportButton({
             </option>
           ))}
         </select>
-        <ExportButton onClick={handleClick} label={label} className={className} />
+        <ExportButton onClick={handleClick} label={label} className={className} loading={exporting} />
       </div>
     );
   }
 
-  return <ExportButton onClick={handleClick} label={label} className={className} />;
+  return <ExportButton onClick={handleClick} label={label} className={className} loading={exporting} />;
 }

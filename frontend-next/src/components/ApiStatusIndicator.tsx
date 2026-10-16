@@ -11,13 +11,6 @@ export function ApiStatusIndicator() {
     async function check() {
       try {
         const headers = new Headers({ Accept: 'application/json' });
-        try {
-          const token = localStorage.getItem('fn-auth-token');
-          if (token) headers.set('Authorization', `Token ${token}`);
-        } catch {
-          // storage unavailable
-        }
-
         const res = await fetch(`/api/health/`, {
           signal: AbortSignal.timeout(3000),
           cache: 'no-store',

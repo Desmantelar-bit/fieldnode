@@ -495,18 +495,7 @@ export default function MapClient({
       try {
         const response = await fetch(`${API_URL}/maquinas/posicao/`, {
           cache: "no-store",
-          headers: (() => {
-            const h = new Headers({ Accept: "application/json" });
-            if (typeof window !== "undefined") {
-              try {
-                const token = localStorage.getItem("fn-auth-token");
-                if (token) h.set("Authorization", `Token ${token}`);
-              } catch {
-                // storage unavailable
-              }
-            }
-            return h;
-          })(),
+          headers: new Headers({ Accept: "application/json" }),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();

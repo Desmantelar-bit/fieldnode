@@ -59,8 +59,18 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - sh
+      - -ec
+      - |
+        : "$${MQTT_USERNAME:?MQTT_USERNAME is required}"
+        : "$${MQTT_PASSWORD:?MQTT_PASSWORD is required}"
+        mosquitto_passwd -b -c /mosquitto/data/passwordfile "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data/
@@ -69,7 +79,7 @@ services:
       # com -W 2 (timeout) prova que o broker aceita conexões.
       test:
         - "CMD-SHELL"
-        - "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 2 || exit 1"
+        - "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" -t '$$SYS/#' -C 1 -W 2 || exit 1"
       interval: 10s
       timeout: 5s
       retries: 5

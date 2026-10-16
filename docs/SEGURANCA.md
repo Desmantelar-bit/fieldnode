@@ -43,14 +43,11 @@ CORS restringe consumo pelo navegador, mas não substitui autenticação. Reques
 
 ## DÍVIDA / LIMITAÇÃO CONHECIDA
 
-- O MVP ainda guarda token administrativo em `localStorage` no frontend.
 - Não há MFA.
-- Não há rotação automática de token.
 - O token DRF padrão não possui expiração adequada para um piloto real.
 - O isolamento multi-tenant ainda não deve ser tratado como completo para produção.
 - Endpoints GET públicos existem no contrato atual do MVP e precisam ser revisados antes de piloto com dados reais.
 
-Antes de qualquer piloto real, a autenticação deve evoluir para sessão com cookie `HttpOnly`, `Secure`, `SameSite`, expiração, rotação e proteção CSRF.
 
 ## Dívidas Técnicas Reveladas pela Validação Comercial (John Deere, Solinftec, Case IH)
 
@@ -69,3 +66,13 @@ As conversas de validação comercial de 2026-09-19 tornaram concretas as seguin
 Nesta fase, o FieldNode usa DRF `TokenAuthentication`. JWT, OAuth, SSO, refresh token e access token customizado ficam fora do escopo deste bloco.
 
 A decisão é coerente com o estágio atual: equipe de TCC, protótipo controlado e eventual piloto pequeno. Para piloto real, essa decisão precisa ser reavaliada.
+
+
+## Estado de autenticacao e segredos
+
+- O navegador recebe a sessao em cookie HttpOnly, SameSite=Strict e, em producao, Secure. O proxy Next encaminha o token DRF ao Django sem expor o token ao JavaScript.
+- A sessao e conferida na entrada e periodicamente enquanto o app esta aberto; uma resposta de expiracao retorna ao login.
+- A permissao global da API exige autenticacao. Acesso anonimo de demonstracao depende de permissao explicita e do filtro de dados demo.
+- Mosquitto exige usuario e senha. O Compose publica a porta MQTT somente em 127.0.0.1.
+- .env e ignorado pelo Git; .env.example contem valores de exemplo. Se credenciais reais foram publicadas em outro clone, fork ou remoto, revogue-as no servico de origem e atualize dispositivos e ambientes consumidores. Apagar um arquivo local nao invalida copias ja expostas.
+- A chave de ingestao ainda e compartilhada entre dispositivos; identidade individual por dispositivo permanece como limitacao conhecida.

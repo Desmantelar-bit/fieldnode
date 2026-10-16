@@ -112,6 +112,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         client = mqtt.Client()
+        mqtt_username = os.environ.get('MQTT_USERNAME')
+        mqtt_password = os.environ.get('MQTT_PASSWORD')
+        if mqtt_username and mqtt_password:
+            client.username_pw_set(mqtt_username, mqtt_password)
         client.on_connect = on_connect
         client.on_disconnect = on_disconnect
         client.on_message = on_message

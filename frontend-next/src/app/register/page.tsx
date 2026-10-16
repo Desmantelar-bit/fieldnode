@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { FieldNodeLogo } from "@/components/FieldNodeLogo";
-import { register, isAuthenticated, isAuthAvailable, type AuthError } from "@/services/authService";
+import { register, verifyToken, isAuthAvailable, type AuthError } from "@/services/authService";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Cadastro — FieldNode
@@ -36,7 +36,7 @@ export default function RegisterPage() {
 
   /* redireciona se já autenticado */
   useEffect(() => {
-    if (isAuthenticated()) router.replace("/dashboard");
+    verifyToken().then((user) => { if (user) router.replace("/dashboard"); }).catch(() => {});
   }, [router]);
 
   /* foco automático */

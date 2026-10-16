@@ -9,6 +9,8 @@ from random import randint
 
 BROKER='localhost'
 PORT=1883
+MQTT_USERNAME=os.getenv('MQTT_USERNAME', '')
+MQTT_PASSWORD=os.getenv('MQTT_PASSWORD', '')
 HEALTH_URL=os.getenv('FIELDNODE_HEALTH_URL', 'http://127.0.0.1:8000/api/health/')
 API_KEY=os.getenv('FIELDNODE_API_KEY', '')
 MACHINES=[f'ST{i:03d}' for i in range(1,9)]
@@ -35,6 +37,8 @@ def mon():
 def main():
     global sent
     c=mqtt.Client()
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        c.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     c.on_connect=on_c
     c.connect(BROKER,PORT)
     c.loop_start()
