@@ -1,17 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
-const http = require('node:http');
-
-const POSITIONS = [0, 1, 2, 3].map((index) => ({
-  id: index + 1,
-  maquina_id: `COLH-0${index + 1}`,
-  modelo: 'TC5000',
-  lat: -15.793889 + index * 0.0003,
-  lng: -47.882778 + index * 0.0003,
-  status: index === 0 ? 'operando' : 'parada',
-  telemetria: { temperatura: 72, rpm: 1800, timestamp: new Date().toISOString() },
-}));
 
 async function baseUrl() {
   for (const port of [3001, 3000]) {

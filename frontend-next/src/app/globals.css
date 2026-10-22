@@ -146,7 +146,7 @@
   --radius-card: 28px;
   --radius-tile: 18px;
   --radius-pill: 9999px;
-  --radius-rail: 34px;
+  --radius-rail: 38px;
   --transition-ui: 180ms cubic-bezier(0.22, 1, 0.36, 1);
   --font-primary: var(--font-body), sans-serif;
   --font-code:    ui-monospace, SFMono-Regular, monospace;
@@ -265,7 +265,7 @@
   --radius-card: 28px;
   --radius-tile: 18px;
   --radius-pill: 9999px;
-  --radius-rail: 34px;
+  --radius-rail: 38px;
   --transition-ui: 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { CalendarRange, FileText, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { ReportPreview } from '@/components/ReportPreview';
-import { telemetryService, resolveApiUrl } from '@/services/telemetryService';
+import { telemetryService } from '@/services/telemetryService';
 import type { EstadoRequisicao } from '@/types/api';
 import type { Relatorio } from '@/types/telemetry';
 
@@ -77,20 +77,11 @@ export default function RelatoriosPage() {
     setExportState('loading');
     setExportErrorMessage('');
     try {
-      const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(selectedMachine)}`;
-      const response = await fetch(url, {
-        headers: new Headers({ Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv, */*' }),
-      });
-      if (response.status === 404 || response.status === 501) {
-        setExportErrorMessage('O endpoint de exportação de relatório (/api/relatorio/exportar/) ainda não está disponível no backend.');
-        setExportState('error');
-        return;
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      downloadBlob(await response.blob(), selectedMachine);
+      const blob = await telemetryService.exportReport(selectedMachine);
+      downloadBlob(blob, selectedMachine);
       setExportState('idle');
-    } catch {
-      setExportErrorMessage('Não foi possível preparar o arquivo. Verifique a conexão com a API e tente novamente.');
+    } catch (err) {
+      setExportErrorMessage(err instanceof Error ? err.message : 'Não foi possível preparar o arquivo. Verifique a conexão com a API e tente novamente.');
       setExportState('error');
     }
   };

@@ -24,7 +24,7 @@ export function Sidebar() {
       {/* ── Desktop sidebar ── */}
       <nav
         aria-label="Navegação principal"
-        className="app-nav app-nav--rail relative z-50 m-4 hidden h-[calc(100vh-2rem)] w-20 shrink-0 flex-col items-center justify-between rounded-[20px] px-2 py-5 lg:flex"
+        className="app-nav app-nav--rail relative z-50 m-4 hidden h-[calc(100vh-2rem)] w-20 shrink-0 flex-col items-center justify-between rounded-[var(--radius-rail)] px-2 py-5 lg:flex"
       >
         <FieldNodeLogo className="shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(255,255,255,0.85)] active:scale-95" />
 

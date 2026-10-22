@@ -49,6 +49,8 @@ export function resolveApiUrl(): string {
 
 
 const API_TIMEOUT_MS = 10000;
+const XLSX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 function withTimeout<T>(
   request: (signal: AbortSignal) => Promise<T>,
@@ -253,5 +255,28 @@ export const telemetryService = {
     const data = await handleResponse(response, "getRelatorio:");
 
     return validateApiContract(RelatorioResumoSchema, data, "getRelatorio");
+  },
+
+  async exportReport(machineId: string): Promise<Blob> {
+    const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(machineId)}`;
+    const response = await withTimeout((signal) =>
+      fetch(url, {
+        cache: "no-store",
+        headers: new Headers({ Accept: XLSX_CONTENT_TYPE }),
+        signal,
+      }),
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => response.statusText);
+      throw new Error(`exportReport: HTTP ${response.status} ${detail}`.trim());
+    }
+
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    if (contentType !== XLSX_CONTENT_TYPE) {
+      throw new Error("O servidor não retornou um arquivo Excel válido.");
+    }
+
+    return response.blob();
   },
 };

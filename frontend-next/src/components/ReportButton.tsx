@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useMemo, useState, type MouseEvent } from 'react';
 import { Download, LoaderCircle } from 'lucide-react';
-import { resolveApiUrl } from '@/services/telemetryService';
+import { telemetryService } from '@/services/telemetryService';
 
 type ReportMachineOption = {
   maquina_id?: string | null;
@@ -65,38 +65,33 @@ export function ReportButton({
   const [exporting, setExporting] = useState(false);
   const exportMachineId = machineId || selectedMachineId;
 
-  const handleClick = async (e: MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    if (!exportMachineId) {
-      alert('Selecione uma máquina para gerar o relatório.');
-      return;
-    }
-    if (exporting) return;
-    setExporting(true);
-    const url = `${resolveApiUrl()}/relatorio/exportar/?maquina_id=${encodeURIComponent(exportMachineId)}`;
-    try {
-      const headers = new Headers({ Accept: '*/*' });
-      const res = await fetch(url, { headers });
-      if (res.status === 404 || res.status === 501) {
-        alert('O serviço de exportação de relatório (/api/relatorio/exportar/) ainda não está habilitado no backend.');
+  const handleExport = useCallback(
+    async (e?: MouseEvent<HTMLButtonElement>) => {
+      e?.preventDefault();
+      if (!exportMachineId) {
+        alert('Selecione uma máquina para gerar o relatório.');
         return;
       }
-      if (!res.ok) throw new Error(String(res.status));
-      const blob    = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const anchor  = document.createElement('a');
-      anchor.href     = blobUrl;
-      anchor.download = `relatorio_${exportMachineId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 0);
-    } catch {
-      alert('Não foi possível gerar o relatório agora.');
-    } finally {
-      setExporting(false);
-    }
-  };
+      if (exporting) return;
+      setExporting(true);
+      try {
+        const blob = await telemetryService.exportReport(exportMachineId);
+        const blobUrl = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = `relatorio_${exportMachineId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 0);
+      } catch {
+        alert('Não foi possível gerar o relatório agora.');
+      } finally {
+        setExporting(false);
+      }
+    },
+    [exportMachineId, exporting],
+  );
 
   if (!machineId && machineOptions.length > 0) {
     return (
@@ -113,10 +108,10 @@ export function ReportButton({
             </option>
           ))}
         </select>
-        <ExportButton onClick={handleClick} label={label} className={className} loading={exporting} />
+        <ExportButton onClick={handleExport} label={label} className={className} loading={exporting} />
       </div>
     );
   }
 
-  return <ExportButton onClick={handleClick} label={label} className={className} loading={exporting} />;
+  return <ExportButton onClick={handleExport} label={label} className={className} loading={exporting} />;
 }

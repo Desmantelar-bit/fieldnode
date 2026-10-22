@@ -8,7 +8,13 @@ const SESSION_COOKIE = 'fieldnode_session';
 const API_BASE = (process.env.FIELDNODE_SERVER_API_URL || 'http://127.0.0.1:8000/api').replace(/\/+$/, '');
 const localFrontendOrigins = process.env.NODE_ENV === 'production'
   ? []
-  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3005', 'http://127.0.0.1:3005'];
+  : [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3005',
+      'http://127.0.0.1:3005',
+      'http://172.18.64.1:3001',
+    ];
 const configuredFrontendOrigins = [
   ...(process.env.FIELDNODE_FRONTEND_URL || '')
   .split(',')
