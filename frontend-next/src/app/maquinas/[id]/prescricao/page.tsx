@@ -22,7 +22,7 @@ const sourceToneClass = {
 
 export default function PrescricaoPage() {
   const params = useParams<{ id: string }>();
-  const maquinaId = params.id;
+  const maquinaId = params?.id ?? '';
   const [analise, setAnalise] = useState<AnalisePrescricao | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

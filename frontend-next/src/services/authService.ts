@@ -54,10 +54,26 @@ async function clearPrivateOfflineCache(): Promise<void> {
 
 async function parseError(response: Response): Promise<AuthError> {
   const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-  const errors = body.errors as Record<string, unknown> | undefined;
-  const key = errors && Object.keys(errors)[0];
-  if (key) return { field: key as AuthError['field'], message: String(errors[key]) };
-  return { field: 'general', message: String(body.error || body.detail || `Erro inesperado (HTTP ${response.status}).`) };
+
+  if (Array.isArray(body.non_field_errors) && body.non_field_errors.length > 0) {
+    return { field: 'general', message: String(body.non_field_errors[0]) };
+  }
+
+  const errors = (body.errors && typeof body.errors === 'object' ? body.errors : body) as Record<string, unknown>;
+  for (const field of ['username', 'password', 'email'] as const) {
+    const val = errors[field];
+    if (val) {
+      const msg = Array.isArray(val) ? val[0] : val;
+      return { field, message: String(msg) };
+    }
+  }
+
+  const fallback = body.error || body.detail || (typeof body.message === 'string' ? body.message : undefined);
+  if (fallback) {
+    return { field: 'general', message: String(fallback) };
+  }
+
+  return { field: 'general', message: `Erro inesperado (HTTP ${response.status}).` };
 }
 
 async function submit(path: string, payload: unknown): Promise<AuthResult> {
