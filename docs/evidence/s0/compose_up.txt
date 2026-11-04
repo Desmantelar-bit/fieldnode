@@ -1,0 +1,16 @@
+﻿============================================================
+COMANDO: docker compose up --build -d
+DATA/HORA: 2026-11-04 17:22:18 -03:00
+DIRETÓRIO: c:\Users\Usuario\fieldnode
+============================================================
+docker : unable to get image 'eclipse-mosquitto:2': failed to connect to the docker API at 
+npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open 
+//./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+No linha:8 caractere:1
++ docker compose up --build -d 2>&1 | Out-File -FilePath $logPath -Appe ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (unable to get i...file specified.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+CÓDIGO DE SAÍDA: 1
+OBSERVAÇÃO: O daemon do Docker Desktop (com.docker.service) está parado no host Windows e requer elevação de privilégios para iniciar o serviço do sistema. A execução do Compose no host não pôde ser completada devido à indisponibilidade do daemon Docker.

@@ -1,0 +1,191 @@
+Collecting Django==5.2 (from -r requirements.txt (line 1))
+  Obtaining dependency information for Django==5.2 from https://files.pythonhosted.org/packages/63/e0/6a5b5ea350c5bd63fe94b05e4c146c18facb51229d9dee42aa39f9fc2214/Django-5.2-py3-none-any.whl.metadata
+  Downloading Django-5.2-py3-none-any.whl.metadata (4.1 kB)
+Collecting djangorestframework==3.15.2 (from -r requirements.txt (line 2))
+  Obtaining dependency information for djangorestframework==3.15.2 from https://files.pythonhosted.org/packages/7c/b6/fa99d8f05eff3a9310286ae84c4059b08c301ae4ab33ae32e46e8ef76491/djangorestframework-3.15.2-py3-none-any.whl.metadata
+  Downloading djangorestframework-3.15.2-py3-none-any.whl.metadata (10 kB)
+Collecting drf-yasg==1.21.15 (from -r requirements.txt (line 3))
+  Obtaining dependency information for drf-yasg==1.21.15 from https://files.pythonhosted.org/packages/f9/a4/400b0565cf25395f1d5e1a24e5d18dab8f4199e4212174341fea6f05747c/drf_yasg-1.21.15-py3-none-any.whl.metadata
+  Downloading drf_yasg-1.21.15-py3-none-any.whl.metadata (17 kB)
+Collecting django-cors-headers==4.3.0 (from -r requirements.txt (line 4))
+  Obtaining dependency information for django-cors-headers==4.3.0 from https://files.pythonhosted.org/packages/23/7c/5d12771d9767c3c5c4c2aeb036d0d5ef6a83fbd8f2ed2133bab4daa0203d/django_cors_headers-4.3.0-py3-none-any.whl.metadata
+  Downloading django_cors_headers-4.3.0-py3-none-any.whl.metadata (16 kB)
+Collecting mysqlclient==2.2.8 (from -r requirements.txt (line 5))
+  Obtaining dependency information for mysqlclient==2.2.8 from https://files.pythonhosted.org/packages/db/1f/7d6b3fbfc8a317805fdb8bbfbc23af99f2090497090e82513daf491a29ce/mysqlclient-2.2.8-cp312-cp312-win_amd64.whl.metadata
+  Downloading mysqlclient-2.2.8-cp312-cp312-win_amd64.whl.metadata (5.2 kB)
+Collecting python-decouple==3.8 (from -r requirements.txt (line 6))
+  Obtaining dependency information for python-decouple==3.8 from https://files.pythonhosted.org/packages/a2/d4/9193206c4563ec771faf2ccf54815ca7918529fe81f6adb22ee6d0e06622/python_decouple-3.8-py3-none-any.whl.metadata
+  Downloading python_decouple-3.8-py3-none-any.whl.metadata (14 kB)
+Collecting paho-mqtt==1.6.1 (from -r requirements.txt (line 7))
+  Downloading paho-mqtt-1.6.1.tar.gz (99 kB)
+     ---------------------------------------- 99.4/99.4 kB 1.9 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting pandas==2.2.2 (from -r requirements.txt (line 8))
+  Obtaining dependency information for pandas==2.2.2 from https://files.pythonhosted.org/packages/22/a5/a0b255295406ed54269814bc93723cfd1a0da63fb9aaf99e1364f07923e5/pandas-2.2.2-cp312-cp312-win_amd64.whl.metadata
+  Downloading pandas-2.2.2-cp312-cp312-win_amd64.whl.metadata (19 kB)
+Collecting openpyxl==3.1.5 (from -r requirements.txt (line 9))
+  Obtaining dependency information for openpyxl==3.1.5 from https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl.metadata
+  Downloading openpyxl-3.1.5-py2.py3-none-any.whl.metadata (2.5 kB)
+Collecting scikit-learn==1.8.0 (from -r requirements.txt (line 10))
+  Obtaining dependency information for scikit-learn==1.8.0 from https://files.pythonhosted.org/packages/9f/c4/0ab22726a04ede56f689476b760f98f8f46607caecff993017ac1b64aa5d/scikit_learn-1.8.0-cp312-cp312-win_amd64.whl.metadata
+  Downloading scikit_learn-1.8.0-cp312-cp312-win_amd64.whl.metadata (11 kB)
+Collecting joblib==1.5.3 (from -r requirements.txt (line 11))
+  Obtaining dependency information for joblib==1.5.3 from https://files.pythonhosted.org/packages/7b/91/984aca2ec129e2757d1e4e3c81c3fcda9d0f85b74670a094cc443d9ee949/joblib-1.5.3-py3-none-any.whl.metadata
+  Downloading joblib-1.5.3-py3-none-any.whl.metadata (5.5 kB)
+Collecting requests==2.32.3 (from -r requirements.txt (line 12))
+  Obtaining dependency information for requests==2.32.3 from https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl.metadata
+  Downloading requests-2.32.3-py3-none-any.whl.metadata (4.6 kB)
+Collecting gunicorn==23.0.0 (from -r requirements.txt (line 13))
+  Obtaining dependency information for gunicorn==23.0.0 from https://files.pythonhosted.org/packages/cb/7d/6dac2a6e1eba33ee43f318edbed4ff29151a49b5d37f080aad1e6469bca4/gunicorn-23.0.0-py3-none-any.whl.metadata
+  Downloading gunicorn-23.0.0-py3-none-any.whl.metadata (4.4 kB)
+Collecting pytest==8.0.0 (from -r requirements-dev.txt (line 4))
+  Obtaining dependency information for pytest==8.0.0 from https://files.pythonhosted.org/packages/c7/10/727155d44c5e04bb08e880668e53079547282e4f950535234e5a80690564/pytest-8.0.0-py3-none-any.whl.metadata
+  Downloading pytest-8.0.0-py3-none-any.whl.metadata (7.8 kB)
+Collecting pytest-django==4.8.0 (from -r requirements-dev.txt (line 5))
+  Obtaining dependency information for pytest-django==4.8.0 from https://files.pythonhosted.org/packages/93/5b/29555191e903881d05e1f7184205ec534c7021e0ee077d1e6a1ee8f1b1eb/pytest_django-4.8.0-py3-none-any.whl.metadata
+  Downloading pytest_django-4.8.0-py3-none-any.whl.metadata (8.3 kB)
+Collecting asgiref>=3.8.1 (from Django==5.2->-r requirements.txt (line 1))
+  Obtaining dependency information for asgiref>=3.8.1 from https://files.pythonhosted.org/packages/2e/b0/ec211e1f7966247cb6469158d856bac9aa4c2fe13621bd6a352e4f850453/asgiref-3.13.0-py3-none-any.whl.metadata
+  Downloading asgiref-3.13.0-py3-none-any.whl.metadata (12 kB)
+Collecting sqlparse>=0.3.1 (from Django==5.2->-r requirements.txt (line 1))
+  Obtaining dependency information for sqlparse>=0.3.1 from https://files.pythonhosted.org/packages/df/ff/2fee788e82e75be8f210c65c5d103bf44c880e3769c884652a4cd911b8ba/sqlparse-0.6.1-py3-none-any.whl.metadata
+  Downloading sqlparse-0.6.1-py3-none-any.whl.metadata (6.9 kB)
+Collecting tzdata (from Django==5.2->-r requirements.txt (line 1))
+  Obtaining dependency information for tzdata from https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl.metadata
+  Downloading tzdata-2026.6-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting inflection>=0.3.1 (from drf-yasg==1.21.15->-r requirements.txt (line 3))
+  Obtaining dependency information for inflection>=0.3.1 from https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl.metadata
+  Downloading inflection-0.5.1-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting packaging>=21.0 (from drf-yasg==1.21.15->-r requirements.txt (line 3))
+  Obtaining dependency information for packaging>=21.0 from https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl.metadata
+  Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Collecting pytz>=2021.1 (from drf-yasg==1.21.15->-r requirements.txt (line 3))
+  Obtaining dependency information for pytz>=2021.1 from https://files.pythonhosted.org/packages/b6/25/564f3fc5b70c1398d706c51f2b1470d0ea0b1b2f96fee67877b6f5bdf3b6/pytz-2026.6-py2.py3-none-any.whl.metadata
+  Downloading pytz-2026.6-py2.py3-none-any.whl.metadata (22 kB)
+Collecting pyyaml>=5.1 (from drf-yasg==1.21.15->-r requirements.txt (line 3))
+  Obtaining dependency information for pyyaml>=5.1 from https://files.pythonhosted.org/packages/86/bf/899e81e4cce32febab4fb42bb97dcdf66bc135272882d1987881a4b519e9/pyyaml-6.0.3-cp312-cp312-win_amd64.whl.metadata
+  Downloading pyyaml-6.0.3-cp312-cp312-win_amd64.whl.metadata (2.4 kB)
+Collecting uritemplate>=3.0.0 (from drf-yasg==1.21.15->-r requirements.txt (line 3))
+  Obtaining dependency information for uritemplate>=3.0.0 from https://files.pythonhosted.org/packages/a9/99/3ae339466c9183ea5b8ae87b34c0b897eda475d2aec2307cae60e5cd4f29/uritemplate-4.2.0-py3-none-any.whl.metadata
+  Downloading uritemplate-4.2.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting numpy>=1.26.0 (from pandas==2.2.2->-r requirements.txt (line 8))
+  Obtaining dependency information for numpy>=1.26.0 from https://files.pythonhosted.org/packages/12/33/fefe62073dc8acfd0f2b9ed7c003af2f50aa61555e113e6db02b8f79f145/numpy-2.5.4-cp312-cp312-win_amd64.whl.metadata
+  Downloading numpy-2.5.4-cp312-cp312-win_amd64.whl.metadata (6.6 kB)
+Collecting python-dateutil>=2.8.2 (from pandas==2.2.2->-r requirements.txt (line 8))
+  Obtaining dependency information for python-dateutil>=2.8.2 from https://files.pythonhosted.org/packages/2f/a9/52b89563d154433d79b51ed1eb4842bf7334cb2696891a7fe135618853d7/python_dateutil-4.0.0-py3-none-any.whl.metadata
+  Downloading python_dateutil-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+Collecting et-xmlfile (from openpyxl==3.1.5->-r requirements.txt (line 9))
+  Obtaining dependency information for et-xmlfile from https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl.metadata
+  Downloading et_xmlfile-2.0.0-py3-none-any.whl.metadata (2.7 kB)
+Collecting scipy>=1.10.0 (from scikit-learn==1.8.0->-r requirements.txt (line 10))
+  Obtaining dependency information for scipy>=1.10.0 from https://files.pythonhosted.org/packages/39/e7/979fd14e75008623df31ba70d6bb144700f68feadcea042021c06a05bf82/scipy-1.18.1-cp312-cp312-win_amd64.whl.metadata
+  Downloading scipy-1.18.1-cp312-cp312-win_amd64.whl.metadata (61 kB)
+     ---------------------------------------- 61.2/61.2 kB ? eta 0:00:00
+Collecting threadpoolctl>=3.2.0 (from scikit-learn==1.8.0->-r requirements.txt (line 10))
+  Obtaining dependency information for threadpoolctl>=3.2.0 from https://files.pythonhosted.org/packages/43/3f/f88a53f60a472b46f4023f56d204dd7de33d34c5d2acbfa0d70a674e639e/threadpoolctl-3.7.0-py3-none-any.whl.metadata
+  Downloading threadpoolctl-3.7.0-py3-none-any.whl.metadata (24 kB)
+Collecting charset-normalizer<4,>=2 (from requests==2.32.3->-r requirements.txt (line 12))
+  Obtaining dependency information for charset-normalizer<4,>=2 from https://files.pythonhosted.org/packages/eb/e6/e6e083884cbcfd49c64865af05027fe7011be7b2d9179524f099a1b611f3/charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata
+  Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata (47 kB)
+     ---------------------------------------- 47.3/47.3 kB ? eta 0:00:00
+Collecting idna<4,>=2.5 (from requests==2.32.3->-r requirements.txt (line 12))
+  Obtaining dependency information for idna<4,>=2.5 from https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl.metadata
+  Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+Collecting urllib3<3,>=1.21.1 (from requests==2.32.3->-r requirements.txt (line 12))
+  Obtaining dependency information for urllib3<3,>=1.21.1 from https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl.metadata
+  Downloading urllib3-2.8.0-py3-none-any.whl.metadata (7.4 kB)
+Collecting certifi>=2017.4.17 (from requests==2.32.3->-r requirements.txt (line 12))
+  Obtaining dependency information for certifi>=2017.4.17 from https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl.metadata
+  Downloading certifi-2026.10.23-py3-none-any.whl.metadata (2.5 kB)
+Collecting iniconfig (from pytest==8.0.0->-r requirements-dev.txt (line 4))
+  Obtaining dependency information for iniconfig from https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl.metadata
+  Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+Collecting pluggy<2.0,>=1.3.0 (from pytest==8.0.0->-r requirements-dev.txt (line 4))
+  Obtaining dependency information for pluggy<2.0,>=1.3.0 from https://files.pythonhosted.org/packages/40/9e/2b38731e0fc536806f16490e1a12d7f0dc2a1235aa8cc07bcc75416a7daa/pluggy-1.7.0-py3-none-any.whl.metadata
+  Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+Collecting colorama (from pytest==8.0.0->-r requirements-dev.txt (line 4))
+  Obtaining dependency information for colorama from https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl.metadata
+  Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Downloading Django-5.2-py3-none-any.whl (8.3 MB)
+   ---------------------------------------- 8.3/8.3 MB 11.8 MB/s eta 0:00:00
+Downloading djangorestframework-3.15.2-py3-none-any.whl (1.1 MB)
+   ---------------------------------------- 1.1/1.1 MB 17.1 MB/s eta 0:00:00
+Downloading drf_yasg-1.21.15-py3-none-any.whl (4.9 MB)
+   ---------------------------------------- 4.9/4.9 MB 15.5 MB/s eta 0:00:00
+Downloading django_cors_headers-4.3.0-py3-none-any.whl (12 kB)
+Downloading mysqlclient-2.2.8-cp312-cp312-win_amd64.whl (207 kB)
+   ---------------------------------------- 207.2/207.2 kB 6.4 MB/s eta 0:00:00
+Downloading python_decouple-3.8-py3-none-any.whl (9.9 kB)
+Downloading pandas-2.2.2-cp312-cp312-win_amd64.whl (11.5 MB)
+   ---------------------------------------- 11.5/11.5 MB 20.5 MB/s eta 0:00:00
+Downloading openpyxl-3.1.5-py2.py3-none-any.whl (250 kB)
+   ---------------------------------------- 250.9/250.9 kB 7.5 MB/s eta 0:00:00
+Downloading scikit_learn-1.8.0-cp312-cp312-win_amd64.whl (8.0 MB)
+   ---------------------------------------- 8.0/8.0 MB 19.0 MB/s eta 0:00:00
+Downloading joblib-1.5.3-py3-none-any.whl (309 kB)
+   --------------------------------------- 309.1/309.1 kB 18.7 MB/s eta 0:00:00
+Downloading requests-2.32.3-py3-none-any.whl (64 kB)
+   ---------------------------------------- 64.9/64.9 kB 3.4 MB/s eta 0:00:00
+Downloading gunicorn-23.0.0-py3-none-any.whl (85 kB)
+   ---------------------------------------- 85.0/85.0 kB 5.0 MB/s eta 0:00:00
+Downloading pytest-8.0.0-py3-none-any.whl (334 kB)
+   --------------------------------------- 334.0/334.0 kB 10.4 MB/s eta 0:00:00
+Downloading pytest_django-4.8.0-py3-none-any.whl (23 kB)
+Downloading asgiref-3.13.0-py3-none-any.whl (27 kB)
+Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+   ---------------------------------------- 135.1/135.1 kB ? eta 0:00:00
+Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl (207 kB)
+   --------------------------------------- 207.5/207.5 kB 12.3 MB/s eta 0:00:00
+Downloading idna-3.20-py3-none-any.whl (69 kB)
+   ---------------------------------------- 69.6/69.6 kB ? eta 0:00:00
+Downloading inflection-0.5.1-py2.py3-none-any.whl (9.5 kB)
+Downloading numpy-2.5.4-cp312-cp312-win_amd64.whl (12.6 MB)
+   ---------------------------------------- 12.6/12.6 MB 15.2 MB/s eta 0:00:00
+Using cached packaging-26.3-py3-none-any.whl (129 kB)
+Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+Downloading python_dateutil-4.0.0-py3-none-any.whl (92 kB)
+   ---------------------------------------- 92.9/92.9 kB ? eta 0:00:00
+Downloading pytz-2026.6-py2.py3-none-any.whl (506 kB)
+   --------------------------------------- 506.3/506.3 kB 33.1 MB/s eta 0:00:00
+Downloading pyyaml-6.0.3-cp312-cp312-win_amd64.whl (154 kB)
+   ---------------------------------------- 154.0/154.0 kB ? eta 0:00:00
+Downloading scipy-1.18.1-cp312-cp312-win_amd64.whl (36.7 MB)
+   ---------------------------------------- 36.7/36.7 MB 16.0 MB/s eta 0:00:00
+Downloading sqlparse-0.6.1-py3-none-any.whl (51 kB)
+   ---------------------------------------- 51.2/51.2 kB 2.6 MB/s eta 0:00:00
+Downloading threadpoolctl-3.7.0-py3-none-any.whl (26 kB)
+Downloading tzdata-2026.6-py2.py3-none-any.whl (348 kB)
+   --------------------------------------- 348.2/348.2 kB 21.1 MB/s eta 0:00:00
+Downloading uritemplate-4.2.0-py3-none-any.whl (11 kB)
+Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+   ---------------------------------------- 135.7/135.7 kB 8.4 MB/s eta 0:00:00
+Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Downloading et_xmlfile-2.0.0-py3-none-any.whl (18 kB)
+Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+Building wheels for collected packages: paho-mqtt
+  Building wheel for paho-mqtt (pyproject.toml): started
+  Building wheel for paho-mqtt (pyproject.toml): finished with status 'done'
+  Created wheel for paho-mqtt: filename=paho_mqtt-1.6.1-py3-none-any.whl size=65756 sha256=5cfb8f2673c10ecbe6042fabf0ddbc3f475a3b4f7627fafa1f4ee62634164d14
+  Stored in directory: c:\users\usuario\appdata\local\pip\cache\wheels\23\d5\af\1f3cbcc350dec9d8e95040f388e0163d132eff0c9a453db659
+Successfully built paho-mqtt
+Installing collected packages: pytz, python-decouple, paho-mqtt, urllib3, uritemplate, tzdata, threadpoolctl, sqlparse, pyyaml, pluggy, packaging, numpy, mysqlclient, joblib, iniconfig, inflection, idna, et-xmlfile, colorama, charset-normalizer, certifi, asgiref, scipy, requests, python-dateutil, pytest, openpyxl, gunicorn, Django, scikit-learn, pytest-django, pandas, djangorestframework, django-cors-headers, drf-yasg
+Successfully installed Django-5.2 asgiref-3.13.0 certifi-2026.10.23 charset-normalizer-3.5.2 colorama-0.4.6 django-cors-headers-4.3.0 djangorestframework-3.15.2 drf-yasg-1.21.15 et-xmlfile-2.0.0 gunicorn-23.0.0 idna-3.20 inflection-0.5.1 iniconfig-2.3.1 joblib-1.5.3 mysqlclient-2.2.8 numpy-2.5.4 openpyxl-3.1.5 packaging-26.3 paho-mqtt-1.6.1 pandas-2.2.2 pluggy-1.7.0 pytest-8.0.0 pytest-django-4.8.0 python-dateutil-4.0.0 python-decouple-3.8 pytz-2026.6 pyyaml-6.0.3 requests-2.32.3 scikit-learn-1.8.0 scipy-1.18.1 sqlparse-0.6.1 threadpoolctl-3.7.0 tzdata-2026.6 uritemplate-4.2.0 urllib3-2.8.0
+python.exe : 
+No linha:1 caractere:276
++ ... 11-04.txt'; & $python -m pip install -r requirements.txt -r requireme ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[notice] A new release of pip is available: 23.2.1 -> 26.3
+[notice] To update, run: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312
+-20261104-175542\Scripts\python.exe -m pip install --upgrade pip
+COMMAND: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
+TIMESTAMP: 2026-11-04T17:57:35.4053625-03:00
+VENV: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542
+EXIT_CODE: 0

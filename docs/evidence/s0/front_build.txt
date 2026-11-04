@@ -1,0 +1,124 @@
+﻿============================================================
+ETAPA 1: NPM CI
+Data: 2026-11-04 17:15:15 -03:00
+============================================================
+node.exe : (node:9460) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS 
+connections and HTTPS requests insecure by disabling certificate verification.
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:9460) War...e verification.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+added 73 packages, and audited 74 packages in 1m
+
+7 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (4 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+EXIT_CODE_NPM_CI: 0 (Duração: 82.4633314s)
+
+============================================================
+ETAPA 2: NPM RUN LINT
+============================================================
+
+> frontend-next@0.1.0 lint
+> eslint src
+
+node.exe : 'eslint' não é reconhecido como um comando interno
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ('eslint' não é ...comando interno:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ou externo, um programa operável ou um arquivo em lotes.
+EXIT_CODE_LINT: 1 (Duração: 1.6812859s)
+
+============================================================
+ETAPA 3: NPX TSC --NOEMIT
+============================================================
+node.exe : (node:4628) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS 
+connections and HTTPS requests insecure by disabling certificate verification.
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:4628) War...e verification.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+npm warn exec The following package was not found and will be installed: tsc@2.0.4
+npm warn deprecated tsc@2.0.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more 
+info.
+
+[41m                                                                               [0m
+[41m[37m                This is not the tsc command you are looking for                [0m
+[41m                                                                               [0m
+
+To get access to the TypeScript compiler, [34mtsc[0m, from the command line either:
+
+- Use [1mnpm install typescript[0m to first add TypeScript to your project [1mbefore[0m using npx
+- Use [1myarn[0m to avoid accidentally running code from un-installed packages
+EXIT_CODE_TSC: 1 (Duração: 4.5011592s)
+
+============================================================
+ETAPA 4: NPM RUN BUILD
+============================================================
+
+> frontend-next@0.1.0 build
+> next build
+
+node.exe :  ÔÜá Installing TypeScript as it was not found while loading "next.config.ts".
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( ÔÜá Installing...ext.config.ts".:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Installing devDependencies (npm):
+- typescript@5.8.2
+
+(node:2584) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and 
+HTTPS requests insecure by disabling certificate verification.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+added 299 packages, and audited 373 packages in 2m
+
+140 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (6 moderate, 6 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+ Ô¿» Failed to load next.config.ts, see more info here https://nextjs.org/docs/messages/next-config-error
+
+> Build error occurred
+[Error: Cannot find module 'typescript'
+Require stack:
+- C:\Users\Usuario\fieldnode\frontend-next\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\Users\Usuario\fieldnode\frontend-next\node_modules\next\dist\server\config.js
+- C:\Users\Usuario\fieldnode\frontend-next\node_modules\next\dist\cli\next-test.js
+- C:\Users\Usuario\fieldnode\frontend-next\node_modules\next\dist\bin\next] {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+EXIT_CODE_BUILD: 1 (Duração: 103.0291385s)
+

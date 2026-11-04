@@ -1,0 +1,43 @@
+........................................................................ [ 23%]
+........................................................................ [ 47%]
+........................................................................ [ 71%]
+........................................................................ [ 95%]
+.............                                                            [100%]
+============================== warnings summary ===============================
+api_tcc/tests/test_contract_fixes.py: 1202 warnings
+api_tcc/tests/test_data_mule_integration.py: 12020 warnings
+api_tcc/tests/test_decisions.py: 6611 warnings
+api_tcc/tests/test_integration.py: 1803 warnings
+api_tcc/tests/test_telemetria.py: 1202 warnings
+api_tcc/tests/test_anomaly_detection.py: 1202 warnings
+api_tcc/tests/test_anomaly_persistence.py: 1202 warnings
+api_tcc/tests/test_deteccao_multivariada.py: 1803 warnings
+  C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Lib\site-packages\joblib\numpy_pickle.py:207: DeprecationWarning: Setting the shape on a NumPy array has been deprecated in NumPy 2.5.
+  As an alternative, you can create a new view using np.reshape (with copy=False if needed).
+    array.shape = self.shape
+
+api_tcc/tests/test_telemetria.py::IngestaoTelemetriaTest::test_ingestao_valida_retorna_201
+  C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Lib\site-packages\django\core\cache\backends\base.py:119: CacheKeyWarning: Cache key contains characters that will cause errors if used with memcached: ':1:throttle_ingestao_ colh-t01 '
+    warnings.warn(warning, CacheKeyWarning)
+
+api_tcc/tests/test_anomaly_detection.py::AnomalyDetectionTest::test_detector_cached_execution_is_under_twenty_milliseconds
+api_tcc/tests/test_anomaly_detection.py::AnomalyDetectionTest::test_isolation_forest_handles_multidimensional_outlier
+  C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Lib\site-packages\sklearn\base.py:463: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.4.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+api_tcc/tests/test_anomaly_detection.py::AnomalyDetectionTest::test_detector_cached_execution_is_under_twenty_milliseconds
+api_tcc/tests/test_anomaly_detection.py::AnomalyDetectionTest::test_isolation_forest_handles_multidimensional_outlier
+  C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Lib\site-packages\sklearn\base.py:463: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.4.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+301 passed, 27050 warnings in 97.19s (0:01:37)
+
+COMMAND: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Scripts\python.exe -m pytest -o addopts= -q --ignore=docs/evidence/s0
+TIMESTAMP: 2026-11-04T18:19:19.2730927-03:00
+PYTHON: 3.12 temporary venv
+PHASE: after hygiene
+NOTE: docs/evidence/s0 excluded because pytest treats test*.txt there as doctest inputs
+EXIT_CODE: 0
