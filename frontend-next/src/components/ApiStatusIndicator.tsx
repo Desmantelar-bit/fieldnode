@@ -91,10 +91,11 @@ export function ApiStatusIndicator() {
     };
   }, []);
 
-  function reprocessRejected() {
-    navigator.serviceWorker?.controller?.postMessage({
-      type: "REPROCESS_REJECTED_TELEMETRY",
-    });
+  async function reprocessRejected() {
+    if (!("serviceWorker" in navigator)) return;
+    const registration = await navigator.serviceWorker.ready;
+    const worker = navigator.serviceWorker.controller || registration.active;
+    worker?.postMessage({ type: "REPROCESS_REJECTED_TELEMETRY" });
   }
 
   return (
@@ -112,8 +113,8 @@ export function ApiStatusIndicator() {
       {queue.pending + queue.retrying + queue.rejected + queue.auth_blocked >
       0 ? (
         <span aria-live="polite" className="text-[10px] text-[var(--text-2)]">
-          Fila: {queue.pending + queue.retrying} pendente(s), {queue.rejected}{" "}
-          rejeitada(s), {queue.auth_blocked} aguardando login
+          Fila: {queue.pending} pendente(s), {queue.retrying} em nova tentativa,{" "}
+          {queue.rejected} rejeitada(s), {queue.auth_blocked} aguardando login
         </span>
       ) : null}
       {queue.rejected > 0 ? (

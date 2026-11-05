@@ -140,7 +140,7 @@ async function sendOrQueueTelemetry(request) {
       );
     }
     if (shouldRetryStatus(response.status)) {
-      await queueRequest(requestForQueue);
+      await queueRequest(requestForQueue, "pending", null);
       await requestSync();
       return queuedResponse(
         "Backend indisponivel. Leitura guardada para reenvio.",
@@ -170,6 +170,7 @@ async function syncTelemetriaData() {
   let synced = 0;
 
   for (const item of items) {
+    const attemptedItem = { ...item, attempts: (item.attempts || 0) + 1 };
     const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
     let response;
     try {
@@ -184,14 +185,14 @@ async function syncTelemetriaData() {
     } catch (error) {
       await bumpRetry(
         db,
-        item,
+        attemptedItem,
         error instanceof Error ? error.message : "rede",
       );
       continue;
     }
 
     if (response.status === 401) {
-      await markAllAuthBlocked(db);
+      await markAllAuthBlocked(db, attemptedItem);
       await notifyClients({ type: "AUTH_REQUIRED" });
       break;
     }
@@ -203,7 +204,7 @@ async function syncTelemetriaData() {
         .catch(() => null);
       const ackError = await validateAck(item.payload, body);
       if (ackError) {
-        await setItemState(db, item, "rejected", ackError);
+        await setItemState(db, attemptedItem, "rejected", ackError);
         continue;
       }
       await deleteItem(db, item.localId);
@@ -212,13 +213,13 @@ async function syncTelemetriaData() {
     }
 
     if (shouldRetryStatus(response.status)) {
-      await bumpRetry(db, item, `HTTP ${response.status}`);
+      await bumpRetry(db, attemptedItem, `HTTP ${response.status}`);
       continue;
     }
 
     await setItemState(
       db,
-      item,
+      attemptedItem,
       "rejected",
       `HTTP ${response.status}: ${await safeText(response)}`,
     );
@@ -237,7 +238,7 @@ async function queueRequest(request, state = "pending", lastError = null) {
   request.headers.forEach((value, key) => {
     headers[key] = value;
   });
-  return queueTelemetry(payload, headers, request.url, state, lastError);
+  return queueTelemetry(payload, headers, request.url, state, lastError, 1);
 }
 
 async function queueTelemetry(
@@ -246,6 +247,7 @@ async function queueTelemetry(
   url = `${apiConfig.apiUrl}/telemetria/`,
   state = "pending",
   lastError = null,
+  attempts = 0,
 ) {
   const db = await openDb();
   const itemPayload = { ...payload, id: payload.id || crypto.randomUUID() };
@@ -257,7 +259,7 @@ async function queueTelemetry(
     url,
     createdAt: new Date().toISOString(),
     state,
-    attempts: 0,
+    attempts,
     last_error: lastError,
     next_attempt_at: 0,
   };
@@ -359,7 +361,7 @@ async function setItemState(db, item, state, lastError) {
 }
 
 async function bumpRetry(db, item, reason) {
-  const attempts = (item.attempts || 0) + 1;
+  const attempts = item.attempts || 1;
   const delay = Math.min(60000, 1000 * 2 ** Math.min(attempts - 1, 6));
   await putItem(db, {
     ...item,
@@ -370,13 +372,17 @@ async function bumpRetry(db, item, reason) {
   });
 }
 
-async function markAllAuthBlocked(db) {
+async function markAllAuthBlocked(db, attemptedItem) {
   db = db || (await openDb());
   const items = await readAll(db);
   for (const item of items) {
     if (item.state !== "rejected") {
       await putItem(db, {
         ...item,
+        attempts:
+          item.localId === attemptedItem?.localId
+            ? attemptedItem.attempts
+            : item.attempts || 0,
         state: "auth_blocked",
         last_error: "HTTP 401",
       });

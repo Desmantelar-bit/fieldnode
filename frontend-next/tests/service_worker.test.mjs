@@ -4,20 +4,26 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+const source = await readFile(
+  new URL("../public/sw.js", import.meta.url),
+  "utf8",
+);
 
 function canonicalJson(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(", ")}]`;
-  return `{${Object.keys(value).sort().map((key) =>
-    `${JSON.stringify(key)}: ${canonicalJson(value[key])}`,
-  ).join(", ")}}`;
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}: ${canonicalJson(value[key])}`)
+    .join(", ")}}`;
 }
 
 function payloadHash(payload) {
   const logicalPayload = { ...payload };
   delete logicalPayload.id;
-  return createHash("sha256").update(canonicalJson(logicalPayload)).digest("hex");
+  return createHash("sha256")
+    .update(canonicalJson(logicalPayload))
+    .digest("hex");
 }
 
 test("hash lógico coincide com o vetor Python do backend e edge", () => {
@@ -82,8 +88,10 @@ function ackResponse(payload, overrides = {}) {
   return new Response(JSON.stringify({ ack }), { status: 201 });
 }
 
-function createHarness(items, responses) {
-  const rows = new Map(items.map((item) => [item.localId, structuredClone(item)]));
+function createHarness(items, responses, persistedRows) {
+  const rows =
+    persistedRows ||
+    new Map(items.map((item) => [item.localId, structuredClone(item)]));
   const handlers = new Map();
   const clientMessages = [];
 
@@ -97,8 +105,12 @@ function createHarness(items, responses) {
   }
 
   const store = {
-    getAll: () => request([...rows.values()].map((item) => structuredClone(item))),
-    put: (item) => request(item.localId, () => rows.set(item.localId, structuredClone(item))),
+    getAll: () =>
+      request([...rows.values()].map((item) => structuredClone(item))),
+    put: (item) =>
+      request(item.localId, () =>
+        rows.set(item.localId, structuredClone(item)),
+      ),
     delete: (key) => request(undefined, () => rows.delete(key)),
     openCursor: () => request(null),
   };
@@ -108,11 +120,14 @@ function createHarness(items, responses) {
     location: { origin: "https://fieldnode.test" },
     registration: {},
     clients: {
-      matchAll: async () => [{ postMessage: (message) => clientMessages.push(message) }],
+      matchAll: async () => [
+        { postMessage: (message) => clientMessages.push(message) },
+      ],
     },
     addEventListener: (type, handler) => handlers.set(type, handler),
     skipWaiting: () => Promise.resolve(),
   };
+  let fetchCount = 0;
   const context = {
     self,
     indexedDB,
@@ -127,6 +142,7 @@ function createHarness(items, responses) {
     navigator: { onLine: true },
     caches: { open: async () => ({ addAll: async () => {} }) },
     fetch: async (...args) => {
+      fetchCount += 1;
       const next = responses.shift();
       if (next instanceof Error) throw next;
       if (!next) throw new Error("No mock response configured");
@@ -142,7 +158,9 @@ function createHarness(items, responses) {
       let promise;
       handlers.get("sync")({
         tag: "fieldnode-telemetria-sync",
-        waitUntil: (value) => { promise = value; },
+        waitUntil: (value) => {
+          promise = value;
+        },
       });
       await promise;
     },
@@ -150,7 +168,9 @@ function createHarness(items, responses) {
       let responsePromise;
       handlers.get("fetch")({
         request,
-        respondWith: (value) => { responsePromise = value; },
+        respondWith: (value) => {
+          responsePromise = value;
+        },
       });
       return responsePromise;
     },
@@ -159,21 +179,26 @@ function createHarness(items, responses) {
       handlers.get("message")({
         data: { type },
         ports: [],
-        waitUntil: (value) => { promise = value; },
+        waitUntil: (value) => {
+          promise = value;
+        },
       });
       await promise;
     },
-    fetchCount: () => responses.length,
+    fetchCount: () => fetchCount,
   };
 }
 
 test("POST online só retorna sucesso com ACK coerente", async () => {
   const payload = makePayload("online-ack-1");
   const harness = createHarness([], [ackResponse(payload)]);
-  const response = await harness.fetchTelemetry(new Request(
-    "https://fieldnode.test/api/telemetria/",
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
-  ));
+  const response = await harness.fetchTelemetry(
+    new Request("https://fieldnode.test/api/telemetria/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
 
   assert.equal(response.status, 201);
   assert.equal(harness.rows.size, 0);
@@ -185,10 +210,13 @@ test("POST online com ACK inconsistente mantém item rejeitado", async () => {
     [],
     [ackResponse(payload, { payload_hash: "0".repeat(64) })],
   );
-  const response = await harness.fetchTelemetry(new Request(
-    "https://fieldnode.test/api/telemetria/",
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
-  ));
+  const response = await harness.fetchTelemetry(
+    new Request("https://fieldnode.test/api/telemetria/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
 
   assert.equal(response.status, 202);
   assert.equal(harness.rows.size, 1);
@@ -249,7 +277,10 @@ test("sequência divergente rejeita o ACK e mantém o item", async () => {
 
 test("resposta 2xx sem ACK JSON válido não remove o item", async () => {
   const item = makeItem("invalid-ack-1");
-  const harness = createHarness([item], [new Response("not-json", { status: 200 })]);
+  const harness = createHarness(
+    [item],
+    [new Response("not-json", { status: 200 })],
+  );
 
   await harness.sync();
 
@@ -258,15 +289,21 @@ test("resposta 2xx sem ACK JSON válido não remove o item", async () => {
 });
 
 test("falha de rede mantém e reagenda o item com backoff", async () => {
-  const item = makeItem("network-1");
-  const harness = createHarness([item], [new Error("offline")]);
+  const failed = makeItem("network-1");
+  const later = makeItem("network-2");
+  const harness = createHarness(
+    [failed, later],
+    [new Error("offline"), ackResponse(later.payload)],
+  );
 
   await harness.sync();
 
-  const saved = harness.rows.get(item.localId);
+  const saved = harness.rows.get(failed.localId);
   assert.equal(saved.state, "retrying");
   assert.equal(saved.attempts, 1);
   assert.ok(saved.next_attempt_at > Date.now());
+  assert.equal(harness.rows.has(later.localId), false);
+  assert.equal(harness.fetchCount(), 2);
 });
 
 test("400 rejeita um item e não bloqueia os itens seguintes", async () => {
@@ -286,7 +323,9 @@ test("400 rejeita um item e não bloqueia os itens seguintes", async () => {
 
   assert.equal(harness.rows.size, 1);
   assert.equal(harness.rows.get(invalid.localId).state, "rejected");
+  assert.equal(harness.rows.get(invalid.localId).attempts, 1);
   assert.equal(harness.clientMessages.at(-1).synced, 2);
+  assert.equal(harness.fetchCount(), 3);
 });
 
 test("401 bloqueia a fila inteira até autenticação", async () => {
@@ -303,27 +342,94 @@ test("401 bloqueia a fila inteira até autenticação", async () => {
     [...harness.rows.values()].map((item) => item.state),
     ["auth_blocked", "auth_blocked"],
   );
-  assert.ok(harness.clientMessages.some((message) => message.type === "AUTH_REQUIRED"));
+  assert.equal(harness.rows.get(first.localId).attempts, 1);
+  assert.equal(harness.rows.get(second.localId).attempts, 0);
+  assert.equal(harness.fetchCount(), 1);
+  assert.ok(
+    harness.clientMessages.some((message) => message.type === "AUTH_REQUIRED"),
+  );
 });
 
-test("503 mantém o item em retrying com backoff exponencial", async () => {
-  const item = makeItem("server-error-1");
-  const harness = createHarness([item], [new Response("unavailable", { status: 503 })]);
+test("408, 429 e 503 mantêm o item em retrying com backoff exponencial", async () => {
+  for (const status of [408, 429, 503]) {
+    const item = makeItem(`retry-${status}`);
+    const harness = createHarness(
+      [item],
+      [new Response("retry", { status }), new Response("retry", { status })],
+    );
 
-  await harness.sync();
+    await harness.sync();
+    const first = harness.rows.get(item.localId);
+    assert.equal(first.state, "retrying");
+    assert.equal(first.attempts, 1);
+    const firstDelay = first.next_attempt_at - Date.now();
+    assert.ok(firstDelay >= 900 && firstDelay <= 1100);
 
-  const saved = harness.rows.get(item.localId);
-  assert.equal(saved.state, "retrying");
-  assert.equal(saved.attempts, 1);
-  assert.ok(saved.next_attempt_at > Date.now());
+    harness.rows.set(item.localId, { ...first, next_attempt_at: 0 });
+    await harness.sync();
+    const second = harness.rows.get(item.localId);
+    assert.equal(second.attempts, 2);
+    assert.ok(second.next_attempt_at - Date.now() >= 1800);
+  }
+});
+
+test("rejeição e tentativas persistem após reinicializar o Service Worker", async () => {
+  const rejected = makeItem("persist-rejected-1");
+  const firstWorker = createHarness(
+    [rejected],
+    [new Response("invalid payload", { status: 400 })],
+  );
+
+  await firstWorker.sync();
+  assert.equal(firstWorker.rows.get(rejected.localId).state, "rejected");
+
+  const restartedWorker = createHarness([], [], firstWorker.rows);
+  await restartedWorker.sendMessage("GET_TELEMETRY_QUEUE_STATUS");
+  assert.equal(restartedWorker.rows.get(rejected.localId).state, "rejected");
+  assert.equal(restartedWorker.clientMessages.at(-1).rejected, 1);
+
+  const retrying = makeItem("persist-retrying-1");
+  const workerBeforeRestart = createHarness(
+    [retrying],
+    [new Response("unavailable", { status: 503 })],
+  );
+  await workerBeforeRestart.sync();
+  const beforeRestart = workerBeforeRestart.rows.get(retrying.localId);
+
+  const workerAfterRestart = createHarness([], [], workerBeforeRestart.rows);
+  await workerAfterRestart.sendMessage("GET_TELEMETRY_QUEUE_STATUS");
+  const afterRestart = workerAfterRestart.rows.get(retrying.localId);
+  assert.equal(afterRestart.state, "retrying");
+  assert.equal(afterRestart.attempts, 1);
+  assert.equal(afterRestart.last_error, "HTTP 503");
+  assert.equal(afterRestart.next_attempt_at, beforeRestart.next_attempt_at);
+});
+
+test("status da fila publica as contagens de cada estado para a interface", async () => {
+  const items = [
+    makeItem("count-pending", { state: "pending" }),
+    makeItem("count-retrying", { state: "retrying" }),
+    makeItem("count-rejected", { state: "rejected" }),
+    makeItem("count-auth", { state: "auth_blocked" }),
+  ];
+  const harness = createHarness(items, []);
+
+  await harness.sendMessage("GET_TELEMETRY_QUEUE_STATUS");
+
+  const status = harness.clientMessages.at(-1);
+  assert.equal(status.type, "TELEMETRY_QUEUE_STATUS");
+  assert.equal(status.pending, 1);
+  assert.equal(status.retrying, 1);
+  assert.equal(status.rejected, 1);
+  assert.equal(status.auth_blocked, 1);
 });
 
 test("reprocessar rejeitadas reinicia estado e tenta novamente", async () => {
-  const item = makeItem("reprocess-1", {
+  const rejected = makeItem("reprocess-1", {
     state: "rejected",
     last_error: "HTTP 400",
   });
-  const harness = createHarness([item], [ackResponse(item.payload)]);
+  const harness = createHarness([rejected], [ackResponse(rejected.payload)]);
 
   await harness.sendMessage("REPROCESS_REJECTED_TELEMETRY");
 
