@@ -46,7 +46,7 @@ export const METRIC_META: Record<MetricKey, MetricMeta> = {
   vibracao: {
     label: 'Vibração do rotor',
     short: 'Vibração',
-    unit: 'g',
+    unit: METRIC_THRESHOLDS.vibracao.unit,
     color: 'var(--metric-vibration)',
     digits: 2,
   },
@@ -75,13 +75,13 @@ export function statusOf(value: number, key: MetricKey): MetricStatus {
   if (!Number.isFinite(value)) return 'normal';
 
   if (config.higherIsWorse) {
-    if (value > config.critical) return 'critico';
-    if (value > config.alert) return 'atencao';
+    if (config.critical !== null && value >= config.critical) return 'critico';
+    if (config.alert !== null && value >= config.alert) return 'atencao';
     return 'normal';
   }
 
-  if (value < config.critical) return 'critico';
-  if (value < config.alert) return 'atencao';
+    if (config.critical !== null && value < config.critical) return 'critico';
+    if (config.alert !== null && value < config.alert) return 'atencao';
   return 'normal';
 }
 
@@ -151,10 +151,10 @@ export function formatMetric(value: number, key: MetricKey): string {
 /**
  * Formata um LIMITE (alerta/risco) na precisão da métrica: limites são números
  * redondos, então não faz sentido escrever "1.400,0 rpm" — mas a vibração
- * precisa da casa decimal para o 0,5 g ficar legível.
+ * precisa da casa decimal para valores fracionários do índice ficarem legíveis.
  *
  * Use esta função para LIMITES, nunca para marcas de eixo ou leituras: o
- * `Math.max(digits, 1)` abaixo foi feito para o 0,5 g, mas aplicado a um eixo de
+ * `Math.max(digits, 1)` abaixo preserva a casa decimal quando necessária.
  * RPM ele imprimia "2.444,1 rpm" — uma precisão que o sensor não entrega.
  */
 export function formatLimit(value: number, key: MetricKey): string {

@@ -6,7 +6,7 @@ probabilidade de falha mecânica.
 
 ## Fórmula
 
-`P = S × I × U × C`, com todos os fatores limitados a `[0, 1]`:
+`P = S × I × U`, com todos os fatores limitados a `[0, 1]`:
 
 - `S`: `NORMAL=0.00`, `ATENCAO=0.50`, `CRITICO=1.00`.
 - `I`: peso fixo por tipo: `TEMP_ALTA=1.00`, `VIBRACAO_ALTA=0.80`,
@@ -15,11 +15,18 @@ probabilidade de falha mecânica.
 - `U`: atualidade da condição, com decaimento linear em 24 horas a partir da
   última leitura anterior da mesma máquina. Uma condição nova recebe `1.00`.
   Se houver agravamento na métrica comparável, a urgência pode permanecer alta.
-- `C`: `trust_score` da leitura de origem, copiado para
-  `Event.trust_score_herdado`. Ausência ou valor inválido vira `0.00`.
+- `trust_score` não participa da fórmula. É convertido em `evidence_quality`:
+  `boa` quando `trust_score >= 0.8`, `suspeita` quando `>= 0.5`, e
+  `insuficiente` abaixo disso ou quando o valor está ausente/inválido.
+- `needs_verification` é verdadeiro sempre que `evidence_quality != boa`.
 
-A multiplicação é intencional: qualquer fator zero zera o score. Isso reduz a
-prioridade, mas nunca apaga nem reclassifica o evento factual.
+A qualidade fraca da evidência marca a necessidade de verificação, sem reduzir
+a prioridade ou reclassificar a severidade factual do evento.
+
+Leitura com `time_source=unsynced` recebe penalidade calibrável de `0.25` no
+Trust Score e o fator `hora_dispositivo_nao_confiavel` em Data Health. Isso pode
+reduzir a qualidade da evidência e exigir verificação, mas não altera a fórmula
+de prioridade `P`.
 
 Os pesos, a janela de 24 horas e as escalas de agravamento são hipóteses de
 projeto v0.1, não calibração com dados operacionais rotulados.

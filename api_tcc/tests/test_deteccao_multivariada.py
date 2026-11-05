@@ -20,7 +20,21 @@ class DeteccaoMultivariadaTests(SimpleTestCase):
         )
 
         self.assertTrue(tem_anomalia)
-        self.assertEqual(motivos, ['temperatura acima de 85°C'])
+        self.assertEqual(motivos, ["temperatura em nível crítico"])
+
+    def test_pipeline_respeita_fronteiras_do_contrato_v1(self):
+        tem_anomalia, motivos = detectar_anomalia(
+            {"temp_max": 85.0, "temp_tendencia": 0.0, "vib_media": 5.0}
+        )
+
+        self.assertTrue(tem_anomalia)
+        self.assertEqual(
+            motivos,
+            [
+                "temperatura em nível crítico",
+                "vibração média acima do padrão esperado",
+            ],
+        )
 
     def test_caso_multivariado_complementa_thresholds(self):
         tem_anomalia, motivos = detectar_anomalia(

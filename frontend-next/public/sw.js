@@ -2,8 +2,8 @@ const CACHE_NAME = 'fieldnode-runtime-v3';
 const STATIC_CACHE = 'fieldnode-static-v3';
 const TELEMETRY_SYNC_TAG = 'fieldnode-telemetria-sync';
 const DB_NAME = 'fieldnode-offline';
-const DB_VERSION = 1;
-const TELEMETRY_STORE = 'telemetria-pendente';
+const DB_VERSION = 2;
+const TELEMETRY_STORE = "telemetria-pendente";
 
 let apiConfig = {
   apiUrl: "/api",
@@ -56,6 +56,21 @@ self.addEventListener("message", (event) => {
     event.waitUntil(
       queueTelemetry(message.payload, message.headers || {}).then(requestSync),
     );
+    return;
+  }
+
+  if (message.type === "GET_TELEMETRY_QUEUE_STATUS") {
+    event.waitUntil(sendQueueStatus(event.ports && event.ports[0]));
+    return;
+  }
+
+  if (message.type === "RESUME_TELEMETRY_AUTH") {
+    event.waitUntil(resumeAuthBlocked().then(requestSync));
+    return;
+  }
+
+  if (message.type === "REPROCESS_REJECTED_TELEMETRY") {
+    event.waitUntil(reprocessRejected().then(requestSync));
   }
 });
 
@@ -80,9 +95,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(() => caches.match("/")),
-    );
+    event.respondWith(fetch(request).catch(() => caches.match("/")));
     return;
   }
 
@@ -98,18 +111,46 @@ self.addEventListener("sync", (event) => {
 });
 
 async function sendOrQueueTelemetry(request) {
-  const requestForNetwork = request.clone();
-  const requestForQueue = request.clone();
+  const payload = await request.clone().json();
+  payload.id = payload.id || crypto.randomUUID();
+  const requestForNetwork = new Request(request, {
+    body: JSON.stringify(payload),
+  });
+  const requestForQueue = requestForNetwork.clone();
 
   try {
     const response = await fetch(requestForNetwork);
-    if (!response.ok && shouldRetryStatus(response.status)) {
+    if (response.ok) {
+      const body = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      const ackError = await validateAck(payload, body);
+      if (!ackError) return response;
+      await queueRequest(requestForQueue, "rejected", ackError);
+      return queuedResponse("ACK inválido; leitura mantida para revisão.");
+    }
+    if (response.status === 401) {
+      await queueRequest(requestForQueue, "auth_blocked", "HTTP 401");
+      await markAllAuthBlocked();
+      await notifyClients({ type: "AUTH_REQUIRED" });
+      await sendQueueStatus();
+      return queuedResponse(
+        "Autenticação necessária; leitura mantida na fila.",
+      );
+    }
+    if (shouldRetryStatus(response.status)) {
       await queueRequest(requestForQueue);
       await requestSync();
       return queuedResponse(
         "Backend indisponivel. Leitura guardada para reenvio.",
       );
     }
+    await queueRequest(
+      requestForQueue,
+      "rejected",
+      `HTTP ${response.status}: ${await safeText(response)}`,
+    );
     return response;
   } catch {
     await queueRequest(requestForQueue);
@@ -120,54 +161,281 @@ async function sendOrQueueTelemetry(request) {
 
 async function syncTelemetriaData() {
   const db = await openDb();
-  const items = await readAll(db);
+  const now = Date.now();
+  const items = (await readAll(db)).filter(
+    (item) =>
+      !["rejected", "auth_blocked"].includes(item.state) &&
+      (item.next_attempt_at || 0) <= now,
+  );
+  let synced = 0;
 
   for (const item of items) {
     const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
-    const response = await fetch(
-      item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
-      {
-        method: "POST",
-        headers: buildHeaders(item.headers),
-        body: JSON.stringify(item.payload),
-      },
-    );
-
-    if (response.ok) {
-      await deleteItem(db, item.localId);
+    let response;
+    try {
+      response = await fetch(
+        item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
+        {
+          method: "POST",
+          headers: buildHeaders(item.headers),
+          body: JSON.stringify(item.payload),
+        },
+      );
+    } catch (error) {
+      await bumpRetry(
+        db,
+        item,
+        error instanceof Error ? error.message : "rede",
+      );
       continue;
     }
 
-    throw new Error(`HTTP ${response.status}`);
+    if (response.status === 401) {
+      await markAllAuthBlocked(db);
+      await notifyClients({ type: "AUTH_REQUIRED" });
+      break;
+    }
+
+    if (response.ok) {
+      const body = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      const ackError = await validateAck(item.payload, body);
+      if (ackError) {
+        await setItemState(db, item, "rejected", ackError);
+        continue;
+      }
+      await deleteItem(db, item.localId);
+      synced += 1;
+      continue;
+    }
+
+    if (shouldRetryStatus(response.status)) {
+      await bumpRetry(db, item, `HTTP ${response.status}`);
+      continue;
+    }
+
+    await setItemState(
+      db,
+      item,
+      "rejected",
+      `HTTP ${response.status}: ${await safeText(response)}`,
+    );
   }
 
-  await notifyClients({ type: "TELEMETRY_SYNCED", count: items.length });
+  await notifyClients({
+    type: "TELEMETRY_SYNC_RESULT",
+    synced,
+    ...(await countBy(db)),
+  });
 }
 
-async function queueRequest(request) {
+async function queueRequest(request, state = "pending", lastError = null) {
   const payload = await request.json();
   const headers = {};
   request.headers.forEach((value, key) => {
     headers[key] = value;
   });
-  await queueTelemetry(payload, headers, request.url);
+  return queueTelemetry(payload, headers, request.url, state, lastError);
 }
 
 async function queueTelemetry(
   payload,
   headers = {},
   url = `${apiConfig.apiUrl}/telemetria/`,
+  state = "pending",
+  lastError = null,
 ) {
   const db = await openDb();
+  const itemPayload = { ...payload, id: payload.id || crypto.randomUUID() };
   const item = {
     localId: crypto.randomUUID(),
-    payload,
+    payload: itemPayload,
+    payload_hash: await payloadHash(itemPayload),
     headers,
     url,
     createdAt: new Date().toISOString(),
+    state,
+    attempts: 0,
+    last_error: lastError,
+    next_attempt_at: 0,
   };
   await putItem(db, item);
   await notifyClients({ type: "TELEMETRY_QUEUED", localId: item.localId });
+  await sendQueueStatus();
+  return item;
+}
+
+async function validateAck(payload, body) {
+  const ack = body && body.ack;
+  if (!ack || !["acked", "duplicate"].includes(ack.status)) {
+    return "ACK ausente ou status inválido";
+  }
+  const expectedMessageId = payload.message_id || payload.id;
+  const expectedDeviceId =
+    payload.device_id ||
+    String(payload.maquina_id || "")
+      .trim()
+      .toUpperCase();
+  const expectedSequence =
+    payload.sequence_number == null ? 0 : Number(payload.sequence_number);
+  const hash = await payloadHash(payload);
+  if (ack.message_id !== expectedMessageId)
+    return "message_id divergente no ACK";
+  if (ack.device_id !== expectedDeviceId) return "device_id divergente no ACK";
+  if (ack.sequence_number !== expectedSequence)
+    return "sequence_number divergente no ACK";
+  if (ack.payload_hash !== hash) return "payload_hash divergente no ACK";
+  if (
+    !Number.isInteger(ack.last_acked_sequence) ||
+    ack.last_acked_sequence < expectedSequence
+  ) {
+    return "cursor inválido no ACK";
+  }
+  return null;
+}
+
+async function payloadHash(payload) {
+  const logicalPayload = { ...payload };
+  delete logicalPayload.id;
+  const canonical = pythonCanonicalJson(logicalPayload);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(canonical),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function pythonCanonicalJson(value) {
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "string") return pythonJsonString(value);
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(pythonCanonicalJson).join(", ")}]`;
+  }
+  return `{${Object.keys(value)
+    .sort()
+    .map(
+      (key) => `${pythonJsonString(key)}: ${pythonCanonicalJson(value[key])}`,
+    )
+    .join(", ")}}`;
+}
+
+function pythonJsonString(value) {
+  let result = '"';
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    if (character === '"') result += '\\"';
+    else if (character === "\\") result += "\\\\";
+    else if (character === "\b") result += "\\b";
+    else if (character === "\f") result += "\\f";
+    else if (character === "\n") result += "\\n";
+    else if (character === "\r") result += "\\r";
+    else if (character === "\t") result += "\\t";
+    else if (code < 0x20 || code > 0x7e) {
+      if (code <= 0xffff) result += `\\u${code.toString(16).padStart(4, "0")}`;
+      else {
+        const adjusted = code - 0x10000;
+        const high = 0xd800 + (adjusted >> 10);
+        const low = 0xdc00 + (adjusted & 0x3ff);
+        result += `\\u${high.toString(16)}\\u${low.toString(16)}`;
+      }
+    } else result += character;
+  }
+  return `${result}"`;
+}
+
+async function setItemState(db, item, state, lastError) {
+  await putItem(db, {
+    ...item,
+    state,
+    last_error: lastError,
+    next_attempt_at: state === "retrying" ? item.next_attempt_at : 0,
+  });
+}
+
+async function bumpRetry(db, item, reason) {
+  const attempts = (item.attempts || 0) + 1;
+  const delay = Math.min(60000, 1000 * 2 ** Math.min(attempts - 1, 6));
+  await putItem(db, {
+    ...item,
+    state: "retrying",
+    attempts,
+    last_error: reason,
+    next_attempt_at: Date.now() + delay,
+  });
+}
+
+async function markAllAuthBlocked(db) {
+  db = db || (await openDb());
+  const items = await readAll(db);
+  for (const item of items) {
+    if (item.state !== "rejected") {
+      await putItem(db, {
+        ...item,
+        state: "auth_blocked",
+        last_error: "HTTP 401",
+      });
+    }
+  }
+}
+
+async function resumeAuthBlocked() {
+  const db = await openDb();
+  const items = await readAll(db);
+  for (const item of items) {
+    if (item.state === "auth_blocked") {
+      await putItem(db, {
+        ...item,
+        state: "pending",
+        last_error: null,
+        next_attempt_at: 0,
+      });
+    }
+  }
+}
+
+async function reprocessRejected() {
+  const db = await openDb();
+  const items = await readAll(db);
+  for (const item of items) {
+    if (item.state === "rejected") {
+      await putItem(db, {
+        ...item,
+        state: "pending",
+        attempts: 0,
+        last_error: null,
+        next_attempt_at: 0,
+      });
+    }
+  }
+}
+
+async function countBy(db) {
+  db = db || (await openDb());
+  const counts = { pending: 0, retrying: 0, rejected: 0, auth_blocked: 0 };
+  for (const item of await readAll(db)) {
+    if (item.state in counts) counts[item.state] += 1;
+  }
+  return counts;
+}
+
+async function sendQueueStatus(port) {
+  const status = { type: "TELEMETRY_QUEUE_STATUS", ...(await countBy()) };
+  if (port) port.postMessage(status);
+  else await notifyClients(status);
+}
+
+async function safeText(response) {
+  try {
+    return (await response.clone().text()).slice(0, 1000);
+  } catch {
+    return "resposta sem corpo legível";
+  }
 }
 
 function isTelemetryPost(request) {
@@ -196,10 +464,11 @@ async function requestSync() {
   }
 
   if (navigator.onLine) {
-    syncTelemetriaData().catch((error) => {
+    return syncTelemetriaData().catch((error) => {
       console.error("[SW] Telemetria sync failed:", error);
     });
   }
+  return Promise.resolve();
 }
 
 async function networkFirst(request) {
@@ -283,7 +552,23 @@ function openDb() {
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(TELEMETRY_STORE)) {
-        db.createObjectStore(TELEMETRY_STORE, { keyPath: 'localId' });
+        db.createObjectStore(TELEMETRY_STORE, { keyPath: "localId" });
+      } else {
+        const store = request.transaction.objectStore(TELEMETRY_STORE);
+        const cursorRequest = store.openCursor();
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (!cursor) return;
+          const item = cursor.value;
+          cursor.update({
+            ...item,
+            state: item.state || "pending",
+            attempts: item.attempts || 0,
+            last_error: item.last_error || null,
+            next_attempt_at: item.next_attempt_at || 0,
+          });
+          cursor.continue();
+        };
       }
     };
     request.onsuccess = () => resolve(request.result);

@@ -79,7 +79,7 @@ export function HistoryChart({
     let lo = min - margin;
     let hi = max + margin;
     for (const t of [rangeConfig?.alert, rangeConfig?.critical]) {
-      if (t === undefined) continue;
+      if (t === null || t === undefined) continue;
       if (t >= lo - span * 0.6 && t <= hi + span * 0.6) {
         lo = Math.min(lo, t);
         hi = Math.max(hi, t);
@@ -108,15 +108,15 @@ export function HistoryChart({
   const metric = metricStyles[field];
 
   const inRange = (v: number) => v >= domain.lo && v <= domain.hi;
-  const alertY    = rangeConfig && inRange(rangeConfig.alert)    ? y(rangeConfig.alert)    : null;
-  const criticalY = rangeConfig && inRange(rangeConfig.critical) ? y(rangeConfig.critical) : null;
+  const alertY    = rangeConfig && rangeConfig.alert !== null && inRange(rangeConfig.alert) ? y(rangeConfig.alert) : null;
+  const criticalY = rangeConfig && rangeConfig.critical !== null && inRange(rangeConfig.critical) ? y(rangeConfig.critical) : null;
 
   // Faixa operacional boa: o lado oposto ao risco.
   const bandFrom = rangeConfig && rangeConfig.higherIsWorse
     ? domain.lo
-    : Math.max(rangeConfig ? rangeConfig.alert : domain.lo, domain.lo);
+    : Math.max(rangeConfig && rangeConfig.alert !== null ? rangeConfig.alert : domain.lo, domain.lo);
   const bandTo = rangeConfig && rangeConfig.higherIsWorse
-    ? Math.min(Math.max(rangeConfig.alert, domain.lo), domain.hi)
+    ? Math.min(Math.max(rangeConfig && rangeConfig.alert !== null ? rangeConfig.alert : domain.lo, domain.lo), domain.hi)
     : domain.hi;
 
   const showDots = points.length <= 60;
@@ -201,7 +201,7 @@ export function HistoryChart({
             <line x1={pad.left} x2={pad.left + innerW} y1={criticalY} y2={criticalY}
               stroke={chartColors.critico.stroke} strokeWidth="1.4" strokeDasharray="7 5" opacity="0.95" />
             <text x={pad.left + innerW + 6} y={criticalY + 3.5} textAnchor="start" fill={chartColors.critico.stroke} fontSize="10" fontWeight="700">
-              {fmt.format(rangeConfig.critical)}
+              {fmt.format(rangeConfig.critical!)}
             </text>
           </g>
         )}
@@ -210,7 +210,7 @@ export function HistoryChart({
             <line x1={pad.left} x2={pad.left + innerW} y1={alertY} y2={alertY}
               stroke={chartColors.atencao.stroke} strokeWidth="1.4" strokeDasharray="7 5" opacity="0.95" />
             <text x={pad.left + innerW + 6} y={alertY + 3.5} textAnchor="start" fill={chartColors.atencao.stroke} fontSize="10" fontWeight="700">
-              {fmt.format(rangeConfig.alert)}
+              {fmt.format(rangeConfig.alert!)}
             </text>
           </g>
         )}
@@ -289,13 +289,13 @@ export function HistoryChart({
         {alertY !== null && (
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
             <span className="threshold-rule threshold-rule--atencao" aria-hidden="true" />
-            Atenção {fmt.format(rangeConfig.alert)}{suffix}
+            Atenção {fmt.format(rangeConfig.alert!)}{suffix}
           </li>
         )}
         {criticalY !== null && (
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
             <span className="threshold-rule threshold-rule--critico" aria-hidden="true" />
-            Crítico {fmt.format(rangeConfig.critical)}{suffix}
+            Crítico {fmt.format(rangeConfig.critical!)}{suffix}
           </li>
         )}
       </ul>

@@ -14,6 +14,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 
+from api_tcc.contracts import metric_definition
 from api_tcc.models import Colheitadeira, LeituraTelemetria, Machine, RegistroAnalise
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, get_machine_for_request
 from api_tcc.services.relatorios import preparar_dados_relatorio, _gerar_relatorio_csv_exportar
@@ -180,8 +181,10 @@ class RelatorioExportarView(APIView):
                 f"B2:B{ws.max_row}",
                 CellIsRule(
                     operator="greaterThan",
-                    formula=["85"],
-                    fill=PatternFill(start_color="FDE8E8", end_color="FDE8E8", fill_type="solid"),
+                    formula=[str(metric_definition("temperatura")["critico"])],
+                    fill=PatternFill(
+                        start_color="FDE8E8", end_color="FDE8E8", fill_type="solid"
+                    ),
                     font=Font(color="9B1C1C", bold=True),
                 ),
             )

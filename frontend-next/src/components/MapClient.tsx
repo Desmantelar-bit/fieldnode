@@ -69,12 +69,12 @@ type MetricTone = "normal" | "atencao" | "critico";
 function metricTone(key: MetricKey, value: number): MetricTone {
   const thresholds = METRIC_THRESHOLDS[key];
   if (thresholds.higherIsWorse) {
-    if (value >= thresholds.critical) return "critico";
-    if (value >= thresholds.alert) return "atencao";
+    if (thresholds.critical !== null && value >= thresholds.critical) return "critico";
+    if (thresholds.alert !== null && value >= thresholds.alert) return "atencao";
     return "normal";
   }
-  if (value <= thresholds.critical) return "critico";
-  if (value <= thresholds.alert) return "atencao";
+  if (thresholds.critical !== null && value <= thresholds.critical) return "critico";
+  if (thresholds.alert !== null && value <= thresholds.alert) return "atencao";
   return "normal";
 }
 
