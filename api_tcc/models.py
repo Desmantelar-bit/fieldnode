@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator
 from django.db import models
 import uuid as uuid_lib
 
@@ -897,3 +898,58 @@ class SyncCursor(models.Model):
 
     def __str__(self):
         return f'SyncCursor({self.device_id}) → seq={self.last_acked_sequence}'
+
+
+class LeituraCANMotor(models.Model):
+    """Leitura CAN de motor; valores simulados permanecem identificados na origem."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    maquina_id = models.CharField(max_length=50, db_index=True)
+    timestamp = models.DateTimeField(db_index=True)
+    recebido_em = models.DateTimeField(auto_now_add=True)
+    rpm = models.FloatField(null=True, blank=True)
+    carga_pct = models.FloatField(null=True, blank=True)
+    horimetro_h = models.FloatField(null=True, blank=True)
+    oleo_pressao_kpa = models.FloatField(null=True, blank=True)
+    oleo_temp_c = models.FloatField(null=True, blank=True)
+    oleo_nivel_pct = models.FloatField(null=True, blank=True)
+    liquido_temp_c = models.FloatField(null=True, blank=True)
+    liquido_nivel_pct = models.FloatField(null=True, blank=True)
+    rail_pressao_kpa = models.FloatField(null=True, blank=True)
+    combustivel_temp_c = models.FloatField(null=True, blank=True)
+    consumo_lh = models.FloatField(null=True, blank=True)
+    turbo_pressao_kpa = models.FloatField(null=True, blank=True)
+    escape_temp_c = models.FloatField(null=True, blank=True)
+    bateria_v = models.FloatField(null=True, blank=True)
+    simulado = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["timestamp", "id"]
+        indexes = [models.Index(fields=["maquina_id", "timestamp"], name="canm_maquina_time_idx")]
+        constraints = [
+            models.UniqueConstraint(fields=["maquina_id", "timestamp"], name="uniq_canm_timestamp_machine"),
+        ]
+        verbose_name = "Leitura CAN do motor"
+        verbose_name_plural = "Leituras CAN do motor"
+
+
+class DTCMotor(models.Model):
+    """Código de diagnóstico observado no barramento, não um diagnóstico confirmado."""
+
+    maquina_id = models.CharField(max_length=50, db_index=True)
+    spn = models.PositiveIntegerField()
+    fmi = models.PositiveSmallIntegerField(validators=[MaxValueValidator(31)])
+    ocorrencias = models.PositiveIntegerField(default=1)
+    ativo = models.BooleanField(default=True, db_index=True)
+    simulado = models.BooleanField(default=True)
+    primeira_vez = models.DateTimeField()
+    ultima_vez = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-ultima_vez"]
+        constraints = [
+            models.UniqueConstraint(fields=["maquina_id", "spn", "fmi"], name="uniq_dtc_motor_code_machine"),
+            models.CheckConstraint(condition=models.Q(fmi__lte=31), name="dtc_fmi_lte_31"),
+        ]
+        verbose_name = "DTC do motor"
+        verbose_name_plural = "DTCs do motor"

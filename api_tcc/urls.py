@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework import routers
 from api_tcc.api.views_auth import ExpiringAuthTokenView, RegisterView, LogoutView, MeView
 from api_tcc.api import viewsets
+from api_tcc.api.views_can_motor import MotorCANView
 from api_tcc.api.views_ingestao import (
     AnomaliaView,
     DecisionActionView,
@@ -51,6 +52,7 @@ urlpatterns = [
     path("auth/logout", LogoutView.as_view(), name="auth-logout-no-slash"),
     path("auth/me/", MeView.as_view(), name="auth-me"),
     path("telemetria/", IngestaoTelemetriaView.as_view(), name="ingestao-telemetria"),
+    path("can/motor/", MotorCANView.as_view(), name="can-motor"),
     path("telemetria/lote/", IngestaoLoteView.as_view(), name="ingestao-telemetria-lote"),
     path("anomalias/", AnomaliaView.as_view(), name="anomalias"),
     path("leituras/ultimas/", UltimaLeituraView.as_view(), name="ultimas-leituras"),

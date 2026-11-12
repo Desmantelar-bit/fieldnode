@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState, ErrorState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/ui/FeedbackStates';
@@ -24,7 +25,16 @@ const CHART_TONE: Record<MetricKey, 'red' | 'amber' | 'emerald'> = {
   rpm: 'emerald',
 };
 
-export default function DetailsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+export default function DetailsPage() {
+  return (
+    <Suspense fallback={<AppShell active="/colheitadeiras" eyebrow="Detalhes" title="Carregando..."><LoadingState mensagem="Carregando histórico da máquina..." /></AppShell>}>
+      <DetailsPageContent />
+    </Suspense>
+  );
+}
+
+function DetailsPageContent() {
+  const searchParams = useSearchParams();
   const [machineId, setMachineId]       = useState<string | null>(null);
   const [estado, setEstado]             = useState<EstadoRequisicao<Telemetry[]>>({ tipo: 'carregando' });
   const [showPrescricao, setShowPrescricao] = useState(false);
@@ -52,15 +62,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   }, []);
 
   useEffect(() => {
-    let active = true;
-    searchParams.then((params) => {
-      if (!active) return;
-      const id = params.id ?? null;
-      setMachineId(id);
-    });
-    return () => {
-      active = false;
-    };
+    setMachineId(searchParams.get('id'));
   }, [searchParams]);
 
   useEffect(() => {
@@ -165,6 +167,31 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
               </div>
               <p className="mt-2 text-xs text-[var(--text-3)]">informado pela API</p>
             </article>
+          </section>
+
+          <section aria-labelledby="can-modules-title" className="space-y-3">
+            <div>
+              <h2 id="can-modules-title" className="text-lg font-bold text-[var(--text-1)]">Módulos CAN</h2>
+              <p className="mt-1 text-xs text-[var(--text-3)]">Monitoramento por subsistema. Os módulos desabilitados ainda não estão disponíveis.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Link
+                href={`/motor/${encodeURIComponent(machineId)}`}
+                className="metric-card group flex min-h-28 items-start justify-between border border-[color:var(--ui-accent)]/35 transition hover:border-[color:var(--ui-accent)]/70 hover:bg-[var(--panel-glass-mid)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ui-accent)]"
+              >
+                <span>
+                  <span className="block text-sm font-bold text-[var(--text-1)]">Motor</span>
+                  <span className="mt-2 inline-flex rounded-full bg-[color:var(--status-normal)]/10 px-2 py-1 text-[10px] font-semibold text-[color:var(--status-normal)]">Ativo</span>
+                </span>
+                <span aria-hidden="true" className="text-xs text-[color:var(--ui-accent)] transition group-hover:translate-x-0.5">Abrir →</span>
+              </Link>
+              {['Corte de base', 'Despejamento no transbordo', 'Picador/Extrator'].map((module) => (
+                <article key={module} className="metric-card min-h-28 border border-[var(--line)] opacity-55 grayscale">
+                  <h3 className="text-sm font-semibold text-[var(--text-2)]">{module}</h3>
+                  <span className="mt-3 inline-flex rounded-full bg-[var(--panel-glass-strong)] px-2 py-1 text-[10px] font-semibold text-[var(--text-3)]">Em breve · indisponível</span>
+                </article>
+              ))}
+            </div>
           </section>
 
           {/* Cada métrica aparece duas vezes, lado a lado e com a MESMA série:
