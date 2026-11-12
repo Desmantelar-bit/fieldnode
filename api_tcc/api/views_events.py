@@ -6,7 +6,6 @@ Permite consultar eventos gerados pela telemetria e anomalias.
 """
 import logging
 from django.core.paginator import InvalidPage, Paginator
-from django.db.models import F
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -55,9 +54,7 @@ class EventListView(APIView):
             accessible_machines = get_machines_for_request(request)
             qs = Event.objects.filter(machine__in=accessible_machines)
 
-        qs = qs.select_related("machine", "leitura_origem").order_by(
-            F("priority_score").desc(nulls_last=True), "-criado_em"
-        )
+        qs = qs.select_related("machine", "leitura_origem").order_by("-criado_em")
 
         tipo = request.query_params.get("tipo")
         if tipo:
@@ -137,3 +134,4 @@ class EventDetailView(APIView):
             )
 
         return Response(EventSerializer(event).data)
+

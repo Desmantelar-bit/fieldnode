@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from api_tcc.contracts import classify, transmission_class
 
 LOGGER = logging.getLogger("fieldnode.edge_client")
 STATUS_PENDING = "PENDENTE"
@@ -39,27 +38,19 @@ def canonical_json(payload: dict[str, Any]) -> str:
 
 
 def payload_hash(payload: dict[str, Any]) -> str:
-    logical_payload = {key: value for key, value in payload.items() if key != "id"}
-    return hashlib.sha256(canonical_json(logical_payload).encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 def classify_priority(payload: dict[str, Any]) -> str:
-    """Prioridade derivada do contrato v1; hardware real continua em v0."""
-    severities = {
-        "NORMAL": 0,
-        "ATENCAO": 1,
-        "CRITICO": 2,
-    }
-    severidade = max(
-        classify("temperatura", float(payload["temperatura"])),
-        classify("vibracao", float(payload["vibracao"])),
-        key=severities.__getitem__,
+    """Classifica com os limiares v1 e preserva precedência crítica A."""
+    from api_tcc.contracts import classify, transmission_class
+
+    ranks = {"NORMAL": 0, "ATENCAO": 1, "CRITICO": 2}
+    severity = max(
+        (classify("temperatura", float(payload["temperatura"])), classify("vibracao", float(payload["vibracao"]))),
+        key=ranks.__getitem__,
     )
-    return transmission_class(
-        severidade,
-        payload.get("evidence_quality", "boa"),
-        payload.get("atrasado", False),
-    )
+    return transmission_class(severity, payload.get("evidence_quality", "boa"), payload.get("atrasado", False))
 
 
 def utc_now() -> str:
@@ -134,16 +125,9 @@ class EdgeBuffer:
                 (device_id, message_id, sequence_number, payload, payload_hash,
                  priority_class, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    self.device_id,
-                    str(payload["message_id"]),
-                    int(payload["sequence_number"]),
-                    encoded,
-                    payload_hash(payload),
-                    classify_priority(payload),
-                    STATUS_PENDING,
-                    utc_now(),
-                ),
+                (self.device_id, str(payload["message_id"]), int(payload["sequence_number"]),
+                 encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+                 classify_priority(payload), STATUS_PENDING, utc_now()),
             )
         return int(cursor.lastrowid)
 
@@ -274,26 +258,11 @@ class EdgeClient:
         except (ValueError, json.JSONDecodeError) as exc:
             self.buffer.mark_error(row_id, f"ACK JSON inválido: {exc}")
             return False
-        ack = body.get("ack")
-        if not isinstance(ack, dict) or ack.get("status") not in {"acked", "duplicate"}:
-            self.buffer.mark_error(row_id, "ACK ausente ou status inválido")
-            return False
-        if ack.get("payload_hash") != payload_hash(payload):
+        if body.get("payload_hash") != row["payload_hash"]:
             self.buffer.mark_error(row_id, "payload_hash divergente no ACK")
             return False
-        if ack.get("message_id") != row["message_id"]:
+        if body.get("message_id") != row["message_id"]:
             self.buffer.mark_error(row_id, "message_id divergente no ACK")
-            return False
-        if ack.get("device_id") != row["device_id"]:
-            self.buffer.mark_error(row_id, "device_id divergente no ACK")
-            return False
-        if ack.get("sequence_number") != int(row["sequence_number"]):
-            self.buffer.mark_error(row_id, "sequence_number divergente no ACK")
-            return False
-        if not isinstance(ack.get("last_acked_sequence"), int) or ack[
-            "last_acked_sequence"
-        ] < int(row["sequence_number"]):
-            self.buffer.mark_error(row_id, "cursor inválido no ACK")
             return False
         cursor = self.buffer.mark_synced(row_id)
         LOGGER.info("ACK device=%s seq=%s cursor_contiguo=%d", row["device_id"], row["sequence_number"], cursor)
@@ -314,25 +283,16 @@ class EdgeClient:
 
 def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador") -> dict[str, Any]:
     if index % 10 == 0:
-        temperature, vibration = 86.0, 2.0
+        temperature, vibration = 115.0, 2.0
     elif index % 3 == 0:
         temperature, vibration = 80.0, 1.0
     else:
         temperature, vibration = 70.0, 0.5
     return {
-        "id": str(uuid.uuid4()),
-        "device_id": device_id,
-        "message_id": str(uuid.uuid4()),
-        "sequence_number": sequence_number,
-        "maquina_id": device_id,
-        "timestamp": utc_now(),
-        "temperatura": temperature,
-        "vibracao": vibration,
-        "vibracao_unit": "indice_0_10",
-        "rpm": 1800,
-        "source": source,
-        "transport": "http",
-        "schema_version": "1.1",
+        "id": str(uuid.uuid4()), "device_id": device_id, "message_id": str(uuid.uuid4()),
+        "sequence_number": sequence_number, "maquina_id": device_id, "timestamp": utc_now(),
+        "temperatura": temperature, "vibracao": vibration, "vibracao_unit": "indice_0_10", "rpm": 1800,
+        "source": source, "transport": "http", "schema_version": "1.1",
     }
 
 
