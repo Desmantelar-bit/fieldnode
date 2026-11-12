@@ -69,3 +69,8 @@ local_settings.py
 
 # Artefatos de sessão e outputs temporários de agentes
 artifacts/
+.peridot/memory.db
+.peridot/mem/
+.peridot/sessions/
+.peridot/skills/auto/
+.peridot/logs/
