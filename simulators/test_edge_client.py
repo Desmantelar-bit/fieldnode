@@ -6,6 +6,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 import requests
+from api_tcc.contracts import ContractError
 
 from simulators.edge_client import (
     EdgeBuffer,
@@ -234,6 +235,17 @@ class EdgeClientTest(unittest.TestCase):
         self.assertEqual(self.buffer.counts().get(STATUS_SYNCED, 0), 0)
         self.assertEqual(self.buffer.counts(), {})
         self.assertEqual(self.buffer.cursor(), 2)
+
+    def test_edge_priority_matches_shared_golden_contract(self):
+        fixture_path = Path(__file__).resolve().parents[1] / "contracts" / "fixtures" / "classificacao.json"
+        fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+        for case in fixtures:
+            with self.subTest(case_id=case["id"]):
+                if case.get("expected_error") == "range":
+                    with self.assertRaises(ContractError):
+                        classify_priority(case)
+                else:
+                    self.assertEqual(classify_priority(case), case["classe"])
 
 
 if __name__ == "__main__":

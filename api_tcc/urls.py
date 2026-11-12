@@ -3,21 +3,14 @@ from rest_framework import routers
 from api_tcc.api.views_auth import ExpiringAuthTokenView, RegisterView, LogoutView, MeView
 from api_tcc.api import viewsets
 from api_tcc.api.views_can_motor import MotorCANView
-from api_tcc.api.views_ingestao import (
-    AnomaliaView,
-    DecisionActionView,
-    IngestaoLoteView,
-    IngestaoTelemetriaView,
-    MachineDataHealthView,
-    UltimaLeituraView,
-    ManutencaoView,
-    MetricasView,
-    StatusMQTTView,
-    PrescricaoView,
-    PrescricaoListView,
-    PrescricaoTesteView,
-    RelatorioView,
-)
+from api_tcc.api.views_ingestao import IngestaoTelemetriaView
+from api_tcc.api.views_lote import IngestaoLoteView
+from api_tcc.api.views_leituras import UltimaLeituraView, MachineDataHealthView
+from api_tcc.api.views_metricas import MetricasView
+from api_tcc.api.views_status import AnomaliaView, ManutencaoView, StatusMQTTView
+from api_tcc.api.views_relatorio_operacional import RelatorioView
+from api_tcc.api.views_prescricoes_legadas import PrescricaoView, PrescricaoListView, PrescricaoTesteView
+from api_tcc.api.views_decision_action import DecisionActionView
 from api_tcc.api.views_health import HealthView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
 from api_tcc.api.views_events import EventListView, EventDetailView

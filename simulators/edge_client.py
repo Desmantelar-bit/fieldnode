@@ -47,13 +47,12 @@ def payload_hash(payload: dict[str, Any]) -> str:
 
 def classify_priority(payload: dict[str, Any]) -> str:
     """Classifica com os limiares v1 e preserva precedência crítica A."""
-    from api_tcc.contracts import classify, transmission_class
+    from api_tcc.contracts import classify, classify_combined, transmission_class
 
-    ranks = {"NORMAL": 0, "ATENCAO": 1, "CRITICO": 2}
-    severity = max(
-        (classify("temperatura", float(payload["temperatura"])), classify("vibracao", float(payload["vibracao"]))),
-        key=ranks.__getitem__,
-    )
+    severity = classify_combined([
+        classify("temperatura", float(payload["temperatura"])),
+        classify("vibracao", float(payload["vibracao"])),
+    ])
     return transmission_class(severity, payload.get("evidence_quality", "boa"), payload.get("atrasado", False))
 
 

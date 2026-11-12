@@ -45,6 +45,14 @@ def classify(metric: str, value: float) -> str:
     return "NORMAL"
 
 
+def classify_combined(severities: list[str]) -> str:
+    order = severity_contract().get("severity_order")
+    if not isinstance(order, list) or not order or any(item not in order for item in severities):
+        raise ContractError("severidade desconhecida ou severity_order inválido")
+    ranks = {severity: index for index, severity in enumerate(order)}
+    return max(severities, key=ranks.__getitem__) if severities else order[0]
+
+
 def transmission_class(severidade: str, evidence_quality: str, atrasado: bool) -> str:
     if severidade not in {"NORMAL", "ATENCAO", "CRITICO"}:
         raise ContractError(f"severidade desconhecida: {severidade!r}")
