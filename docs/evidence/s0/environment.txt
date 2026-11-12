@@ -1,0 +1,8 @@
+﻿TIMESTAMP: 2026-11-04 17:05:29 -03:00
+OS: Microsoft Windows NT 10.0.26300.0
+PYTHON: Python 3.10.0
+PIP: pip 25.2 from C:\Users\Usuario\AppData\Local\Programs\Python\Python310\lib\site-packages\pip (python 3.10) 
+NODE: v24.16.0
+NPM: 11.13.0
+DOCKER: Docker version 29.4.3, build 055a478
+DOCKER_COMPOSE: Docker Compose version v5.1.3

@@ -5,12 +5,17 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.services.telemetria import registrar_leitura, validar_payload
+from api_tcc.services.telemetria import (
+    _computar_payload_hash,
+    registrar_leitura,
+    validar_payload,
+)
 
 from api_tcc.models import (
     AlturadoCorte,
     Colheitadeira,
     Combustivel,
+    DeadLetterEntry,
     EstadodeMovimento,
     LeituraTelemetria,
     Machine,
@@ -110,6 +115,7 @@ class IngestaoTelemetriaTest(TestCase):
 
     def test_ingestao_sem_schema_version_retorna_201(self):
         payload = _payload(maquina_id="schema-legacy-01")
+        expected_hash = _computar_payload_hash(payload)
 
         with self.assertLogs("api_tcc.services.telemetria", level="WARNING") as logs:
             response = self.client.post(
@@ -118,6 +124,7 @@ class IngestaoTelemetriaTest(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
+        self.assertEqual(response.data["ack"]["payload_hash"], expected_hash)
         self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))
 
     def test_ingestao_sem_api_key_retorna_401(self):
@@ -202,7 +209,70 @@ class IngestaoTelemetriaTest(TestCase):
         response = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "duplicata ignorada")
+        self.assertEqual(response.data["ack"]["status"], "duplicate")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
+
+    def test_replay_logico_com_id_de_linha_diferente_retorna_hash_ackavel(self):
+        payload = _payload(
+            id=str(uuid.uuid4()),
+            device_id="EDGE-ACK-REPLAY",
+            message_id="logical-message-1",
+            maquina_id="EDGE-ACK-REPLAY",
+        )
+        self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+        replay = {**payload, "id": str(uuid.uuid4())}
+
+        response = self.client.post(
+            "/api/telemetria/", replay, format="json", **self.headers
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["ack"]["status"], "duplicate")
+        self.assertEqual(
+            response.data["ack"]["payload_hash"],
+            _computar_payload_hash(replay),
+        )
+        self.assertEqual(LeituraTelemetria.objects.count(), 1)
+
+    def test_replay_de_hash_legado_retorna_ack_com_hash_logico(self):
+        payload = _payload(
+            id=str(uuid.uuid4()),
+            device_id="EDGE-ACK-LEGACY",
+            message_id="legacy-message-1",
+            maquina_id="EDGE-ACK-LEGACY",
+        )
+        self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+        reading = LeituraTelemetria.objects.get()
+        reading.payload_hash = _computar_payload_hash(payload, incluir_id=True)
+        reading.save(update_fields=["payload_hash"])
+
+        response = self.client.post(
+            "/api/telemetria/", payload, format="json", **self.headers
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["ack"]["status"], "duplicate")
+        self.assertEqual(
+            response.data["ack"]["payload_hash"], _computar_payload_hash(payload)
+        )
+        self.assertEqual(LeituraTelemetria.objects.count(), 1)
+
+    def test_mesma_identidade_com_hash_diferente_vira_conflito_dlq(self):
+        payload = _payload(id=str(uuid.uuid4()), maquina_id="EDGE-CONFLICT-01")
+        first = self.client.post(
+            "/api/telemetria/", payload, format="json", **self.headers
+        )
+        changed = {**payload, "temperatura": payload["temperatura"] - 1}
+        response = self.client.post(
+            "/api/telemetria/", changed, format="json", **self.headers
+        )
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["ack"]["status"], "conflict")
+        self.assertEqual(LeituraTelemetria.objects.count(), 1)
+        entry = DeadLetterEntry.objects.get(contexto=DeadLetterEntry.Contexto.SYNC)
+        self.assertEqual(entry.payload_referencia["message_id"], payload["id"])
 
     def test_ingestao_retorna_ack_verificavel_para_o_edge(self):
         payload = _payload(
@@ -220,6 +290,9 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(response.data["sequence_number"], 7)
         self.assertEqual(response.data["payload_hash"], leitura.payload_hash)
         self.assertEqual(response.data["sync_cursor"], 7)
+        self.assertEqual(response.data["ack"]["status"], "acked")
+        self.assertEqual(response.data["ack"]["sequence_number"], 7)
+        self.assertEqual(response.data["ack"]["payload_hash"], leitura.payload_hash)
 
 
 class SchemaVersionTest(TestCase):

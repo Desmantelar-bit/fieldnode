@@ -4,8 +4,9 @@ from types import SimpleNamespace
 
 from django.test import TestCase
 
+from api_tcc.api.serializers import EventSerializer
 from api_tcc.models import Event, LeituraTelemetria
-from api_tcc.services.eventos import calcular_priority_score
+from api_tcc.services.eventos import calcular_priority_score, evidence_quality
 from api_tcc.services.telemetria import registrar_leitura
 
 
@@ -38,6 +39,13 @@ class EventEngineTest(TestCase):
         self.assertEqual(event.severidade, Event.Severidade.CRITICO)
         self.assertEqual(event.status, Event.Status.ABERTO)
         self.assertEqual(event.trust_score_herdado, leitura.trust_score)
+        self.assertEqual(
+            event.needs_verification,
+            event.evidence_quality != Event.EvidenceQuality.BOA,
+        )
+        serialized = EventSerializer(event).data
+        self.assertIn("evidence_quality", serialized)
+        self.assertIn("needs_verification", serialized)
         self.assertIsNotNone(event.priority_score)
         self.assertGreaterEqual(float(event.priority_score), 0.0)
         self.assertLessEqual(float(event.priority_score), 1.0)
@@ -75,13 +83,17 @@ class PriorityScoreTest(TestCase):
             self.assertGreaterEqual(score, 0.0)
             self.assertLessEqual(score, 1.0)
 
-    def test_confianca_diferente_altera_score(self):
-        alto = calcular_priority_score(self._event(confidence=0.9), [])
-        baixo = calcular_priority_score(self._event(confidence=0.3), [])
-        self.assertGreater(alto, baixo)
+    def test_confianca_diferente_nao_altera_score_mas_altera_selo(self):
+        alto = calcular_priority_score(self._event(confidence=0.95), [])
+        baixo = calcular_priority_score(self._event(confidence=0.2), [])
+        self.assertEqual(alto, baixo)
+        self.assertEqual(evidence_quality(0.95), Event.EvidenceQuality.BOA)
+        self.assertEqual(evidence_quality(0.2), Event.EvidenceQuality.INSUFICIENTE)
 
-    def test_confianca_zero_zera_formula(self):
-        self.assertEqual(calcular_priority_score(self._event(confidence=0.0), []), 0.0)
+    def test_qualidade_de_evidencia_usa_faixas_documentadas(self):
+        self.assertEqual(evidence_quality(0.8), Event.EvidenceQuality.BOA)
+        self.assertEqual(evidence_quality(0.5), Event.EvidenceQuality.SUSPEITA)
+        self.assertEqual(evidence_quality(None), Event.EvidenceQuality.INSUFICIENTE)
 
     def test_urgencia_zero_zera_formula(self):
         event = self._event()
@@ -109,10 +121,11 @@ class PriorityScoreTest(TestCase):
 
     def test_tipo_desconhecido_usa_impacto_conservador(self):
         event = self._event(event_type="TIPO_NOVO")
-        self.assertEqual(calcular_priority_score(event, []), 0.25 * 0.8)
+        self.assertEqual(calcular_priority_score(event, []), 0.25)
 
-    def test_confianca_ausente_nao_produz_score_otimista(self):
+    def test_confianca_ausente_nao_rebaixa_score_e_exige_verificacao(self):
         event = self._event(confidence=None)
         event.trust_score_herdado = None
         event.leitura_origem.trust_score = None
-        self.assertEqual(calcular_priority_score(event, []), 0.0)
+        self.assertEqual(calcular_priority_score(event, []), 1.0)
+        self.assertEqual(evidence_quality(None), Event.EvidenceQuality.INSUFICIENTE)

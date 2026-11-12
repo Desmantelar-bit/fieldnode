@@ -273,12 +273,31 @@ class LeituraTelemetria(models.Model):
 
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
+    vibracao_unit = models.CharField(
+        max_length=30,
+        default="indice_0_10",
+        verbose_name="Unidade da vibração",
+        help_text="Contrato v1: índice adimensional de 0 a 10.",
+    )
     rpm         = models.IntegerField(verbose_name='RPM')
     latitude    = models.FloatField(verbose_name="Latitude", null=True, blank=True)
     longitude   = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     # timestamp = event_time: momento em que o evento ocorreu na origem.
     # Mantido com este nome para compatibilidade com simuladores e dados históricos.
     timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True)
+    boot_id = models.UUIDField(null=True, blank=True, db_index=True)
+    uptime_ms = models.BigIntegerField(null=True, blank=True)
+    time_source = models.CharField(
+        max_length=12,
+        choices=[
+            ("rtc", "RTC"),
+            ("gateway", "Gateway"),
+            ("ntp", "NTP"),
+            ("unsynced", "Sem sincronização"),
+        ],
+        default="unsynced",
+    )
+    clock_skew_ms = models.BigIntegerField(null=True, blank=True)
     # recebido_em = ingested_at: momento em que o backend recebeu/processou a leitura.
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em (ingested_at)', db_index=True)
     trust_score = models.FloatField(
@@ -287,6 +306,10 @@ class LeituraTelemetria(models.Model):
         verbose_name='Trust Score',
         help_text='Score heuristico 0..1 calculado na ingestao; null indica dado historico nao pontuado.',
     )
+
+    @property
+    def event_time_confidence(self) -> str:
+        return "low" if self.time_source == "unsynced" else "high"
 
     class Meta:
         ordering = ['-timestamp']
@@ -306,6 +329,11 @@ class LeituraTelemetria(models.Model):
 
 class Event(models.Model):
     """Unidade persistida de algo relevante observado na telemetria."""
+
+    class EvidenceQuality(models.TextChoices):
+        BOA = "boa", "Boa"
+        SUSPEITA = "suspeita", "Suspeita"
+        INSUFICIENTE = "insuficiente", "Insuficiente"
 
     class Tipo(models.TextChoices):
         TEMP_ALTA = "TEMP_ALTA", "Temperatura alta"
@@ -356,6 +384,12 @@ class Event(models.Model):
         blank=True,
         help_text="Trust Score copiado da leitura que originou o evento.",
     )
+    evidence_quality = models.CharField(
+        max_length=20,
+        choices=EvidenceQuality.choices,
+        default=EvidenceQuality.INSUFICIENTE,
+    )
+    needs_verification = models.BooleanField(default=True)
     priority_score = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -839,8 +873,25 @@ class MachineDataHealth(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# S1-T5 — Cursor de Sincronização
+# S1-T5 — Âncora temporal por boot e cursor de sincronização
 # ---------------------------------------------------------------------------
+
+class DeviceClockAnchor(models.Model):
+    device_id = models.CharField(max_length=100)
+    boot_id = models.UUIDField()
+    anchor_uptime_ms = models.BigIntegerField()
+    anchor_timestamp = models.DateTimeField()
+    time_source = models.CharField(max_length=12)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["device_id", "boot_id"],
+                name="uniq_clock_anchor_device_boot",
+            ),
+        ]
+
 
 class SyncCursor(models.Model):
     """

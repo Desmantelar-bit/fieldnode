@@ -38,6 +38,7 @@ export const LeituraTelemetriaInputSchema = z.object({
   maquina_id: z.string().min(1),
   temperatura: z.coerce.number(),
   vibracao: z.coerce.number(),
+  vibracao_unit: z.literal('indice_0_10').default('indice_0_10'),
   rpm: z.coerce.number().int(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),

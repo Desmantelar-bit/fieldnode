@@ -5,6 +5,7 @@ module remains only for historical callers and is not used by API routes.
 """
 
 from api_tcc.models import LeituraTelemetria, Prescricao, Colheitadeira
+from api_tcc.contracts import classify
 
 def analisar_telemetria_e_gerar_prescricoes(maquina_id):
     """
@@ -20,7 +21,7 @@ def analisar_telemetria_e_gerar_prescricoes(maquina_id):
 
     # Exemplo de regra: Temperatura alta
     temp_media = sum(l.temperatura for l in leituras) / len(leituras)
-    if temp_media > 95:
+    if classify("temperatura", temp_media) in {"ATENCAO", "CRITICO"}:
         Prescricao.objects.get_or_create(
             colheitadeira=colheitadeira,
             titulo="Verificar Sistema de Arrefecimento",
@@ -30,7 +31,7 @@ def analisar_telemetria_e_gerar_prescricoes(maquina_id):
 
     # Exemplo de regra: Vibração excessiva
     vibracao_max = max(l.vibracao for l in leituras)
-    if vibracao_max > 8.0:
+    if classify("vibracao", vibracao_max) == "CRITICO":
         Prescricao.objects.get_or_create(
             colheitadeira=colheitadeira,
             titulo="Manutenção de Rolamentos",

@@ -9,7 +9,7 @@ import { HistoryChart } from '@/components/HistoryChart';
 import { MetricColumnChart } from '@/components/MetricColumnChart';
 import { MetricCard } from '@/components/MetricCard';
 import { METRIC_META, METRIC_ORDER } from '@/lib/metrics';
-import type { MetricKey } from '@/lib/metricThresholds';
+import { METRIC_THRESHOLDS, type MetricKey } from '@/lib/metricThresholds';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
 import { PrescricaoModal } from '@/components/PrescricaoModal';
 import { telemetryService } from '@/services/telemetryService';
@@ -121,9 +121,9 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
   const readings = estado.dados;
   const latest   = readings[0];
   const risk     = latest.status_risco?.rotuloRisco;
-  const tempTone = latest.temperatura > 85 ? 'red' : latest.temperatura > 75 ? 'amber' : 'emerald';
-  const vibTone  = latest.vibracao > 0.8 ? 'red' : latest.vibracao > 0.5 ? 'amber' : 'emerald';
-  const rpmTone  = latest.rpm < 1300 ? 'amber' : 'emerald';
+  const tempTone = latest.temperatura >= METRIC_THRESHOLDS.temperatura.critical! ? 'red' : latest.temperatura >= METRIC_THRESHOLDS.temperatura.alert! ? 'amber' : 'emerald';
+  const vibTone  = latest.vibracao >= METRIC_THRESHOLDS.vibracao.critical! ? 'red' : latest.vibracao >= METRIC_THRESHOLDS.vibracao.alert! ? 'amber' : 'emerald';
+  const rpmTone  = 'emerald';
 
   return (
     <>
@@ -153,7 +153,7 @@ export default function DetailsPage({ searchParams }: { searchParams: Promise<{ 
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Temperatura" value={`${latest.temperatura}°C`} tone={tempTone} helper="última leitura" />
-            <MetricCard label="Vibração"    value={`${latest.vibracao}g`}     tone={vibTone}  helper="última leitura" />
+            <MetricCard label="Vibração"    value={`${latest.vibracao} ${METRIC_THRESHOLDS.vibracao.unit}`} tone={vibTone} helper="última leitura" />
             <MetricCard label="RPM"         value={latest.rpm}                tone={rpmTone}  helper="rotação atual" />
             {/* Mesmo miolo centrado e mesma altura mínima das MetricCard ao
                 lado: este card é escrito à mão (carrega um selo, não um número),

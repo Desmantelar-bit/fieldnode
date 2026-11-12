@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:sw": "node --test tests/service_worker.test.mjs"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",

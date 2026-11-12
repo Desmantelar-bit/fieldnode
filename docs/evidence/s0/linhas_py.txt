@@ -1,0 +1,43 @@
+﻿AUDITORIA DE LINHAS PYTHON
+Executado: 2026-11-04 17:07:15
+Critérios de exclusão: .venv/, venv/, */migrations/*, __pycache__
+
+ARQUIVOS COM MAIS DE 300 LINHAS:
+C:\Users\Usuario\fieldnode\api_tcc\api\views_ingestao.py | 749
+C:\Users\Usuario\fieldnode\api_tcc\models.py | 731
+C:\Users\Usuario\fieldnode\scripts\seed_data.py | 676
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_correlation.py | 465
+C:\Users\Usuario\fieldnode\api_tcc\services\telemetria.py | 440
+C:\Users\Usuario\fieldnode\api_tcc\api\serializers.py | 406
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_json_logging.py | 385
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_integration.py | 377
+C:\Users\Usuario\fieldnode\simulators\teste_resiliencia.py | 373
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_identity_contract.py | 366
+C:\Users\Usuario\fieldnode\simulators\edge_client.py | 361
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_data_health.py | 340
+C:\Users\Usuario\fieldnode\api_tcc\tests\test_decisions.py | 309
+
+TOP 20 MAIORES ARQUIVOS:
+1. C:\Users\Usuario\fieldnode\api_tcc\api\views_ingestao.py | 749
+2. C:\Users\Usuario\fieldnode\api_tcc\models.py | 731
+3. C:\Users\Usuario\fieldnode\scripts\seed_data.py | 676
+4. C:\Users\Usuario\fieldnode\api_tcc\tests\test_correlation.py | 465
+5. C:\Users\Usuario\fieldnode\api_tcc\services\telemetria.py | 440
+6. C:\Users\Usuario\fieldnode\api_tcc\api\serializers.py | 406
+7. C:\Users\Usuario\fieldnode\api_tcc\tests\test_json_logging.py | 385
+8. C:\Users\Usuario\fieldnode\api_tcc\tests\test_integration.py | 377
+9. C:\Users\Usuario\fieldnode\simulators\teste_resiliencia.py | 373
+10. C:\Users\Usuario\fieldnode\api_tcc\tests\test_identity_contract.py | 366
+11. C:\Users\Usuario\fieldnode\simulators\edge_client.py | 361
+12. C:\Users\Usuario\fieldnode\api_tcc\tests\test_data_health.py | 340
+13. C:\Users\Usuario\fieldnode\api_tcc\tests\test_decisions.py | 309
+14. C:\Users\Usuario\fieldnode\simulators\transbordo_mule_client.py | 290
+15. C:\Users\Usuario\fieldnode\api_tcc\services\relatorios.py | 282
+16. C:\Users\Usuario\fieldnode\api_tcc\services\data_health.py | 278
+17. C:\Users\Usuario\fieldnode\api_tcc\tests\test_contract_fixes.py | 268
+18. C:\Users\Usuario\fieldnode\api_tcc\tests\test_permissions.py | 252
+19. C:\Users\Usuario\fieldnode\setup\settings.py | 252
+20. C:\Users\Usuario\fieldnode\api_tcc\tests\test_demo_mode.py | 222
+
+TOTAL DE ARQUIVOS ANALISADOS: 100
+TOTAL DE LINHAS: 13948

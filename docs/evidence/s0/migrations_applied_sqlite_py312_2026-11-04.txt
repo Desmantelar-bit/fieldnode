@@ -1,0 +1,31 @@
+api_tcc
+ [X] 0001_initial
+ [X] 0002_prescricao_and_more
+ [X] 0003_delete_prescricao_and_more
+ [X] 0004_leituratelemetria_latitude_and_more
+ [X] 0005_colheitadeira_maquina_id
+ [X] 0006_alter_colheitadeira_maquina_id
+ [X] 0007_alter_prescricao_colheitadeira
+ [X] 0008_colheitadeira_ativo_and_more
+ [X] 0009_remove_leituratelemetria_seq_id
+ [X] 0010_protect_relacoes_criticas
+ [X] 0011_registroanalise
+ [X] 0012_organization_machine_membership
+ [X] 0013_leituratelemetria_machine_fk
+ [X] 0014_telemetria_identity_contract
+ [X] 0015_machine_is_demo
+ [X] 0016_leituratelemetria_trust_score
+ [X] 0017_machinedatahealth
+ [X] 0018_event
+ [X] 0019_decision
+ [X] 0020_ml_anomaly_persistence
+ [X] 0021_deadletterentry
+ [X] 0022_alter_deadletterentry_options
+ [X] 0023_event_priority_score
+ [X] 0024_fabricantemapping_rawtelemetry_canonicaltelemetry_and_more
+ [X] 0025_deadletterentry_agentic_context
+ [ ] 0026_rename_tempumi_ambiente
+COMMAND: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Scripts\python.exe manage.py showmigrations api_tcc
+TIMESTAMP: 2026-11-04T18:01:48.2171099-03:00
+PYTHON: 3.12 temporary venv
+EXIT_CODE: 0
