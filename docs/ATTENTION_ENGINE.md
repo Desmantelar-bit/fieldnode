@@ -1,52 +1,54 @@
-# Attention Engine v0.1
+# Attention Engine v0.2
 
-O `Event.priority_score` é uma heurística determinística para ordenar atenção
-humana. Ele não substitui `Event.severidade`, não elimina eventos e não é uma
-probabilidade de falha mecânica.
+`Event.priority_score` é uma heurística determinística de atenção humana. Não é probabilidade de falha mecânica e não substitui a severidade contratual `severity.v1`.
 
-## Fórmula
+## Dimensões separadas
 
-`P = S × I × U × C`, com todos os fatores limitados a `[0, 1]`:
+- **Severidade (`S`)**: gravidade classificada pelos limiares do contrato de severidade vigente. Esta tarefa não muda os limiares.
+- **Qualidade da evidência**: rótulo da confiança herdada da leitura: `boa`, `suspeita` ou `insuficiente`.
+- **Necessidade de verificação**: selo operacional derivado como `needs_verification = evidence_quality != "boa"`.
+- **Impacto (`I`)**: peso heurístico conforme o tipo do evento.
+- **Urgência (`U`)**: atualidade e agravamento calculados com o histórico da máquina.
+- **Prioridade**: posição operacional calculada por `priority_score`.
 
-- `S`: `NORMAL=0.00`, `ATENCAO=0.50`, `CRITICO=1.00`.
-- `I`: peso fixo por tipo: `TEMP_ALTA=1.00`, `VIBRACAO_ALTA=0.80`,
-  `ANOMALIA_ESTATISTICA=0.75`, `ANOMALIA_ML=0.70`, `TENDENCIA_RISCO=0.60`.
-  Tipo desconhecido usa `0.25`, de forma conservadora.
-- `U`: atualidade da condição, com decaimento linear em 24 horas a partir da
-  última leitura anterior da mesma máquina. Uma condição nova recebe `1.00`.
-  Se houver agravamento na métrica comparável, a urgência pode permanecer alta.
-- `C`: `trust_score` da leitura de origem, copiado para
-  `Event.trust_score_herdado`. Ausência ou valor inválido vira `0.00`.
+## Fórmula oficial
 
-A multiplicação é intencional: qualquer fator zero zera o score. Isso reduz a
-prioridade, mas nunca apaga nem reclassifica o evento factual.
+`priority_score = clamp(severidade × impacto × urgência, 0, 1)`.
 
-Os pesos, a janela de 24 horas e as escalas de agravamento são hipóteses de
-projeto v0.1, não calibração com dados operacionais rotulados.
+`S`: `NORMAL=0.00`, `ATENCAO=0.50`, `CRITICO=1.00`.
+
+`I`: `TEMP_ALTA=1.00`, `VIBRACAO_ALTA=0.80`, `ANOMALIA_ESTATISTICA=0.75`, `ANOMALIA_ML=0.70`, `TENDENCIA_RISCO=0.60`; tipo desconhecido usa `0.25`.
+
+`U`: leitura nova recebe `1.00`; a atualidade decai linearmente em 24 horas, e agravamento pode manter urgência alta. Não estima tempo até falha.
+
+Trust Score **não** entra na multiplicação nem rebaixa score. A listagem da API ordena por `priority_score DESC`; criação mais recente e ID são desempates estáveis. `needs_verification` é um selo, não um critério de ordem.
+
+## Qualidade da evidência
+
+Os limites são heurísticos calibráveis, ainda sem calibração por dados operacionais rotulados:
+
+- `trust >= 0.8`: `boa`;
+- `0.5 <= trust < 0.8`: `suspeita`;
+- `trust < 0.5`, ausente, não finito ou fora de `[0, 1]`: `insuficiente`.
+
+`needs_verification = evidence_quality != "boa"`. O valor desconhecido não é promovido a evidência boa. Os limites devem ser revistos com dados reais.
+
+## Exemplo operacional: sensor em 120 °C
+
+Se o contrato classificar a leitura como crítica e o Trust Score for baixo, o evento permanece crítico e sua prioridade continua sendo calculada por severidade, impacto e urgência. A qualidade será insuficiente e `needs_verification` será verdadeiro, sinalizando verificar o sensor. Isso não confirma uma falha mecânica; indica um alerta grave cuja evidência precisa ser investigada.
+
+Sensores ruins podem gerar muitos eventos que demandam atenção. O cooldown existente continua ativo; agrupamento por máquina na UI está reservado para S3-T5.
 
 ## Persistência e compatibilidade
 
-Eventos criados pelos fluxos atuais de temperatura crítica e anomalia estatística
-recebem o score no momento da criação. A migração adiciona o campo como
-`NULL=True`; eventos históricos não recebem valor artificial porque o histórico
-necessário pode não existir. Deduplicação e cooldown continuam sendo aplicados
-antes da criação do evento.
+Eventos novos persistem score e qualidade no momento da criação. Registros anteriores recebem `evidence_quality=insuficiente` e `needs_verification=True`, sem reclassificar severidade histórica. Eventos históricos mantêm score nulo se não houver contexto confiável para reconstrução.
+
+Pesos de impacto, janela temporal e escalas de agravamento são hipóteses de projeto, não medições de campo.
 
 ## Reprodução da distribuição
 
-Com o ambiente Django configurado, a distribuição persistida pode ser consultada
-sem recalcular o histórico:
+Com Django configurado, consulte distribuição e extremos sem recalcular histórico:
 
 ```bash
 python manage.py shell -c "from django.db.models import Avg, Min, Max, Count; from api_tcc.models import Event; qs=Event.objects.exclude(priority_score__isnull=True); print(qs.count(), qs.aggregate(min=Min('priority_score'), max=Max('priority_score'), avg=Avg('priority_score'))); print(list(qs.values('severidade').annotate(total=Count('id'))))"
 ```
-
-Para uma amostra, use `order_by('priority_score')[:3]` e
-`order_by('-priority_score')[:3]`. Os dados devem ser identificados como reais,
-de teste ou sintéticos; nenhum conjunto é ampliado artificialmente para chegar
-a 800 eventos.
-
-O Priority Score v0.1 é uma heurística determinística e explicável. Seus pesos
-e limiares ainda não foram calibrados com dados operacionais rotulados de campo.
-A pontuação serve para priorização experimental, não para estimar uma
-probabilidade real de falha mecânica.

@@ -2,12 +2,13 @@ const CACHE_NAME = 'fieldnode-runtime-v3';
 const STATIC_CACHE = 'fieldnode-static-v3';
 const TELEMETRY_SYNC_TAG = 'fieldnode-telemetria-sync';
 const DB_NAME = 'fieldnode-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const TELEMETRY_STORE = 'telemetria-pendente';
 
 let apiConfig = {
   apiUrl: "/api",
 };
+let syncInProgress = false;
 
 const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
@@ -56,6 +57,15 @@ self.addEventListener("message", (event) => {
     event.waitUntil(
       queueTelemetry(message.payload, message.headers || {}).then(requestSync),
     );
+  }
+  if (message.type === "GET_TELEMETRY_STATUS") {
+    event.waitUntil(openDb().then(async (db) => notifyClients({ type: "TELEMETRY_QUEUE_STATUS", counts: await countBy(db), items: await queueSummaries(db) })).catch(() => notifyClients({ type: "TELEMETRY_QUEUE_ERROR" })));
+  }
+  if (message.type === "REPROCESS_REJECTED") {
+    event.waitUntil(reprocessRejected().then(requestSync));
+  }
+  if (message.type === "AUTH_RECOVERED") {
+    event.waitUntil(releaseAuthBlocked().then(requestSync));
   }
 });
 
@@ -119,29 +129,46 @@ async function sendOrQueueTelemetry(request) {
 }
 
 async function syncTelemetriaData() {
+  if (syncInProgress) return;
+  syncInProgress = true;
+  let synced = 0;
+  try {
   const db = await openDb();
-  const items = await readAll(db);
+  const now = Date.now();
+  const items = (await readAll(db)).filter((item) => {
+    normalizeItem(item);
+    return item.state !== "rejected" && item.state !== "auth_blocked" && item.next_attempt_at <= now;
+  });
 
   for (const item of items) {
-    const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
-    const response = await fetch(
-      item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
-      {
-        method: "POST",
-        headers: buildHeaders(item.headers),
-        body: JSON.stringify(item.payload),
-      },
-    );
-
-    if (response.ok) {
-      await deleteItem(db, item.localId);
-      continue;
+    try {
+      const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
+      const response = await fetch(
+        item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
+        { method: "POST", headers: buildHeaders(item.headers), body: JSON.stringify(item.payload) },
+      );
+      if (response.ok) {
+        await deleteItem(db, item.localId);
+        synced++;
+      } else if (response.status === 401) {
+        item.attempts += 1;
+        await putItem(db, item);
+        await markAll(db, "auth_blocked", "Autenticação necessária");
+        await notifyClients({ type: "AUTH_REQUIRED" });
+        break;
+      } else if (shouldRetryStatus(response.status)) {
+        await bump(db, item, "retrying", `HTTP ${response.status}`, response.headers?.get("Retry-After"));
+      } else {
+        item.attempts += 1;
+        await setState(db, item, "rejected", `HTTP ${response.status}`);
+      }
+    } catch {
+      await bump(db, item, "retrying", "Falha de rede");
     }
-
-    throw new Error(`HTTP ${response.status}`);
   }
-
-  await notifyClients({ type: "TELEMETRY_SYNCED", count: items.length });
+  await notifyClients({ type: "TELEMETRY_SYNC_RESULT", synced, counts: await countBy(db) });
+  await notifyClients({ type: "TELEMETRY_QUEUE_STATUS", counts: await countBy(db), items: await queueSummaries(db) });
+  } finally { syncInProgress = false; }
 }
 
 async function queueRequest(request) {
@@ -165,6 +192,10 @@ async function queueTelemetry(
     headers,
     url,
     createdAt: new Date().toISOString(),
+    state: "pending",
+    attempts: 0,
+    last_error: null,
+    next_attempt_at: 0,
   };
   await putItem(db, item);
   await notifyClients({ type: "TELEMETRY_QUEUED", localId: item.localId });
@@ -264,6 +295,81 @@ function shouldRetryStatus(status) {
   return status === 408 || status === 429 || status >= 500;
 }
 
+function normalizeItem(item) {
+  if (!["pending", "retrying", "rejected", "auth_blocked"].includes(item.state)) item.state = "pending";
+  if (!Number.isInteger(item.attempts) || item.attempts < 0) item.attempts = 0;
+  if (typeof item.last_error !== "string" && item.last_error !== null) item.last_error = null;
+  if (!Number.isFinite(item.next_attempt_at)) item.next_attempt_at = 0;
+}
+
+async function bump(db, item, state, error, retryAfter) {
+  normalizeItem(item);
+  item.attempts += 1;
+  item.state = state;
+  item.last_error = error;
+  const delay = retryDelay(item.attempts, retryAfter);
+  item.next_attempt_at = Date.now() + delay;
+  await putItem(db, item);
+}
+
+function retryDelay(attempts, retryAfter) {
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    const dateDelay = Date.parse(retryAfter) - Date.now();
+    const requested = Number.isFinite(seconds) ? seconds * 1000 : dateDelay;
+    if (Number.isFinite(requested) && requested > 0) return Math.min(requested, 3600000);
+  }
+  return Math.min(1000 * (2 ** Math.min(Math.max(attempts - 1, 0), 12)), 3600000);
+}
+
+async function setState(db, item, state, error = null) {
+  normalizeItem(item);
+  item.state = state;
+  item.last_error = error;
+  item.next_attempt_at = 0;
+  await putItem(db, item);
+}
+
+async function markAll(db, state, error) {
+  const items = await readAll(db);
+  for (const item of items) {
+    if (item.state === "rejected") continue;
+    await setState(db, item, state, error);
+  }
+}
+
+async function countBy(db) {
+  const counts = { pending: 0, retrying: 0, rejected: 0, auth_blocked: 0 };
+  for (const item of await readAll(db)) {
+    normalizeItem(item);
+    counts[counts[item.state] === undefined ? "pending" : item.state]++;
+  }
+  return counts;
+}
+
+async function queueSummaries(db) {
+  return (await readAll(db)).map((item) => ({
+    localId: item.localId,
+    state: item.state || "pending",
+    last_error: item.last_error || null,
+  }));
+}
+
+async function reprocessRejected() {
+  const db = await openDb();
+  for (const item of await readAll(db)) {
+    if (item.state === "rejected") await setState(db, item, "pending");
+  }
+}
+
+async function releaseAuthBlocked() {
+  const db = await openDb();
+  for (const item of await readAll(db)) {
+    if (item.state === "auth_blocked") await setState(db, item, "pending");
+  }
+  await notifyClients({ type: "AUTH_RECOVERED" });
+}
+
 function normalizeApiUrl(value) {
   const trimmed = String(value || "").replace(/\/+$|\/$/, "");
   if (!trimmed) return "/api";
@@ -285,6 +391,15 @@ function openDb() {
       if (!db.objectStoreNames.contains(TELEMETRY_STORE)) {
         db.createObjectStore(TELEMETRY_STORE, { keyPath: 'localId' });
       }
+      const cursorRequest = request.transaction.objectStore(TELEMETRY_STORE).openCursor();
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+        const item = cursor.value;
+        normalizeItem(item);
+        cursor.update(item);
+        cursor.continue();
+      };
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -301,6 +416,10 @@ function putItem(db, item) {
 
 function deleteItem(db, key) {
   return tx(db, 'readwrite', (store) => store.delete(key));
+}
+
+function getItem(db, key) {
+  return tx(db, "readonly", (store) => store.get(key));
 }
 
 function tx(db, mode, action) {

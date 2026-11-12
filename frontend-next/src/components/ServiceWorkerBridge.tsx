@@ -24,6 +24,22 @@ export function ServiceWorkerBridge() {
     }
 
     let active = true;
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      if (message?.type === 'AUTH_REQUIRED') {
+        window.dispatchEvent(new CustomEvent('fieldnode-auth-required'));
+      }
+      if (message?.type === 'AUTH_RECOVERED') {
+        window.dispatchEvent(new CustomEvent('fieldnode-auth-recovered'));
+      }
+      if (message?.type === 'TELEMETRY_QUEUE_STATUS' || message?.type === 'TELEMETRY_SYNC_RESULT') {
+        window.dispatchEvent(new CustomEvent('fieldnode-queue-status', { detail: message }));
+      }
+      if (message?.type === 'TELEMETRY_QUEUE_ERROR') {
+        window.dispatchEvent(new CustomEvent('fieldnode-queue-error'));
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
 
     navigator.serviceWorker
       .register('/sw.js')
@@ -41,6 +57,8 @@ export function ServiceWorkerBridge() {
           type: 'FIELDNODE_CONFIG',
           apiUrl: API_URL,
         });
+        worker?.postMessage({ type: 'GET_TELEMETRY_STATUS' });
+        if (localStorage.getItem('fn-auth-user')) worker?.postMessage({ type: 'AUTH_RECOVERED' });
       })
       .catch((error) => {
         console.warn('[FieldNode] Service Worker indisponivel:', error);
@@ -48,6 +66,7 @@ export function ServiceWorkerBridge() {
 
     return () => {
       active = false;
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
     };
   }, []);
 

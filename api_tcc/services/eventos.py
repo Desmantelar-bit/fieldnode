@@ -24,6 +24,8 @@ OPERATIONAL_IMPACT_WEIGHTS = {
     Event.Tipo.TENDENCIA_RISCO: 0.6,
 }
 UNKNOWN_OPERATIONAL_IMPACT = 0.25
+EVIDENCE_BOA = 0.8
+EVIDENCE_SUSPEITA = 0.5
 SEVERITY_NORMALIZED = {
     Event.Severidade.NORMAL: 0.0,
     Event.Severidade.ATENCAO: 0.5,
@@ -97,8 +99,25 @@ def criar_evento_anomalia_estatistica(leitura, resultado) -> Event:
     )
 
 
+def evidence_quality(trust: float | None) -> str:
+    """Classifica a evidência; os limites são heurísticos calibráveis."""
+    if isinstance(trust, bool):
+        return "insuficiente"
+    try:
+        value = float(trust)
+    except (TypeError, ValueError):
+        return "insuficiente"
+    if not math.isfinite(value) or not 0 <= value <= 1:
+        return "insuficiente"
+    if value >= EVIDENCE_BOA:
+        return "boa"
+    if value >= EVIDENCE_SUSPEITA:
+        return "suspeita"
+    return "insuficiente"
+
+
 def calcular_priority_score(event, historico) -> float:
-    """Calcula S × I × U × C para um evento sem efeitos colaterais.
+    """Calcula S × I × U sem efeitos colaterais ou fator de confiança.
 
     ``historico`` deve conter leituras anteriores da mesma máquina e condição.
     A função não consulta o banco: isso mantém o contrato determinístico e
@@ -112,13 +131,8 @@ def calcular_priority_score(event, historico) -> float:
         event.tipo,
         UNKNOWN_OPERATIONAL_IMPACT,
     )
-    confianca = _clamp_score(
-        getattr(event, "trust_score_herdado", None)
-        if getattr(event, "trust_score_herdado", None) is not None
-        else getattr(getattr(event, "leitura_origem", None), "trust_score", None)
-    )
     urgencia = _calcular_urgencia(event, historico)
-    return _clamp_score(severidade * impacto * urgencia * confianca)
+    return _clamp_score(severidade * impacto * urgencia)
 
 
 def _calcular_urgencia(event, historico) -> float:
@@ -200,6 +214,7 @@ def _historico_para_evento(leitura):
 def _persistir_evento_com_priority(
     *, machine, leitura_origem, tipo, severidade, dados_contexto
 ):
+    qualidade = evidence_quality(leitura_origem.trust_score)
     event = Event(
         machine=machine,
         leitura_origem=leitura_origem,
@@ -207,6 +222,8 @@ def _persistir_evento_com_priority(
         severidade=severidade,
         status=Event.Status.ABERTO,
         trust_score_herdado=leitura_origem.trust_score,
+        evidence_quality=qualidade,
+        needs_verification=qualidade != "boa",
         dados_contexto=dados_contexto,
     )
     event.priority_score = calcular_priority_score(

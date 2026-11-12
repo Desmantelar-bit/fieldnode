@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from django.test import TestCase
 
 from api_tcc.models import Event, LeituraTelemetria
-from api_tcc.services.eventos import calcular_priority_score
+from api_tcc.services.eventos import calcular_priority_score, evidence_quality
 from api_tcc.services.telemetria import registrar_leitura
 
 
@@ -38,6 +38,8 @@ class EventEngineTest(TestCase):
         self.assertEqual(event.severidade, Event.Severidade.CRITICO)
         self.assertEqual(event.status, Event.Status.ABERTO)
         self.assertEqual(event.trust_score_herdado, leitura.trust_score)
+        self.assertEqual(event.evidence_quality, "boa")
+        self.assertFalse(event.needs_verification)
         self.assertIsNotNone(event.priority_score)
         self.assertGreaterEqual(float(event.priority_score), 0.0)
         self.assertLessEqual(float(event.priority_score), 1.0)
@@ -75,13 +77,13 @@ class PriorityScoreTest(TestCase):
             self.assertGreaterEqual(score, 0.0)
             self.assertLessEqual(score, 1.0)
 
-    def test_confianca_diferente_altera_score(self):
+    def test_confianca_diferente_nao_altera_score(self):
         alto = calcular_priority_score(self._event(confidence=0.9), [])
         baixo = calcular_priority_score(self._event(confidence=0.3), [])
-        self.assertGreater(alto, baixo)
+        self.assertEqual(alto, baixo)
 
-    def test_confianca_zero_zera_formula(self):
-        self.assertEqual(calcular_priority_score(self._event(confidence=0.0), []), 0.0)
+    def test_confianca_zero_nao_zera_formula(self):
+        self.assertEqual(calcular_priority_score(self._event(confidence=0.0), []), 1.0)
 
     def test_urgencia_zero_zera_formula(self):
         event = self._event()
@@ -109,10 +111,28 @@ class PriorityScoreTest(TestCase):
 
     def test_tipo_desconhecido_usa_impacto_conservador(self):
         event = self._event(event_type="TIPO_NOVO")
-        self.assertEqual(calcular_priority_score(event, []), 0.25 * 0.8)
+        self.assertEqual(calcular_priority_score(event, []), 0.25)
 
-    def test_confianca_ausente_nao_produz_score_otimista(self):
+    def test_confianca_ausente_nao_altera_score(self):
         event = self._event(confidence=None)
         event.trust_score_herdado = None
         event.leitura_origem.trust_score = None
-        self.assertEqual(calcular_priority_score(event, []), 0.0)
+        self.assertEqual(calcular_priority_score(event, []), 1.0)
+
+    def test_evidence_quality_limites_e_entradas_invalidas(self):
+        for value, expected in ((0.95, "boa"), (0.8, "boa"), (0.79, "suspeita"),
+                                (0.5, "suspeita"), (0.49, "insuficiente"),
+                                (0.2, "insuficiente"), (None, "insuficiente"),
+                                (float("nan"), "insuficiente"), (float("inf"), "insuficiente"),
+                                (-0.1, "insuficiente"), (1.1, "insuficiente"),
+                                ("inválido", "insuficiente")):
+            with self.subTest(value=value):
+                self.assertEqual(evidence_quality(value), expected)
+
+    def test_evento_de_120c_preserva_severidade_e_prioridade_com_evidencia_insuficiente(self):
+        event = self._event(confidence=0.2)
+        event.leitura_origem.temperatura = 120.0
+        score = calcular_priority_score(event, [])
+        self.assertEqual(event.severidade, Event.Severidade.CRITICO)
+        self.assertEqual(score, 1.0)
+        self.assertEqual(evidence_quality(event.trust_score_herdado), "insuficiente")

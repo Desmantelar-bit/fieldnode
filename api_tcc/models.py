@@ -357,6 +357,16 @@ class Event(models.Model):
         blank=True,
         help_text="Trust Score copiado da leitura que originou o evento.",
     )
+    evidence_quality = models.CharField(
+        max_length=16,
+        choices=[("boa", "Boa"), ("suspeita", "Suspeita"), ("insuficiente", "Insuficiente")],
+        default="insuficiente",
+        help_text="Qualidade heurística da evidência herdada da leitura de origem.",
+    )
+    needs_verification = models.BooleanField(
+        default=True,
+        help_text="Sinaliza evidência que requer verificação; não altera severidade/prioridade.",
+    )
     priority_score = models.DecimalField(
         max_digits=5,
         decimal_places=4,

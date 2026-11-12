@@ -95,6 +95,9 @@ async function submit(path: string, payload: unknown): Promise<AuthResult> {
     throw { field: 'general', message: 'Resposta de autenticação inválida.' } satisfies AuthError;
   }
   storeUser(body.user);
+  if (typeof navigator !== 'undefined') {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'AUTH_RECOVERED' });
+  }
   return { user: body.user };
 }
 

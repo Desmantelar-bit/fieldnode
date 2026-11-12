@@ -458,6 +458,8 @@ class EventSerializer(serializers.ModelSerializer):
             "severidade",
             "status",
             "trust_score_herdado",
+            "evidence_quality",
+            "needs_verification",
             "priority_score",
             "criado_em",
             "dados_contexto",
