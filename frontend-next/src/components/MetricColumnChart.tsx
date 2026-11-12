@@ -209,13 +209,13 @@ export function MetricColumnChart({
         {alert !== null ? (
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
             <span className="threshold-rule threshold-rule--atencao" aria-hidden="true" />
-            Limite {formatLimit(config.alert!, field)}{meta.unit}
+            Limite {formatLimit(alert, field)}{meta.unit}
           </li>
         ) : null}
         {critical !== null ? (
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
             <span className="threshold-rule threshold-rule--critico" aria-hidden="true" />
-            Risco {formatLimit(config.critical!, field)}{meta.unit}
+            Risco {formatLimit(critical, field)}{meta.unit}
           </li>
         ) : null}
       </ul>

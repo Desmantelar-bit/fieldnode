@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api_tcc', '0029_telemetry_time_contract'),
+        ('api_tcc', '0027_leituratelemetria_vibracao_unit'),
     ]
 
     operations = [

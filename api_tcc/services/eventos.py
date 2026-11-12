@@ -6,11 +6,11 @@ from django.utils import timezone
 
 from api_tcc.models import DeadLetterEntry, Event, LeituraTelemetria
 from api_tcc.services.dlq import registrar_falha_dlq
-from api_tcc.contracts import classify, metric_definition
 
 logger = logging.getLogger(__name__)
 
 
+from api_tcc.contracts import classify, metric_definition
 SUPPRESSAO_EVENTO_MINUTOS = 15
 PRIORITY_URGENCY_DECAY_HOURS = 24.0
 
@@ -24,8 +24,6 @@ OPERATIONAL_IMPACT_WEIGHTS = {
     Event.Tipo.TENDENCIA_RISCO: 0.6,
 }
 UNKNOWN_OPERATIONAL_IMPACT = 0.25
-EVIDENCE_BOA_THRESHOLD = 0.8
-EVIDENCE_SUSPEITA_THRESHOLD = 0.5
 SEVERITY_NORMALIZED = {
     Event.Severidade.NORMAL: 0.0,
     Event.Severidade.ATENCAO: 0.5,
@@ -45,7 +43,7 @@ def avaliar_leitura(leitura: LeituraTelemetria) -> list[Event]:
     if leitura.machine is None:
         return eventos
 
-    if classify("temperatura", leitura.temperatura) == Event.Severidade.CRITICO:
+    if classify("temperatura", leitura.temperatura) == "CRITICO":
         try:
             evento = _criar_evento_se_nao_suprimido(
                 leitura=leitura,
@@ -99,24 +97,8 @@ def criar_evento_anomalia_estatistica(leitura, resultado) -> Event:
     )
 
 
-def evidence_quality(trust: float | None) -> str:
-    if trust is None:
-        return Event.EvidenceQuality.INSUFICIENTE
-    try:
-        score = float(trust)
-    except (TypeError, ValueError):
-        return Event.EvidenceQuality.INSUFICIENTE
-    if not math.isfinite(score):
-        return Event.EvidenceQuality.INSUFICIENTE
-    if score >= EVIDENCE_BOA_THRESHOLD:
-        return Event.EvidenceQuality.BOA
-    if score >= EVIDENCE_SUSPEITA_THRESHOLD:
-        return Event.EvidenceQuality.SUSPEITA
-    return Event.EvidenceQuality.INSUFICIENTE
-
-
 def calcular_priority_score(event, historico) -> float:
-    """Calcula S × I × U sem deixar confiança reduzir severidade factual.
+    """Calcula S × I × U × C para um evento sem efeitos colaterais.
 
     ``historico`` deve conter leituras anteriores da mesma máquina e condição.
     A função não consulta o banco: isso mantém o contrato determinístico e
@@ -130,8 +112,13 @@ def calcular_priority_score(event, historico) -> float:
         event.tipo,
         UNKNOWN_OPERATIONAL_IMPACT,
     )
+    confianca = _clamp_score(
+        getattr(event, "trust_score_herdado", None)
+        if getattr(event, "trust_score_herdado", None) is not None
+        else getattr(getattr(event, "leitura_origem", None), "trust_score", None)
+    )
     urgencia = _calcular_urgencia(event, historico)
-    return _clamp_score(severidade * impacto * urgencia)
+    return _clamp_score(severidade * impacto * urgencia * confianca)
 
 
 def _calcular_urgencia(event, historico) -> float:
@@ -220,10 +207,6 @@ def _persistir_evento_com_priority(
         severidade=severidade,
         status=Event.Status.ABERTO,
         trust_score_herdado=leitura_origem.trust_score,
-        evidence_quality=evidence_quality(leitura_origem.trust_score),
-        needs_verification=(
-            evidence_quality(leitura_origem.trust_score) != Event.EvidenceQuality.BOA
-        ),
         dados_contexto=dados_contexto,
     )
     event.priority_score = calcular_priority_score(

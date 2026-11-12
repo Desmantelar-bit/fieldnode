@@ -39,11 +39,7 @@ from api_tcc.api.serializers import (
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.services.decisions import aplicar_acao_decision, persistir_decision_da_analise
-from api_tcc.services.telemetria import (
-    _computar_payload_hash,
-    calcular_status_risco,
-    registrar_leitura,
-)
+from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
 from api_tcc.permissions import (
     MACHINE_WRITE_ROLES,
     IsAuthenticatedOrPublicDemo,
@@ -211,39 +207,20 @@ class IngestaoTelemetriaView(APIView):
 
         if resultado == "criado":
             analise = analisar_maquina(request.data.get("maquina_id"))
-            return Response(
-                {
-                    "status": "ok",
-                    "id": detalhe,
-                    **self._ack_payload(detalhe, "acked"),
-                    "ia": _serializar_analise(analise),
-                },
-                status=status.HTTP_201_CREATED,
-            )
+            return Response({
+                'status': 'ok',
+                'id': detalhe,
+                **self._ack_payload(detalhe),
+                'ia': _serializar_analise(analise),
+            }, status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
-            return Response(
-                {
-                    "status": "duplicata ignorada",
-                    "id": detalhe,
-                    **self._ack_payload(
-                        detalhe,
-                        "duplicate",
-                        payload_hash_override=_computar_payload_hash(request.data),
-                    ),
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        if resultado == "conflito":
-            return Response(
-                {
-                    "status": "conflito",
-                    "id": detalhe,
-                    **self._ack_payload(detalhe, "conflict"),
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            return Response({
+                'status': 'duplicata ignorada',
+                'id': detalhe,
+                **self._ack_payload(detalhe),
+            },
+                            status=status.HTTP_200_OK)
 
         if resultado == "invalido":
             return Response({'status': 'erro', 'detalhes': detalhe},
@@ -254,12 +231,7 @@ class IngestaoTelemetriaView(APIView):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @staticmethod
-    def _ack_payload(
-        leitura_id: str | None,
-        ack_status: str,
-        *,
-        payload_hash_override: str | None = None,
-    ) -> dict:
+    def _ack_payload(leitura_id: str | None) -> dict:
         """Expõe apenas os dados necessários para um ACK verificável no edge."""
         if not leitura_id:
             return {}
@@ -269,21 +241,12 @@ class IngestaoTelemetriaView(APIView):
             logger.info("ACK omitido: leitura %s indisponível", leitura_id)
             return {}
         cursor = SyncCursor.objects.filter(device_id=leitura.device_id).first()
-        ack = {
-            "status": ack_status,
-            "message_id": leitura.message_id,
-            "device_id": leitura.device_id,
-            "sequence_number": leitura.sequence_number,
-            "payload_hash": payload_hash_override or leitura.payload_hash,
-            "last_acked_sequence": cursor.last_acked_sequence if cursor else 0,
-        }
         return {
-            "ack": ack,
-            "message_id": ack["message_id"],
-            "device_id": ack["device_id"],
-            "sequence_number": ack["sequence_number"],
-            "payload_hash": ack["payload_hash"],
-            "sync_cursor": ack["last_acked_sequence"],
+            'message_id': leitura.message_id,
+            'device_id': leitura.device_id,
+            'sequence_number': leitura.sequence_number,
+            'payload_hash': leitura.payload_hash,
+            'sync_cursor': cursor.last_acked_sequence if cursor else 0,
         }
 
     def get(self, request):
@@ -691,25 +654,21 @@ class RelatorioView(APIView):
         leituras = _filter_public_demo_leituras(
             LeituraTelemetria.objects.filter(timestamp__gte=periodo_inicio), request
         )
-
+        
         # Cálculos básicos do relatório
         total_leituras = leituras.count()
-        maquinas_ativas = leituras.values("maquina_id").distinct().count()
-
+        maquinas_ativas = leituras.values('maquina_id').distinct().count()
+        
         # Contar alertas (leituras com risco crítico/atenção)
         alertas_gerados = (
             leituras.filter(temperatura__gt=75).count()
-            + leituras.filter(temperatura__lte=75, vibracao__gt=5.0).count()
+            + leituras.filter(temperatura__lte=75, vibracao__gt=0.5).count()
         )
-
+        
         total_maquinas = get_machines_for_request(request).filter(ativo=True).count()
-        maquinas_com_leituras = leituras.values("machine_id").distinct().count()
-        eficiencia = (
-            round((maquinas_com_leituras / total_maquinas) * 100, 1)
-            if total_maquinas
-            else 0
-        )
-
+        maquinas_com_leituras = leituras.values('machine_id').distinct().count()
+        eficiencia = round((maquinas_com_leituras / total_maquinas) * 100, 1) if total_maquinas else 0
+        
         resultado = {
             "periodo": "Últimas 24 horas",
             "total_leituras": total_leituras,
@@ -717,31 +676,29 @@ class RelatorioView(APIView):
             "alertas_gerados": alertas_gerados,
             "eficiencia_operacional": eficiencia
         }
-
-        if formato == "csv":
+        
+        if formato == 'csv':
             resposta = Response(
                 "\ufeff" + self._build_csv_geral(resultado),
-                content_type="text/csv; charset=utf-8",
-                headers={
-                    "Content-Disposition": f'attachment; filename="relatorio_geral_{datetime.now().strftime("%Y%m%d")}.csv"'
-                },
+                content_type='text/csv; charset=utf-8',
+                headers={'Content-Disposition': f'attachment; filename="relatorio_geral_{datetime.now().strftime("%Y%m%d")}.csv"'}
             )
             return resposta
-
+        
         return Response(resultado)
-
+    
     def _build_csv_geral(self, dados):
         buf = io.StringIO()
-        w = csv.writer(buf, delimiter=";", lineterminator="\n")
-        w.writerow(["Relatório Geral - FieldNode"])
-        w.writerow(["Período", dados["periodo"]])
-        w.writerow(["Gerado em", datetime.now().strftime("%d/%m/%Y %H:%M")])
+        w = csv.writer(buf, delimiter=';', lineterminator='\n')
+        w.writerow(['Relatório Geral - FieldNode'])
+        w.writerow(['Período', dados['periodo']])
+        w.writerow(['Gerado em', datetime.now().strftime('%d/%m/%Y %H:%M')])
         w.writerow([])
-        w.writerow(["Métrica", "Valor"])
-        w.writerow(["Total de Leituras", dados["total_leituras"]])
-        w.writerow(["Máquinas Ativas", dados["maquinas_ativas"]])
-        w.writerow(["Alertas Gerados", dados["alertas_gerados"]])
-        w.writerow(["Cobertura Operacional", f"{dados['eficiencia_operacional']}%"])
+        w.writerow(['Métrica', 'Valor'])
+        w.writerow(['Total de Leituras', dados['total_leituras']])
+        w.writerow(['Máquinas Ativas', dados['maquinas_ativas']])
+        w.writerow(['Alertas Gerados', dados['alertas_gerados']])
+        w.writerow(['Cobertura Operacional', f"{dados['eficiencia_operacional']}%"])
         return buf.getvalue()
 
 
@@ -753,12 +710,12 @@ def _serializar_prescricao(p) -> dict:
     if isinstance(p, dict):
         return p
     return {
-        "id": p.id,
-        "maquina_id": p.colheitadeira.maquina_id,
-        "titulo": p.titulo,
-        "descricao": p.descricao,
-        "status": p.status,
-        "data_geracao": p.data_geracao,
+        'id': p.id,
+        'maquina_id': p.colheitadeira.maquina_id,
+        'titulo': p.titulo,
+        'descricao': p.descricao,
+        'status': p.status,
+        'data_geracao': p.data_geracao,
     }
 
 
@@ -769,8 +726,8 @@ class PrescricaoListView(APIView):
     Lista o histórico de prescrições geradas para a máquina.
     Mantida temporariamente como leitura histórica; novas decisões usam Event/Decision.
     """
-
     permission_classes = [IsAuthenticatedOrPublicDemo]
+
 
     def get(self, request):
         maquina_id = request.query_params.get("maquina_id")
@@ -795,9 +752,9 @@ class PrescricaoListView(APIView):
 
 class PrescricaoTesteView(APIView):
     """View simplificada para testar prescrições"""
-
     permission_classes = [IsAuthenticatedOrPublicDemo]
 
+    
     def get(self, request):
         return Response(
             {"status": "erro", "detalhe": "rota de teste desativada; use Event/Decision"},

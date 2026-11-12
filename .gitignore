@@ -65,7 +65,6 @@ local_settings.py
 .idea/
 .kilo/
 .kiro/
-.kombai/
 .nanocoder/
 
 # Artefatos de sessão e outputs temporários de agentes

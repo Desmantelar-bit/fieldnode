@@ -164,13 +164,13 @@ export function MetricTrendChart({
                 onClick={() => setMetric(key)}
                 className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                   active
-                    ? "text-[color:var(--brand-on-accent)]"
-                    : "text-[var(--text-3)] hover:text-[var(--text-1)]"
+                    ? 'text-[color:var(--brand-on-accent)]'
+                    : 'text-[var(--text-3)] hover:text-[var(--text-1)]'
                 }`}
                 style={
                   active
-                    ? { backgroundImage: "var(--brand-gradient)" }
-                    : { background: "var(--panel-glass-mid)" }
+                    ? { backgroundImage: 'var(--brand-gradient)' }
+                    : { background: 'var(--panel-glass-mid)' }
                 }
               >
                 {METRIC_META[key].short}
@@ -191,9 +191,9 @@ export function MetricTrendChart({
         <div className="min-w-0">
           <p
             className="stat-value text-4xl font-bold sm:text-5xl"
-            style={{ color: lastPoint ? "var(--text-1)" : "var(--text-3)" }}
+            style={{ color: lastPoint ? 'var(--text-1)' : 'var(--text-3)' }}
           >
-            {lastPoint ? formatMetric(lastPoint.valor, metric) : "—"}
+            {lastPoint ? formatMetric(lastPoint.valor, metric) : '—'}
             {lastPoint ? (
               <span className="ml-1.5 text-base font-normal text-[var(--text-3)] sm:text-lg">
                 {meta.unit}
@@ -201,7 +201,7 @@ export function MetricTrendChart({
             ) : null}
           </p>
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
-            Leitura mais recente ·{" "}
+            Leitura mais recente ·{' '}
             <span style={{ color: `var(--status-${currentStatus})` }}>
               {STATUS_LABEL[currentStatus]}
             </span>
@@ -210,16 +210,12 @@ export function MetricTrendChart({
 
         <dl className="flex w-full flex-wrap items-start justify-center gap-x-2 gap-y-2 sm:gap-x-6">
           {[
-            { term: "Mínima", value: formatMetric(summary.min, metric) },
-            { term: "Média", value: formatMetric(summary.avg, metric) },
-            { term: "Máxima", value: formatMetric(summary.max, metric) },
-            { term: "Fora da faixa", value: String(summary.foraDaFaixa) },
+            { term: 'Mínima', value: formatMetric(summary.min, metric) },
+            { term: 'Média', value: formatMetric(summary.avg, metric) },
+            { term: 'Máxima', value: formatMetric(summary.max, metric) },
+            { term: 'Fora da faixa', value: String(summary.foraDaFaixa) },
           ].map(({ term, value }) => (
-            <div
-              key={term}
-              className="flex flex-col items-center"
-              style={{ minWidth: "4.5rem" }}
-            >
+            <div key={term} className="flex flex-col items-center" style={{ minWidth: '4.5rem' }}>
               <dt className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)] text-center whitespace-nowrap">
                 {term}
               </dt>
@@ -236,38 +232,21 @@ export function MetricTrendChart({
           com isso o Recharts repete a animação de traçado — é a animaçãozinha
           que existia antes ao trocar de gráfico. Sem a key, o Recharts apenas
           substitui os dados e a curva salta de um desenho para o outro. */}
-      <div
-        key={`chart-${metric}`}
-        className="chart-swap mt-4 h-56 w-full sm:h-72"
-      >
+      <div key={`chart-${metric}`} className="chart-swap mt-4 h-56 w-full sm:h-72">
         {points.length === 0 ? (
           <p className="flex h-full items-center justify-center text-xs text-[var(--text-3)]">
             Sem leituras disponíveis para esta máquina.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              key={`area-${metric}`}
-              data={points}
-              margin={{ top: 8, right: 10, left: -18, bottom: 0 }}
-            >
+            <AreaChart key={`area-${metric}`} data={points} margin={{ top: 8, right: 10, left: -18, bottom: 0 }}>
               <defs>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={meta.color} stopOpacity={0.42} />
-                  <stop
-                    offset="60%"
-                    stopColor={meta.color}
-                    stopOpacity={0.12}
-                  />
+                  <stop offset="60%" stopColor={meta.color} stopOpacity={0.12} />
                   <stop offset="100%" stopColor="var(--chart-transparent)" />
                 </linearGradient>
-                <filter
-                  id={glowId}
-                  x="-30%"
-                  y="-30%"
-                  width="160%"
-                  height="160%"
-                >
+                <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
                   <feGaussianBlur stdDeviation="3" result="blur" />
                   <feMerge>
                     <feMergeNode in="blur" />
@@ -276,27 +255,23 @@ export function MetricTrendChart({
                 </filter>
               </defs>
 
-              <CartesianGrid
-                strokeDasharray="3 5"
-                stroke="var(--chart-grid)"
-                vertical={false}
-              />
+              <CartesianGrid strokeDasharray="3 5" stroke="var(--chart-grid)" vertical={false} />
 
               <XAxis
                 dataKey="label"
-                tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                tick={{ fill: 'var(--text-3)', fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
                 minTickGap={24}
               />
               <YAxis
                 domain={domain}
-                tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                tick={{ fill: 'var(--text-3)', fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
                 /* RPM: "2.444" = 5 chars com separador de milhar → 64px.
-                   Temperatura: valor com unidade → 64px também.
-                   Vibração: índice 0–10. Usamos 64 fixo para os três não
+                   Temperatura: "110,0 °C" → 64px também.
+                   Vibração: "0,80 g" → 52px. Usamos 64 fixo para os três não
                    ficarem com larguras diferentes ao trocar de métrica. */
                 width={64}
                 tickFormatter={(value: number) => formatAxis(value, metric)}
@@ -334,11 +309,7 @@ export function MetricTrendChart({
               ) : null}
 
               <Tooltip
-                cursor={{
-                  stroke: meta.color,
-                  strokeDasharray: "3 3",
-                  opacity: 0.4,
-                }}
+                cursor={{ stroke: meta.color, strokeDasharray: '3 3', opacity: 0.4 }}
                 content={<TrendTooltip unit={meta.unit} metric={metric} />}
               />
 
@@ -350,11 +321,7 @@ export function MetricTrendChart({
                 fill={`url(#${gradId})`}
                 filter={`url(#${glowId})`}
                 dot={false}
-                activeDot={{
-                  r: 4,
-                  stroke: "var(--background)",
-                  strokeWidth: 1.5,
-                }}
+                activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 1.5 }}
                 animationDuration={700}
                 animationEasing="ease-out"
               />
@@ -376,16 +343,9 @@ export function MetricTrendChart({
 
       {/* ── Legenda + janela real dos dados ── */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <ul
-          className="flex flex-wrap items-center gap-x-4 gap-y-1.5"
-          aria-label="Legenda do gráfico"
-        >
+        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5" aria-label="Legenda do gráfico">
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: meta.color }}
-              aria-hidden="true"
-            />
+            <span className="h-2 w-2 rounded-full" style={{ background: meta.color }} aria-hidden="true" />
             {meta.short}
           </li>
           <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
@@ -394,30 +354,21 @@ export function MetricTrendChart({
           </li>
           {alert !== null ? (
             <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
-              <span
-                className="threshold-rule threshold-rule--atencao"
-                aria-hidden="true"
-              />
-              Atenção {formatLimit(config.alert!, metric)}
-              {meta.unit}
+              <span className="threshold-rule threshold-rule--atencao" aria-hidden="true" />
+              Atenção {formatLimit(alert, metric)}{meta.unit}
             </li>
           ) : null}
           {critical !== null ? (
             <li className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
-              <span
-                className="threshold-rule threshold-rule--critico"
-                aria-hidden="true"
-              />
-              Risco {formatLimit(config.critical!, metric)}
-              {meta.unit}
+              <span className="threshold-rule threshold-rule--critico" aria-hidden="true" />
+              Risco {formatLimit(critical, metric)}{meta.unit}
             </li>
           ) : null}
         </ul>
 
         <p className="text-[10px] text-[var(--text-3)]">
-          {summary.count} leitura{summary.count === 1 ? "" : "s"} mais recente
-          {summary.count === 1 ? "" : "s"} recebida
-          {summary.count === 1 ? "" : "s"} da API
+          {summary.count} leitura{summary.count === 1 ? '' : 's'} mais recente
+          {summary.count === 1 ? '' : 's'} recebida{summary.count === 1 ? '' : 's'} da API
         </p>
       </div>
     </section>

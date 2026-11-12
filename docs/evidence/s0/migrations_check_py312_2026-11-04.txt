@@ -1,5 +1,0 @@
-No changes detected
-COMMAND: C:\Users\Usuario\AppData\Local\Temp\fieldnode-s0-py312-20261104-175542\Scripts\python.exe manage.py makemigrations --check --dry-run
-TIMESTAMP: 2026-11-04T18:01:44.2026097-03:00
-PYTHON: 3.12 temporary venv
-EXIT_CODE: 0

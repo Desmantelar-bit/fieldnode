@@ -145,9 +145,9 @@ def _gerar_relatorio_csv(maquina_id, data_inicio, data_fim, stats, leituras, pre
     writer.writerow(['Temperatura Média (°C)', f"{stats['temp_media']:.2f}"])
     writer.writerow(['Temperatura Máxima (°C)', f"{stats['temp_max']:.2f}"])
     writer.writerow(['Temperatura Mínima (°C)', f"{stats['temp_min']:.2f}"])
-    writer.writerow(['Vibração Média (g)', f"{stats['vib_media']:.3f}"])
-    writer.writerow(['Vibração Máxima (g)', f"{stats['vib_max']:.3f}"])
-    writer.writerow(['Vibração Mínima (g)', f"{stats['vib_min']:.3f}"])
+    writer.writerow(['Vibração Média (índice 0–10)', f"{stats['vib_media']:.3f}"])
+    writer.writerow(['Vibração Máxima (índice 0–10)', f"{stats['vib_max']:.3f}"])
+    writer.writerow(['Vibração Mínima (índice 0–10)', f"{stats['vib_min']:.3f}"])
     writer.writerow(['RPM Médio', f"{stats['rpm_media']:.0f}"])
     writer.writerow(['RPM Máximo', f"{stats['rpm_max']:.0f}"])
     writer.writerow(['RPM Mínimo', f"{stats['rpm_min']:.0f}"])
@@ -174,7 +174,7 @@ def _gerar_relatorio_csv(maquina_id, data_inicio, data_fim, stats, leituras, pre
     # Seção de dados detalhados de telemetria (opcional, pode ser grande)
     # Comentado por padrão para evitar arquivos muito grandes
     # writer.writerow(['DADOS DETALHADOS DE TELEMETRIA'])
-    # writer.writerow(['Timestamp', 'Temperatura (°C)', 'Vibração (g)', 'RPM'])
+    # writer.writerow(['Timestamp', 'Temperatura (°C)', 'Vibração (índice 0–10)', 'RPM'])
     # for leitura in leituras:
     #     writer.writerow([
     #         leitura.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
@@ -209,9 +209,9 @@ def _gerar_relatorio_csv_exportar(maquina_id, data_inicio, data_fim, stats, leit
     writer.writerow(['Temperatura Média (°C)', f"{stats['temp_media']:.2f}"])
     writer.writerow(['Temperatura Máxima (°C)', f"{stats['temp_max']:.2f}"])
     writer.writerow(['Temperatura Mínima (°C)', f"{stats['temp_min']:.2f}"])
-    writer.writerow(['Vibração Média (g)', f"{stats['vib_media']:.3f}"])
-    writer.writerow(['Vibração Máxima (g)', f"{stats['vib_max']:.3f}"])
-    writer.writerow(['Vibração Mínima (g)', f"{stats['vib_min']:.3f}"])
+    writer.writerow(['Vibração Média (índice 0–10)', f"{stats['vib_media']:.3f}"])
+    writer.writerow(['Vibração Máxima (índice 0–10)', f"{stats['vib_max']:.3f}"])
+    writer.writerow(['Vibração Mínima (índice 0–10)', f"{stats['vib_min']:.3f}"])
     writer.writerow(['RPM Médio', f"{stats['rpm_media']:.0f}"])
     writer.writerow(['RPM Máximo', f"{stats['rpm_max']:.0f}"])
     writer.writerow(['RPM Mínimo', f"{stats['rpm_min']:.0f}"])
@@ -236,7 +236,7 @@ def _gerar_relatorio_csv_exportar(maquina_id, data_inicio, data_fim, stats, leit
 
     writer.writerow(['DADOS DETALHADOS'])
     writer.writerow([
-        'Timestamp', 'Temperatura (°C)', 'Vibração (g)', 'RPM',
+        'Timestamp', 'Temperatura (°C)', 'Vibração (índice 0–10)', 'RPM',
         'Cor do Risco', 'Rótulo Risco', 'Recomendação'
     ])
     recomendacoes_base = {
@@ -297,9 +297,9 @@ def _gerar_relatorio_txt(maquina_id, data_inicio, data_fim, stats, leituras, pre
     buf.write(f"Temperatura Média: {stats['temp_media']:.2f} °C\n")
     buf.write(f"Temperatura Máxima: {stats['temp_max']:.2f} °C\n")
     buf.write(f"Temperatura Mínima: {stats['temp_min']:.2f} °C\n")
-    buf.write(f"Vibração Média: {stats['vib_media']:.3f} g\n")
-    buf.write(f"Vibração Máxima: {stats['vib_max']:.3f} g\n")
-    buf.write(f"Vibração Mínima: {stats['vib_min']:.3f} g\n")
+    buf.write(f"Vibração Média (índice 0–10): {stats['vib_media']:.3f}\n")
+    buf.write(f"Vibração Máxima (índice 0–10): {stats['vib_max']:.3f}\n")
+    buf.write(f"Vibração Mínima (índice 0–10): {stats['vib_min']:.3f}\n")
     buf.write(f"RPM Médio: {stats['rpm_media']:.0f}\n")
     buf.write(f"RPM Máximo: {stats['rpm_max']:.0f}\n")
     buf.write(f"RPM Mínimo: {stats['rpm_min']:.0f}\n")

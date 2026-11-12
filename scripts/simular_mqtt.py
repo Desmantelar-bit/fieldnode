@@ -20,14 +20,7 @@ import time
 import random
 import os
 import requests
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from api_tcc.contracts import classify, metric_definition
 
 BROKER = os.getenv('MQTT_BROKER', 'localhost')
 PORT = int(os.getenv('MQTT_PORT', '1883'))
@@ -167,34 +160,32 @@ def main():
     client = mqtt.Client()
     if MQTT_USERNAME and MQTT_PASSWORD:
         client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
-
+    
     try:
         client.connect(BROKER, PORT, 60)
         print(f"Conectado ao broker MQTT em {BROKER}:{PORT}")
         print("Enviando leituras variadas... (Ctrl+C para parar)\n")
-
+        
         contador = 0
         while True:
             for maquina_id, cenario in CENARIOS.items():
                 leitura = gerar_leitura(maquina_id, cenario)
                 topico = f"fieldnode/{maquina_id}/leitura"
-
+                
                 client.publish(topico, json.dumps(leitura))
-
-                status_label = f"[{classify('temperatura', leitura['temperatura'])}]"
-
-                print(
-                    f"{status_label} {maquina_id}: {leitura['temperatura']}C | "
-                    f"{leitura['vibracao']} {metric_definition('vibracao')['unit']} | "
-                    f"{leitura['rpm']} RPM"
-                )
-
+                
+                status_label = "[CRITICO]" if leitura["temperatura"] > 85 else \
+                         "[ATENCAO]" if leitura["temperatura"] > 75 else "[NORMAL]"
+                
+                print(f"{status_label} {maquina_id}: {leitura['temperatura']}C | "
+                      f"{leitura['vibracao']}g | {leitura['rpm']} RPM")
+                
                 time.sleep(0.5)
-
+            
             contador += 1
             print(f"\n--- Ciclo {contador} concluído ---\n")
             time.sleep(2)
-
+            
     except KeyboardInterrupt:
         print("\n\nSimulacao encerrada")
     except Exception as e:

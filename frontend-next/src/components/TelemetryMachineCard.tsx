@@ -3,12 +3,13 @@ import type { Telemetry } from '@/types/telemetry';
 import { riskTone, StatusBadge } from '@/components/StatusBadge';
 import { PrescricaoButton } from '@/components/PrescricaoButton';
 import { Thermometer, Vibrate, Gauge } from 'lucide-react';
-import { METRIC_THRESHOLDS } from '@/lib/metricThresholds';
+import { METRIC_META, statusOf } from '@/lib/metrics';
+import type { MetricKey } from '@/lib/metricThresholds';
 
-function metricTone(value: number, warning: number, critical: number, reverse = false) {
-  if (reverse) return value < critical ? 'text-[color:var(--status-atencao)]' : 'text-[color:var(--status-normal)]';
-  if (value > critical) return 'text-[color:var(--status-critico)]';
-  if (value > warning)  return 'text-[color:var(--status-atencao)]';
+function metricTone(value: number, metric: MetricKey) {
+  const status = statusOf(value, metric);
+  if (status === 'critico') return 'text-[color:var(--status-critico)]';
+  if (status === 'atencao') return 'text-[color:var(--status-atencao)]';
   return 'text-[color:var(--status-normal)]';
 }
 
@@ -56,7 +57,7 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
             <Thermometer size={10} aria-hidden="true" />
             Temp
           </dt>
-          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.temperatura, METRIC_THRESHOLDS.temperatura.alert!, METRIC_THRESHOLDS.temperatura.critical!)}`}>
+          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.temperatura, 'temperatura')}`}>
             {reading.temperatura}°C
           </dd>
         </div>
@@ -65,8 +66,8 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
             <Vibrate size={10} aria-hidden="true" />
             Vib
           </dt>
-          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.vibracao, METRIC_THRESHOLDS.vibracao.alert!, METRIC_THRESHOLDS.vibracao.critical!)}`}>
-            {reading.vibracao} {METRIC_THRESHOLDS.vibracao.unit}
+          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.vibracao, 'vibracao')}`}>
+            {reading.vibracao} {METRIC_META.vibracao.unit}
           </dd>
         </div>
         <div className="data-tile p-3">
@@ -74,7 +75,7 @@ export function TelemetryMachineCard({ reading }: { reading: Telemetry }) {
             <Gauge size={10} aria-hidden="true" />
             RPM
           </dt>
-          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.rpm, 0, 1300, true)}`}>
+          <dd className={`mt-1.5 text-sm font-bold ${metricTone(reading.rpm, 'rpm')}`}>
             {reading.rpm}
           </dd>
         </div>

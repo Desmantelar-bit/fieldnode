@@ -8,7 +8,7 @@
  * classificação — e os limiares continuam vindo de `metricThresholds`.
  */
 
-import { METRIC_THRESHOLDS, type MetricKey } from '@/lib/metricThresholds';
+import { METRIC_THRESHOLDS, classifyMetric, type MetricKey } from '@/lib/metricThresholds';
 import type { Telemetry } from '@/types/telemetry';
 
 export type MetricStatus = 'normal' | 'atencao' | 'critico';
@@ -46,7 +46,7 @@ export const METRIC_META: Record<MetricKey, MetricMeta> = {
   vibracao: {
     label: 'Vibração do rotor',
     short: 'Vibração',
-    unit: METRIC_THRESHOLDS.vibracao.unit,
+    unit: METRIC_THRESHOLDS.vibracao.unit === 'indice_0_10' ? 'índice (0–10)' : METRIC_THRESHOLDS.vibracao.unit,
     color: 'var(--metric-vibration)',
     digits: 2,
   },
@@ -71,18 +71,8 @@ export const STATUS_LABEL: Record<MetricStatus, string> = {
  * RPM cai para risco).
  */
 export function statusOf(value: number, key: MetricKey): MetricStatus {
-  const config = METRIC_THRESHOLDS[key];
   if (!Number.isFinite(value)) return 'normal';
-
-  if (config.higherIsWorse) {
-    if (config.critical !== null && value >= config.critical) return 'critico';
-    if (config.alert !== null && value >= config.alert) return 'atencao';
-    return 'normal';
-  }
-
-    if (config.critical !== null && value < config.critical) return 'critico';
-    if (config.alert !== null && value < config.alert) return 'atencao';
-  return 'normal';
+  return classifyMetric(key, value).toLowerCase() as MetricStatus;
 }
 
 export type MetricPoint = {
@@ -151,10 +141,10 @@ export function formatMetric(value: number, key: MetricKey): string {
 /**
  * Formata um LIMITE (alerta/risco) na precisão da métrica: limites são números
  * redondos, então não faz sentido escrever "1.400,0 rpm" — mas a vibração
- * precisa da casa decimal para valores fracionários do índice ficarem legíveis.
+ * precisa da casa decimal para o 0,5 g ficar legível.
  *
  * Use esta função para LIMITES, nunca para marcas de eixo ou leituras: o
- * `Math.max(digits, 1)` abaixo preserva a casa decimal quando necessária.
+ * `Math.max(digits, 1)` abaixo foi feito para o 0,5 g, mas aplicado a um eixo de
  * RPM ele imprimia "2.444,1 rpm" — uma precisão que o sensor não entrega.
  */
 export function formatLimit(value: number, key: MetricKey): string {
