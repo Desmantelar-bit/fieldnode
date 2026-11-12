@@ -62,7 +62,7 @@ function DetailsPageContent() {
   }, []);
 
   useEffect(() => {
-    setMachineId(searchParams.get('id'));
+    setMachineId(searchParams?.get('id') ?? null);
   }, [searchParams]);
 
   useEffect(() => {

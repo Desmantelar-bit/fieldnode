@@ -105,7 +105,7 @@ def evidence_quality(trust: float | None) -> str:
         return "insuficiente"
     try:
         value = float(trust)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return "insuficiente"
     if not math.isfinite(value) or not 0 <= value <= 1:
         return "insuficiente"

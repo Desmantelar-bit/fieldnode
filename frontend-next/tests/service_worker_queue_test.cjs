@@ -99,6 +99,30 @@ function response(status, retryAfter) { return { ok: status >= 200 && status < 3
     console.log('PASS 429 respeita Retry-After');
   }
   {
+    for (const status of [408, 429, 500]) {
+      const h = createHarness([item(`retry-${status}`)]);
+      h.setFetch(async () => response(status));
+      await h.api.syncTelemetriaData();
+      const saved = h.rows.get(`retry-${status}`);
+      assert.equal(saved.state, 'retrying'); assert.equal(saved.attempts, 1);
+      assert.ok(saved.next_attempt_at > Date.now());
+    }
+    console.log('PASS HTTP 408, 429 sem Retry-After e 500 usam backoff');
+  }
+  {
+    for (const status of [400, 403, 404, 409, 422]) {
+      const h = createHarness([item(`reject-${status}`)]); let calls = 0;
+      h.setFetch(async () => { calls++; return response(status); });
+      await h.api.syncTelemetriaData();
+      const saved = h.rows.get(`reject-${status}`);
+      assert.equal(saved.state, 'rejected'); assert.equal(saved.attempts, 1);
+      await h.api.syncTelemetriaData(); assert.equal(calls, 1);
+      await h.api.reprocessRejected();
+      assert.equal(h.rows.get(`reject-${status}`).state, 'pending');
+    }
+    console.log('PASS 4xx permanentes são preservados, não repetidos e reprocessáveis');
+  }
+  {
     const h = createHarness([item('a')]); h.setFetch(async () => { throw new Error('offline'); });
     await h.api.syncTelemetriaData();
     assert.equal(h.rows.get('a').state, 'retrying'); assert.equal(h.rows.get('a').last_error, 'Falha de rede');

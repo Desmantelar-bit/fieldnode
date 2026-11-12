@@ -11,6 +11,7 @@ import { ReportButton } from "@/components/ReportButton";
 import { DashboardMachineData } from "@/components/DashboardMachineData";
 import { FieldNodeLogo } from "@/components/FieldNodeLogo";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { PriorityEvents } from "@/components/PriorityEvents";
 
 type FleetStatus = Awaited<ReturnType<typeof telemetryService.getFleetStatus>>;
 type TelemetryReadings = Awaited<ReturnType<typeof telemetryService.getLatestReadings>>;
@@ -107,6 +108,7 @@ export default function DashboardPage() {
       }
     >
       <div className="space-y-6">
+        <PriorityEvents />
         <DashboardMachineData machines={machines} initialReadings={readings} />
 
         <section aria-label="Resumo da frota">

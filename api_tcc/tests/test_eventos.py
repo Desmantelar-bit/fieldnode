@@ -5,7 +5,11 @@ from types import SimpleNamespace
 from django.test import TestCase
 
 from api_tcc.models import Event, LeituraTelemetria
-from api_tcc.services.eventos import calcular_priority_score, evidence_quality
+from api_tcc.services.eventos import (
+    _persistir_evento_com_priority,
+    calcular_priority_score,
+    evidence_quality,
+)
 from api_tcc.services.telemetria import registrar_leitura
 
 
@@ -45,6 +49,23 @@ class EventEngineTest(TestCase):
         self.assertLessEqual(float(event.priority_score), 1.0)
         self.assertEqual(event.dados_contexto["temperatura"], 86.0)
 
+    def test_leitura_120c_com_trust_baixo_cria_evento_critico_para_verificacao(self):
+        _, leitura_id = registrar_leitura(_payload(temperatura=120.0))
+        leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        leitura.trust_score = 0.2
+        leitura.save(update_fields=["trust_score"])
+        event = _persistir_evento_com_priority(
+            machine=leitura.machine,
+            leitura_origem=leitura,
+            tipo=Event.Tipo.TEMP_ALTA,
+            severidade=Event.Severidade.CRITICO,
+            dados_contexto={"temperatura": 120.0},
+        )
+        self.assertEqual(event.severidade, Event.Severidade.CRITICO)
+        self.assertEqual(float(event.priority_score), 1.0)
+        self.assertEqual(event.evidence_quality, "insuficiente")
+        self.assertTrue(event.needs_verification)
+
     def test_nao_duplica_evento_aberto_do_mesmo_tipo_na_janela_de_supressao(self):
         status_1, _ = registrar_leitura(_payload(timestamp="2026-06-01T10:00:00Z"))
         status_2, _ = registrar_leitura(_payload(timestamp="2026-06-01T10:01:00Z"))
@@ -78,9 +99,15 @@ class PriorityScoreTest(TestCase):
             self.assertLessEqual(score, 1.0)
 
     def test_confianca_diferente_nao_altera_score(self):
-        alto = calcular_priority_score(self._event(confidence=0.9), [])
-        baixo = calcular_priority_score(self._event(confidence=0.3), [])
+        evento_boa = self._event(confidence=0.95)
+        evento_insuficiente = self._event(confidence=0.2)
+        alto = calcular_priority_score(evento_boa, [])
+        baixo = calcular_priority_score(evento_insuficiente, [])
         self.assertEqual(alto, baixo)
+        self.assertEqual(evidence_quality(evento_boa.trust_score_herdado), "boa")
+        self.assertEqual(evidence_quality(evento_insuficiente.trust_score_herdado), "insuficiente")
+        self.assertFalse(evidence_quality(evento_boa.trust_score_herdado) != "boa")
+        self.assertTrue(evidence_quality(evento_insuficiente.trust_score_herdado) != "boa")
 
     def test_confianca_zero_nao_zera_formula(self):
         self.assertEqual(calcular_priority_score(self._event(confidence=0.0), []), 1.0)
@@ -125,7 +152,7 @@ class PriorityScoreTest(TestCase):
                                 (0.2, "insuficiente"), (None, "insuficiente"),
                                 (float("nan"), "insuficiente"), (float("inf"), "insuficiente"),
                                 (-0.1, "insuficiente"), (1.1, "insuficiente"),
-                                ("inválido", "insuficiente")):
+                                (10 ** 10000, "insuficiente"), ("inválido", "insuficiente")):
             with self.subTest(value=value):
                 self.assertEqual(evidence_quality(value), expected)
 
