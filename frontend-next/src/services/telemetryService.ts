@@ -19,6 +19,7 @@ import {
   TelemetryInputSchema,
 } from '@/schemas';
 import type { z } from 'zod';
+import { CanMotorSchema, type CanMotorResponse } from '@/schemas/canMotor';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -159,6 +160,18 @@ export const telemetryService = {
     );
     const data = await handleResponse(response, "getMachineReadings:");
     return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
+  },
+
+  async getMotorCAN(machineId: string): Promise<CanMotorResponse> {
+    const response = await withTimeout((signal) =>
+      fetch(`${resolveApiUrl()}/can/motor/?maquina_id=${encodeURIComponent(machineId)}`, {
+        cache: 'no-store',
+        headers: buildRequestHeaders(),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, 'getMotorCAN:');
+    return validateApiContract(CanMotorSchema, data, 'getMotorCAN');
   },
 
   async getOperators(): Promise<Operator[]> {

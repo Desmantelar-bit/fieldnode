@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint src",
     "type-check": "tsc --noEmit",
-    "test:sw": "node --test tests/service_worker.test.mjs"
+    "test:sw": "node --test tests/service_worker.test.mjs",
+    "test:can-ui": "node --test tests/can_motor_ui.test.mjs"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",
