@@ -29,7 +29,7 @@ def carregar_janela(maquina_id: str, limite: int = 500) -> pd.DataFrame:
     from api_tcc.models import LeituraTelemetria
     qs: QuerySet = (
         LeituraTelemetria.objects
-        .filter(maquina_id=maquina_id)
+        .filter(maquina_id=maquina_id, timestamp__isnull=False)
         .order_by('-timestamp')
         .values('timestamp', 'temperatura', 'vibracao', 'rpm')[:limite]
     )

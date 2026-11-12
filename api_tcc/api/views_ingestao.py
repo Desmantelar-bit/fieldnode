@@ -39,7 +39,7 @@ from api_tcc.api.serializers import (
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.ia.pipeline import analisar_maquina
 from api_tcc.services.decisions import aplicar_acao_decision, persistir_decision_da_analise
-from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco
+from api_tcc.services.telemetria import registrar_leitura, calcular_status_risco, _computar_payload_hash
 from api_tcc.permissions import (
     MACHINE_WRITE_ROLES,
     IsAuthenticatedOrPublicDemo,
@@ -210,7 +210,7 @@ class IngestaoTelemetriaView(APIView):
             return Response({
                 'status': 'ok',
                 'id': detalhe,
-                **self._ack_payload(detalhe),
+                **self._ack_payload(detalhe, "acked"),
                 'ia': _serializar_analise(analise),
             }, status=status.HTTP_201_CREATED)
 
@@ -218,12 +218,26 @@ class IngestaoTelemetriaView(APIView):
             return Response({
                 'status': 'duplicata ignorada',
                 'id': detalhe,
-                **self._ack_payload(detalhe),
+                **self._ack_payload(detalhe, "duplicate"),
             },
                             status=status.HTTP_200_OK)
 
+        if resultado == "conflito":
+            return Response({"status": "conflict", "id": detalhe,
+                             **self._ack_payload(detalhe, "conflict"),
+                             "payload_hash": _computar_payload_hash(request.data)}, status=status.HTTP_409_CONFLICT)
+
         if resultado == "invalido":
-            return Response({'status': 'erro', 'detalhes': detalhe},
+            rejected_device = request.data.get('device_id', request.data.get('maquina_id'))
+            rejected_cursor = SyncCursor.objects.filter(device_id=rejected_device).values_list(
+                'last_acked_sequence', flat=True
+            ).first() or 0
+            return Response({'status': 'rejected', 'reason': detalhe,
+                             'message_id': request.data.get('message_id', request.data.get('id')),
+                             'device_id': rejected_device,
+                             'sequence_number': request.data.get('sequence_number'),
+                             'last_acked_sequence': rejected_cursor,
+                             'payload_hash': _computar_payload_hash(dict(request.data))},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # resultado == "erro" — falha inesperada de banco
@@ -231,7 +245,7 @@ class IngestaoTelemetriaView(APIView):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @staticmethod
-    def _ack_payload(leitura_id: str | None) -> dict:
+    def _ack_payload(leitura_id: str | None, ack_status: str) -> dict:
         """Expõe apenas os dados necessários para um ACK verificável no edge."""
         if not leitura_id:
             return {}
@@ -242,10 +256,12 @@ class IngestaoTelemetriaView(APIView):
             return {}
         cursor = SyncCursor.objects.filter(device_id=leitura.device_id).first()
         return {
+            'status': ack_status,
             'message_id': leitura.message_id,
             'device_id': leitura.device_id,
             'sequence_number': leitura.sequence_number,
             'payload_hash': leitura.payload_hash,
+            'last_acked_sequence': cursor.last_acked_sequence if cursor else 0,
             'sync_cursor': cursor.last_acked_sequence if cursor else 0,
         }
 
@@ -340,15 +356,42 @@ class IngestaoLoteView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'erros': []}
+        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'erros': [], 'items': []}
 
-        for item in leituras:
+        for index, item in enumerate(leituras):
             if not isinstance(item, dict):
                 resultado['invalidas'] += 1
                 resultado['erros'].append({'id': None, 'detalhe': 'item precisa ser um objeto JSON'})
                 continue
 
             status_item, detalhe = registrar_leitura(item)
+            if status_item == "erro":
+                return Response({
+                    **resultado,
+                    "failure": {"message_id": item.get("message_id", item.get("id")),
+                                "reason": "persistência não confirmada"},
+                    "pending_message_ids": [
+                        pending.get("message_id", pending.get("id"))
+                        for pending in leituras[index + 1:]
+                        if isinstance(pending, dict)
+                    ],
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            ack_status = {"criado": "acked", "duplicata": "duplicate", "conflito": "conflict",
+                          "invalido": "rejected"}.get(status_item, "rejected")
+            entry = LeituraTelemetria.objects.filter(id=detalhe).first() if status_item in {"criado", "duplicata", "conflito"} else None
+            item_device_id = entry.device_id if entry else item.get("device_id", item.get("maquina_id"))
+            cursor_value = SyncCursor.objects.filter(device_id=item_device_id).values_list(
+                "last_acked_sequence", flat=True
+            ).first() or 0
+            resultado["items"].append({
+                "message_id": (entry.message_id if entry else item.get("message_id", item.get("id"))),
+                "device_id": item_device_id,
+                "sequence_number": (entry.sequence_number if entry else item.get("sequence_number")),
+                "status": ack_status,
+                "payload_hash": (entry.payload_hash if entry else _computar_payload_hash(item)),
+                "last_acked_sequence": cursor_value,
+                **({"reason": detalhe} if ack_status == "rejected" else {}),
+            })
             if status_item == "criado":
                 resultado['salvas'] += 1
             elif status_item == "duplicata":

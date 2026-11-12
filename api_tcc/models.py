@@ -280,15 +280,23 @@ class LeituraTelemetria(models.Model):
     longitude   = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     # timestamp = event_time: momento em que o evento ocorreu na origem.
     # Mantido com este nome para compatibilidade com simuladores e dados históricos.
-    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True)
+    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True, null=True, blank=True)
     # recebido_em = ingested_at: momento em que o backend recebeu/processou a leitura.
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em (ingested_at)', db_index=True)
+    boot_id = models.UUIDField(null=True, blank=True, db_index=True)
+    uptime_ms = models.BigIntegerField(null=True, blank=True)
+    time_source = models.CharField(max_length=10, default='unsynced', choices=[(v, v) for v in ('rtc', 'gateway', 'ntp', 'unsynced')])
+    clock_skew_ms = models.BigIntegerField(null=True, blank=True)
+    event_time_confidence = models.FloatField(default=0.0)
+    time_provenance = models.JSONField(default=dict, blank=True)
     trust_score = models.FloatField(
         null=True,
         blank=True,
         verbose_name='Trust Score',
         help_text='Score heuristico 0..1 calculado na ingestao; null indica dado historico nao pontuado.',
     )
+    trust_factors = models.JSONField(default=list, blank=True,
+        help_text="Fatores explicativos calculados para esta leitura.")
 
     class Meta:
         ordering = ['-timestamp']
@@ -858,8 +866,8 @@ class SyncCursor(models.Model):
     """
     Cursor de progresso de sincronização por dispositivo.
 
-    Registra o maior sequence_number confirmado para cada device_id.
-    A regra de monotonicidade é: last_acked_sequence nunca retrocede.
+    Registra a maior sequência contígua confirmada para cada device_id.
+    O cursor nunca retrocede nem salta sequências ausentes.
 
     Uso futuro (Semana 8):
     - Sincronização offline baseada em cursor: o dispositivo envia
@@ -869,7 +877,7 @@ class SyncCursor(models.Model):
 
     Invariantes:
     - device_id é UNIQUE: um dispositivo possui exatamente um cursor.
-    - last_acked_sequence somente avança (monotônico).
+    - last_acked_sequence somente avança por sequências contíguas persistidas.
     - Um replay de mensagem antiga não pode fazer o cursor retroceder.
     """
 

@@ -35,7 +35,7 @@
     "eslint-config-next": "15.2.2",
     "playwright": "^1.40.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.8.2"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "^4.3.0",

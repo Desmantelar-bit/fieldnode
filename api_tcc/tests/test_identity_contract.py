@@ -187,47 +187,52 @@ class TestCursorMonotonico(TestCase):
     def test_cursor_monotônico_sequência_exata(self):
         """
         Estado inicial: cursor = 10
-        Chega 11 → cursor = 11
-        Chega 15 → cursor = 15
-        Chega 12 → cursor = 15 (não retrocede)
-        Chega 20 → cursor = 20
+        Chamadas sem mensagem persistida não podem avançar o cursor.
         """
         # Criar cursor com sequência inicial 10
         SyncCursor.objects.create(device_id=self.DEVICE, last_acked_sequence=10)
         self.assertEqual(self._cursor_seq(), 10)
 
         _atualizar_sync_cursor(self.DEVICE, 11)
-        self.assertEqual(self._cursor_seq(), 11, "Após seq=11, cursor deve ser 11.")
+        self.assertEqual(self._cursor_seq(), 10)
 
         _atualizar_sync_cursor(self.DEVICE, 15)
-        self.assertEqual(self._cursor_seq(), 15, "Após seq=15, cursor deve ser 15.")
+        self.assertEqual(self._cursor_seq(), 10)
 
         _atualizar_sync_cursor(self.DEVICE, 12)
-        self.assertEqual(self._cursor_seq(), 15, "seq=12 não deve retroceder cursor=15.")
+        self.assertEqual(self._cursor_seq(), 10)
 
         _atualizar_sync_cursor(self.DEVICE, 20)
-        self.assertEqual(self._cursor_seq(), 20, "Após seq=20, cursor deve ser 20.")
+        self.assertEqual(self._cursor_seq(), 10)
 
     def test_cursor_nao_retrocede_em_nenhum_momento(self):
-        """Em nenhum ponto intermediário o cursor pode ser menor que o máximo já visto."""
+        """O cursor não salta sequências sem leitura persistida."""
         SyncCursor.objects.create(device_id=self.DEVICE, last_acked_sequence=10)
         max_visto = 10
 
         for seq in [11, 15, 12, 20]:
             _atualizar_sync_cursor(self.DEVICE, seq)
-            max_visto = max(max_visto, seq)
             atual = self._cursor_seq()
             self.assertGreaterEqual(
-                atual, max_visto,
-                f"Cursor ({atual}) não pode ser menor que máximo já visto ({max_visto}) após seq={seq}.",
+                atual, 10,
+                f"Cursor ({atual}) não pode retroceder da posição inicial 10 após seq={seq}.",
             )
 
     def test_cursor_resultado_final_e_20(self):
-        """Verificação direta: resultado final após sequência 11, 15, 12, 20 deve ser 20."""
+        """Sem registros persistidos, o cursor permanece na última posição confirmada."""
         SyncCursor.objects.create(device_id=self.DEVICE, last_acked_sequence=10)
         for seq in [11, 15, 12, 20]:
             _atualizar_sync_cursor(self.DEVICE, seq)
-        self.assertEqual(self._cursor_seq(), 20)
+        self.assertEqual(self._cursor_seq(), 10)
+
+    def test_cursor_persistido_nao_avanca_sobre_lacuna_e_depois_fecha(self):
+        device = "CONTIGUOUS-DEVICE"
+        registrar_leitura(_payload_base(device_id=device, message_id="seq-1", sequence_number=1))
+        self.assertEqual(SyncCursor.objects.get(device_id=device).last_acked_sequence, 1)
+        registrar_leitura(_payload_base(device_id=device, message_id="seq-3", sequence_number=3))
+        self.assertEqual(SyncCursor.objects.get(device_id=device).last_acked_sequence, 1)
+        registrar_leitura(_payload_base(device_id=device, message_id="seq-2", sequence_number=2))
+        self.assertEqual(SyncCursor.objects.get(device_id=device).last_acked_sequence, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +251,8 @@ class TestDispositivosDiferentes(TestCase):
     def test_cursores_de_dispositivos_diferentes_sao_independentes(self):
         registrar_leitura(_payload_base(device_id="DEV-X", message_id="m1", sequence_number=5))
         registrar_leitura(_payload_base(device_id="DEV-Y", message_id="m2", sequence_number=100))
-        self.assertEqual(SyncCursor.objects.get(device_id="DEV-X").last_acked_sequence, 5)
-        self.assertEqual(SyncCursor.objects.get(device_id="DEV-Y").last_acked_sequence, 100)
+        self.assertEqual(SyncCursor.objects.get(device_id="DEV-X").last_acked_sequence, 0)
+        self.assertEqual(SyncCursor.objects.get(device_id="DEV-Y").last_acked_sequence, 0)
 
 
 class TestMensagensDiferentes(TestCase):
@@ -272,16 +277,16 @@ class TestReplayNaoRetrocedeCursor(TestCase):
     DEVICE = "REPLAY-DEV"
 
     def test_replay_nao_retrocede_cursor(self):
-        # Mensagem 1: seq=5 → cursor = 5
+        # Mensagem 1: seq=5 deixa lacunas 1..4; cursor permanece 0.
         registrar_leitura(_payload_base(device_id=self.DEVICE, message_id="msg-1", sequence_number=5))
-        self.assertEqual(SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 5)
+        self.assertEqual(SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 0)
 
-        # Mensagem 2: seq=10 → cursor = 10
+        # Mensagem 2: seq=10 não fecha a lacuna.
         registrar_leitura(_payload_base(
             device_id=self.DEVICE, message_id="msg-2", sequence_number=10,
             timestamp="2026-09-11T10:01:00Z",
         ))
-        self.assertEqual(SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 10)
+        self.assertEqual(SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 0)
 
         # Replay da mensagem 1 (seq=5) → cursor deve permanecer em 10
         status, _ = registrar_leitura(_payload_base(
@@ -289,8 +294,8 @@ class TestReplayNaoRetrocedeCursor(TestCase):
         ))
         self.assertEqual(status, "duplicata", "Replay deve retornar 'duplicata'.")
         self.assertEqual(
-            SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 10,
-            "Cursor não deve retroceder de 10 para 5 por causa de replay.",
+            SyncCursor.objects.get(device_id=self.DEVICE).last_acked_sequence, 0,
+            "Cursor não avança sobre lacunas.",
         )
 
 
@@ -364,7 +369,7 @@ class TestPrimeiroCursor(TestCase):
         ))
 
         cursor = SyncCursor.objects.get(device_id=device_id)
-        self.assertEqual(cursor.last_acked_sequence, 42)
+        self.assertEqual(cursor.last_acked_sequence, 0)
 
     def test_payload_legado_sem_sequence_nao_cria_ack_falso(self):
         payload = _payload_base(

@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import requests
@@ -57,8 +58,12 @@ class EdgeClientTest(unittest.TestCase):
 
     def ack_for(self, payload):
         return FakeResponse(201, {
+            "status": "acked",
             "message_id": payload["message_id"],
+            "device_id": payload["device_id"],
+            "sequence_number": payload["sequence_number"],
             "payload_hash": payload_hash(payload),
+            "last_acked_sequence": payload["sequence_number"],
         })
 
     def test_hash_and_priority_are_deterministic(self):
@@ -82,7 +87,8 @@ class EdgeClientTest(unittest.TestCase):
         self.assertEqual(client.api_url, "http://fieldnode/api/telemetria/")
         self.assertEqual(self.buffer.counts().get("PENDENTE"), 2)
         self.assertEqual(client.synchronize(), 2)
-        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 2)
+        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED, 0), 0)
+        self.assertEqual(self.buffer.counts(), {})
         self.assertEqual(self.buffer.cursor(), 2)
         self.assertEqual([p["message_id"] for p in session.payloads],
                          [first["message_id"], second["message_id"]])
@@ -105,6 +111,82 @@ class EdgeClientTest(unittest.TestCase):
                    session=session, backoff_base=0).synchronize()
         row = self.buffer.connection.execute("SELECT status FROM outbox").fetchone()
         self.assertEqual(row[0], STATUS_ERROR)
+        self.assertEqual(self.buffer.cursor(), 0)
+
+    def test_conflict_blocks_item_without_removing_it(self):
+        payload = self.enqueue()
+        session = FakeSession([FakeResponse(409, {
+            "status": "conflict", "message_id": payload["message_id"],
+            "device_id": payload["device_id"], "sequence_number": payload["sequence_number"],
+            "payload_hash": payload_hash(payload),
+        })])
+        EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                   session=session, backoff_base=0).synchronize()
+        row = self.buffer.connection.execute("SELECT status FROM outbox").fetchone()
+        self.assertEqual(row[0], "BLOCKED")
+        self.assertEqual(self.buffer.cursor(), 0)
+
+    def test_retry_after_lost_ack_resends_same_message_then_removes(self):
+        payload = self.enqueue()
+        session = FakeSession([requests.ConnectionError("response lost"), FakeResponse(200, {
+            "status": "duplicate", "message_id": payload["message_id"],
+            "device_id": payload["device_id"], "sequence_number": payload["sequence_number"],
+            "payload_hash": payload_hash(payload), "last_acked_sequence": payload["sequence_number"],
+        })])
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=session, backoff_base=0)
+        self.assertEqual(client.synchronize(), 0)
+        self.assertEqual(self.buffer.counts().get(STATUS_PENDING), 1)
+        self.assertEqual(client.synchronize(), 1)
+        self.assertEqual(session.payloads[0], session.payloads[1])
+        self.assertEqual(self.buffer.counts(), {})
+        self.assertEqual(self.buffer.cursor(), payload["sequence_number"])
+
+    def test_partial_http_500_preserves_only_unconfirmed_message(self):
+        first, second = self.enqueue(0), self.enqueue(1)
+        session = FakeSession([self.ack_for(first), FakeResponse(500, {})])
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=session, backoff_base=0)
+        self.assertEqual(client.synchronize(), 1)
+        rows = self.buffer.connection.execute("SELECT message_id, status FROM outbox").fetchall()
+        self.assertEqual([(row["message_id"], row["status"]) for row in rows],
+                         [(second["message_id"], STATUS_PENDING)])
+        self.assertEqual(self.buffer.cursor(), 1)
+
+    def test_incomplete_or_unknown_ack_never_removes_message(self):
+        first, second, third = self.enqueue(0), self.enqueue(1), self.enqueue(2)
+        session = FakeSession([
+            FakeResponse(201, {"status": "acked", "device_id": first["device_id"],
+                               "sequence_number": first["sequence_number"],
+                               "payload_hash": payload_hash(first)}),
+            FakeResponse(201, {"status": "acked", "message_id": second["message_id"],
+                               "device_id": second["device_id"],
+                               "sequence_number": second["sequence_number"]}),
+            FakeResponse(200, {"status": "maybe", "message_id": third["message_id"],
+                               "device_id": third["device_id"],
+                               "sequence_number": third["sequence_number"],
+                               "payload_hash": payload_hash(third)}),
+        ])
+        EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                   session=session, backoff_base=0).synchronize()
+        states = {row["message_id"]: row["status"] for row in self.buffer.connection.execute(
+            "SELECT message_id, status FROM outbox").fetchall()}
+        self.assertEqual(states[first["message_id"]], STATUS_ERROR)
+        self.assertEqual(states[second["message_id"]], STATUS_ERROR)
+        self.assertEqual(states[third["message_id"]], STATUS_PENDING)
+        self.assertEqual(self.buffer.cursor(), 0)
+
+    def test_falha_sqlite_na_confirmacao_recupera_no_reinicio(self):
+        payload = self.enqueue()
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=FakeSession([self.ack_for(payload)]), backoff_base=0)
+        with patch.object(self.buffer, "_advance_contiguous_cursor",
+                          side_effect=sqlite3.OperationalError("disk full")):
+            with self.assertRaises(sqlite3.OperationalError):
+                client.synchronize()
+        self.buffer.close()
+        self.buffer = EdgeBuffer(self.path, "edge-test")
+        self.assertEqual(self.buffer.counts().get(STATUS_PENDING), 1)
         self.assertEqual(self.buffer.cursor(), 0)
 
     def test_connection_failure_keeps_message_for_retry(self):
@@ -149,7 +231,8 @@ class EdgeClientTest(unittest.TestCase):
             backoff_base=0,
         )
         self.assertEqual(client.synchronize(stop_on_retryable_failure=True), 2)
-        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 2)
+        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED, 0), 0)
+        self.assertEqual(self.buffer.counts(), {})
         self.assertEqual(self.buffer.cursor(), 2)
 
 

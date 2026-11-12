@@ -20,7 +20,7 @@ def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
         data_fim = timezone.make_aware(datetime.combine(data_fim, time.max))
 
     if not data_inicio and not data_fim:
-        limites = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by("timestamp")
+        limites = LeituraTelemetria.objects.filter(maquina_id=maquina_id, timestamp__isnull=False).order_by("timestamp")
         primeira = limites.first()
         ultima = limites.last()
         if not primeira or not ultima:
@@ -36,6 +36,7 @@ def preparar_dados_relatorio(maquina_id, data_inicio=None, data_fim=None):
 
     queryset = LeituraTelemetria.objects.filter(
         maquina_id=maquina_id,
+        timestamp__isnull=False,
         timestamp__gte=data_inicio,
         timestamp__lte=data_fim
     ).order_by('timestamp')

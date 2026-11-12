@@ -207,6 +207,7 @@ def _historico_para_evento(leitura):
     """Obtém leituras anteriores da máquina para o cálculo no fluxo real."""
     return LeituraTelemetria.objects.filter(
         machine=leitura.machine,
+        timestamp__isnull=False,
         timestamp__lt=leitura.timestamp,
     ).order_by("-timestamp")[:50]
 

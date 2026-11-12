@@ -103,6 +103,15 @@ def _criar_colheitadeira(maquina_id: str):
 
 
 class CalcularTrustScoreTest(SimpleTestCase):
+    def test_hora_unsynced_reduz_score_e_expoe_fator(self):
+        leitura = _leitura(timestamp=_dt(10), temperatura=72.0, vibracao=0.35, rpm=1800)
+        leitura.time_source = "unsynced"
+        leitura.event_time_confidence = 0.0
+        anterior = _leitura(timestamp=_dt(9, 55), temperatura=70.0, vibracao=0.33, rpm=1785)
+        score, motivos = calcular_trust_score(leitura, [anterior])
+        self.assertLess(score, 0.5)
+        self.assertIn("hora_do_dispositivo_nao_confiavel", motivos)
+
     def test_leitura_limpa_recebe_score_alto(self):
         leitura = _leitura(timestamp=_dt(10), temperatura=72.0, vibracao=0.35, rpm=1800)
         historico = [

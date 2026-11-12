@@ -50,6 +50,7 @@ ALERT_SIGNAL_KEYS = (
     "gap_temporal",
     "timestamp_fora_de_ordem",
     "timestamp_indisponivel",
+    "hora_do_dispositivo_nao_confiavel",
     "valores_repetidos",
     "limite_fisico",
     "salto_abrupto",
@@ -70,6 +71,12 @@ def calcular_trust_score(leitura: Any, historico_recente: Iterable[Any]) -> tupl
 
     score = 1.0
     motivos: list[str] = []
+
+    confidence = _get(leitura, "event_time_confidence")
+    if confidence is not None and float(confidence) < 1.0:
+        score -= max(0.0, min(1.0, 1.0 - float(confidence)))
+        if _get(leitura, "time_source") == "unsynced":
+            motivos.append("hora_do_dispositivo_nao_confiavel")
 
     score += _penalidade_temporal(leitura, leitura_anterior, motivos)
     score += _penalidade_repeticao(leitura, historico, motivos)
@@ -295,6 +302,7 @@ def _sinais_de_alerta(motivos: list[str], trust_score: float) -> dict[str, bool]
         "gap_temporal": "gap temporal acima" in texto,
         "timestamp_fora_de_ordem": "fora de ordem" in texto,
         "timestamp_indisponivel": "timestamp indisponivel" in texto,
+        "hora_do_dispositivo_nao_confiavel": "hora_do_dispositivo_nao_confiavel" in texto,
         "valores_repetidos": "repetidos consecutivamente" in texto,
         "limite_fisico": "limite fisico" in texto,
         "salto_abrupto": "salto abrupto" in texto,

@@ -1,8 +1,8 @@
 # Contrato de Telemetria — Schema v1.1
 
-> **Versão:** 1.1 (S1-T5: Contrato de Identidade)
+> **Versão:** 1.2 (S1-T5: Proveniência Temporal)
 > **Status:** Vigente
-> **Data de atualização:** 2026-09-11
+> **Data de atualização:** 2026-11-12
 > **Responsável:** Equipe FieldNode
 
 ## Objetivo
@@ -43,6 +43,66 @@ A versão 1.0 (legada) continua sendo suportada via fallbacks.
 |------------------|--------|--------------------|---------------------|----------------------------------------------|
 | `source`         | String | api, mqtt, sim     | `api`               | Fonte originadora do evento.                 |
 | `transport`      | String | http, mqtt, ble    | `http`              | Protocolo de transporte utilizado.           |
+
+## Proveniência temporal (S1-T5)
+
+`timestamp` permanece como alias legado de `event_time`; também é aceito o
+campo explícito `event_time`. Ambos representam o instante do evento e podem ser
+nulos quando `time_source=unsynced` e não há âncora. `ingested_at` é gerado pelo
+servidor e não substitui a hora do evento. Em respostas, os campos temporais
+incluem `event_time`, `ingested_at`, `boot_id` (UUID por inicialização),
+`uptime_ms` (inteiro monotônico não negativo), `time_source` (`rtc`, `gateway`,
+`ntp`, `unsynced`), `clock_skew_ms` (inteiro assinado opcional) e
+`event_time_confidence` (0..1, heurística explícita).
+
+Payload legado com timestamp e sem origem preserva o timestamp recebido como
+hora não verificada (`unsynced`, confiança 0.5). Payload novo sem hora confiável
+pode omitir `timestamp`; a leitura persiste com `event_time=null`, confiança 0 e
+`ingested_at` preservado. `boot_id` inválido, uptime negativo/não inteiro,
+`time_source` desconhecido e timestamp sincronizado ausente são rejeitados.
+
+Para um boot, a âncora mais antiga recebida com `rtc`, `ntp` ou `gateway` e
+timestamp confiável reconstrói eventos relacionados por:
+
+```text
+event_time = anchor_time + (uptime_ms - anchor_uptime_ms)
+```
+
+A reconstrução é determinística, restrita ao mesmo `boot_id` e pode ser
+reaplicada. Leituras sem âncora ficam sem `event_time`; o sistema não infere
+evento antigo a partir do horário de chegada. `clock_skew_ms` é aceito somente
+como estimativa reportada pelo gateway: diferença entre recepção e evento não é
+chamada de skew, pois pode ser atraso de rede ou de sincronização.
+
+Confiança: RTC/NTP 0.95, gateway 0.80, timestamp legado não verificado 0.50,
+reconstrução por âncora no máximo 0.65, sem hora resolvida 0. Esses valores são
+heurísticas de software, não probabilidades validadas em campo. O Trust Score
+subtrai `1 - event_time_confidence` e expõe o fator
+`hora_do_dispositivo_nao_confiavel` para `unsynced`; a lista por leitura é
+persistida em `trust_factors` e exposta na API. Isso afeta qualidade da
+evidência, nunca a fórmula de prioridade. A precisão de DS3231 depende da
+variante, temperatura e condições de uso; a validação do componente efetivo e
+do valor ±2 ppm fica para S8.
+
+Exemplo sincronizado:
+
+```json
+{"maquina_id":"COLH-01","message_id":"m-1","temperatura":72,"vibracao":0.4,"rpm":1700,
+ "timestamp":"2026-11-12T10:00:00Z","boot_id":"d42b5dd0-53c7-437a-833f-15c791d91343",
+ "uptime_ms":3600000,"time_source":"rtc"}
+```
+
+Exemplo sem relógio e sem âncora:
+
+```json
+{"maquina_id":"COLH-01","message_id":"m-2","temperatura":72,"vibracao":0.4,"rpm":1700,
+ "boot_id":"d42b5dd0-53c7-437a-833f-15c791d91343","uptime_ms":3605000,"time_source":"unsynced"}
+```
+
+Migration incremental 0033 adiciona proveniência temporal e permite `timestamp`
+nulo; a migration 0027 existente não foi alterada. Payloads legados continuam
+aceitos com timestamp não verificado. Leituras não resolvidas não alimentam
+eventos temporais nem o agregado `MachineDataHealth` até existir `event_time`.
 | `latitude`       | Float  | Graus decimais     | `[-90.0, 90.0]`    | Latitude GPS da máquina.                     |
 | `longitude`      | Float  | Graus decimais     | `[-180.0, 180.0]`  | Longitude GPS da máquina.                    |
 | `schema_version` | String | SemVer             | `1.0`               | Versão do payload.                           |

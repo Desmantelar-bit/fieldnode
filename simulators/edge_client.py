@@ -29,6 +29,7 @@ STATUS_PENDING = "PENDENTE"
 STATUS_SENDING = "ENVIANDO"
 STATUS_SYNCED = "SINCRONIZADA"
 STATUS_ERROR = "ERRO"
+STATUS_BLOCKED = "BLOCKED"
 PRIORITIES = ("A", "B", "C")
 
 
@@ -38,7 +39,10 @@ def canonical_json(payload: dict[str, Any]) -> str:
 
 
 def payload_hash(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+    canonical = dict(payload)
+    if canonical.get("message_id"):
+        canonical.pop("id", None)
+    return hashlib.sha256(canonical_json(canonical).encode("utf-8")).hexdigest()
 
 
 def classify_priority(payload: dict[str, Any]) -> str:
@@ -96,6 +100,14 @@ class EdgeBuffer:
                 device_id TEXT PRIMARY KEY,
                 last_acked_sequence INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS edge_acknowledgement (
+                device_id TEXT NOT NULL,
+                sequence_number INTEGER NOT NULL,
+                message_id TEXT NOT NULL,
+                payload_hash TEXT NOT NULL,
+                PRIMARY KEY (device_id, sequence_number),
+                UNIQUE (device_id, message_id)
+            );
             """
         )
         self.connection.execute(
@@ -112,8 +124,11 @@ class EdgeBuffer:
 
     def next_sequence(self) -> int:
         row = self.connection.execute(
-            "SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_sequence "
-            "FROM outbox WHERE device_id = ?", (self.device_id,)
+            "SELECT MAX(value) + 1 AS next_sequence FROM ("
+            "SELECT last_acked_sequence AS value FROM edge_cursor WHERE device_id = ? "
+            "UNION ALL SELECT sequence_number AS value FROM outbox WHERE device_id = ? "
+            "UNION ALL SELECT sequence_number AS value FROM edge_acknowledgement WHERE device_id = ?) q",
+            (self.device_id, self.device_id, self.device_id),
         ).fetchone()
         return int(row["next_sequence"])
 
@@ -126,7 +141,7 @@ class EdgeBuffer:
                  priority_class, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (self.device_id, str(payload["message_id"]), int(payload["sequence_number"]),
-                 encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+                 encoded, payload_hash(payload),
                  classify_priority(payload), STATUS_PENDING, utc_now()),
             )
         return int(cursor.lastrowid)
@@ -154,10 +169,8 @@ class EdgeBuffer:
 
     def _advance_contiguous_cursor(self) -> int:
         current = self.cursor()
-        while self.connection.execute(
-            "SELECT 1 FROM outbox WHERE device_id = ? AND sequence_number = ? AND status = ?",
-            (self.device_id, current + 1, STATUS_SYNCED),
-        ).fetchone():
+        while self.connection.execute("SELECT 1 FROM edge_acknowledgement WHERE device_id = ? AND sequence_number = ?",
+                                      (self.device_id, current + 1)).fetchone():
             current += 1
         self.connection.execute(
             "UPDATE edge_cursor SET last_acked_sequence = ? WHERE device_id = ?",
@@ -174,10 +187,14 @@ class EdgeBuffer:
 
     def mark_synced(self, row_id: int) -> int:
         with self.connection:
+            row = self.connection.execute("SELECT * FROM outbox WHERE id = ?", (row_id,)).fetchone()
+            if row is None:
+                return self.cursor()
             self.connection.execute(
-                "UPDATE outbox SET status = ?, last_error = NULL WHERE id = ?",
-                (STATUS_SYNCED, row_id),
+                "INSERT OR REPLACE INTO edge_acknowledgement(device_id, sequence_number, message_id, payload_hash) VALUES (?, ?, ?, ?)",
+                (row["device_id"], row["sequence_number"], row["message_id"], row["payload_hash"]),
             )
+            self.connection.execute("DELETE FROM outbox WHERE id = ?", (row_id,))
             return self._advance_contiguous_cursor()
 
     def mark_error(self, row_id: int, reason: str) -> None:
@@ -185,6 +202,11 @@ class EdgeBuffer:
             "UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
             (STATUS_ERROR, reason[:1000], row_id),
         )
+        self.connection.commit()
+
+    def mark_blocked(self, row_id: int, reason: str) -> None:
+        self.connection.execute("UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
+                                (STATUS_BLOCKED, reason[:1000], row_id))
         self.connection.commit()
 
     def mark_retryable(self, row_id: int, reason: str) -> None:
@@ -250,7 +272,7 @@ class EdgeClient:
             return False
         if response.status_code == 429 or response.status_code >= 500:
             return self._retryable_failure(row, f"HTTP {response.status_code}")
-        if response.status_code < 200 or response.status_code >= 300:
+        if response.status_code < 200 or (response.status_code >= 300 and response.status_code != 409):
             self.buffer.mark_error(row_id, f"permanent HTTP {response.status_code}")
             return False
         try:
@@ -258,11 +280,27 @@ class EdgeClient:
         except (ValueError, json.JSONDecodeError) as exc:
             self.buffer.mark_error(row_id, f"ACK JSON inválido: {exc}")
             return False
-        if body.get("payload_hash") != row["payload_hash"]:
-            self.buffer.mark_error(row_id, "payload_hash divergente no ACK")
-            return False
         if body.get("message_id") != row["message_id"]:
             self.buffer.mark_error(row_id, "message_id divergente no ACK")
+            return False
+        if body.get("device_id") != row["device_id"]:
+            self.buffer.mark_error(row_id, "device_id divergente no ACK")
+            return False
+        ack_status = body.get("status")
+        if ack_status == "conflict":
+            self.buffer.mark_blocked(row_id, "conflito de identidade/hash registrado no servidor")
+            return False
+        if ack_status == "rejected":
+            self.buffer.mark_error(row_id, str(body.get("reason", "mensagem rejeitada pelo servidor")))
+            return False
+        if ack_status not in {"acked", "duplicate"}:
+            self.buffer.mark_retryable(row_id, "ACK ausente ou status desconhecido")
+            return False
+        if body.get("sequence_number") != row["sequence_number"]:
+            self.buffer.mark_error(row_id, "sequence_number divergente no ACK")
+            return False
+        if body.get("payload_hash") != row["payload_hash"]:
+            self.buffer.mark_error(row_id, "payload_hash divergente no ACK")
             return False
         cursor = self.buffer.mark_synced(row_id)
         LOGGER.info("ACK device=%s seq=%s cursor_contiguo=%d", row["device_id"], row["sequence_number"], cursor)
@@ -281,25 +319,32 @@ class EdgeClient:
         return False
 
 
-def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador") -> dict[str, Any]:
+def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador",
+                     time_source: str = "gateway", boot_id: str | None = None) -> dict[str, Any]:
     if index % 10 == 0:
         temperature, vibration = 115.0, 2.0
     elif index % 3 == 0:
         temperature, vibration = 80.0, 1.0
     else:
         temperature, vibration = 70.0, 0.5
-    return {
+    payload = {
         "id": str(uuid.uuid4()), "device_id": device_id, "message_id": str(uuid.uuid4()),
-        "sequence_number": sequence_number, "maquina_id": device_id, "timestamp": utc_now(),
+        "sequence_number": sequence_number, "maquina_id": device_id,
+        "boot_id": boot_id or str(uuid.uuid4()), "uptime_ms": index * 1000,
+        "time_source": time_source,
         "temperatura": temperature, "vibracao": vibration, "vibracao_unit": "indice_0_10", "rpm": 1800,
         "source": source, "transport": "http", "schema_version": "1.1",
     }
+    if time_source != "unsynced":
+        payload["timestamp"] = utc_now()
+    return payload
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device-id", default=os.getenv("DEVICE_ID", "edge-bench-01"))
     parser.add_argument("--count", type=int, default=0)
+    parser.add_argument("--time-source", choices=("rtc", "gateway", "ntp", "unsynced"), default="gateway")
     parser.add_argument("--interval", type=float, default=0.0)
     parser.add_argument("--api-url", default=os.getenv("FIELDNODE_API_URL", "http://127.0.0.1:8000/api") + "/telemetria/")
     parser.add_argument("--api-key", default=os.getenv("FIELDNODE_API_KEY", ""))
@@ -323,6 +368,7 @@ def main() -> int:
         raise SystemExit("--watch exige --interval positivo e não combina com --offline/--sync-only")
     if args.watch and not args.api_key:
         raise SystemExit("FIELDNODE_API_KEY/--api-key é obrigatório para sincronizar")
+    boot_id = str(uuid.uuid4())
     buffer = EdgeBuffer(args.buffer_path, args.device_id)
     try:
         if args.watch:
@@ -345,7 +391,8 @@ def main() -> int:
             sync_worker: threading.Thread | None = None
             try:
                 while True:
-                    payload = generate_payload(args.device_id, buffer.next_sequence(), index)
+                    payload = generate_payload(args.device_id, buffer.next_sequence(), index,
+                                               time_source=args.time_source, boot_id=boot_id)
                     buffer.enqueue(payload)
                     LOGGER.info(
                         "leitura persistida device=%s seq=%s pendentes=%s",
@@ -388,7 +435,8 @@ def main() -> int:
                 return 0
         if not args.sync_only:
             for index in range(args.count):
-                buffer.enqueue(generate_payload(args.device_id, buffer.next_sequence(), index))
+                buffer.enqueue(generate_payload(args.device_id, buffer.next_sequence(), index,
+                                                 time_source=args.time_source, boot_id=boot_id))
                 if args.interval > 0:
                     time.sleep(args.interval)
         if not args.offline:
