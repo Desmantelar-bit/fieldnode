@@ -204,8 +204,10 @@ class EdgeBuffer:
         self.connection.commit()
 
     def mark_blocked(self, row_id: int, reason: str) -> None:
-        self.connection.execute("UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
-                                (STATUS_BLOCKED, reason[:1000], row_id))
+        self.connection.execute(
+            "UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
+            (STATUS_BLOCKED, reason[:1000], row_id),
+        )
         self.connection.commit()
 
     def mark_retryable(self, row_id: int, reason: str) -> None:
@@ -318,7 +320,7 @@ class EdgeClient:
         return False
 
 
-def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador",
+﻿def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador",
                      time_source: str = "gateway", boot_id: str | None = None) -> dict[str, Any]:
     if index % 10 == 0:
         temperature, vibration = 115.0, 2.0
@@ -337,6 +339,72 @@ def generate_payload(device_id: str, sequence_number: int, index: int, *, source
     if time_source != "unsynced":
         payload["timestamp"] = utc_now()
     return payload
+
+
+class OfflineSimulator:
+    """Simula um ESP32 offline: coleta dados com boot_id e uptime monotônico."""
+
+    def __init__(
+        self,
+        device_id: str,
+        *,
+        uptime_start_ms: int = 0,
+        time_source: str = "unsynced",
+    ) -> None:
+        self.device_id = device_id
+        self.boot_id: str = str(uuid.uuid4())
+        self._uptime_ms: int = uptime_start_ms
+        self.time_source: str = time_source
+
+    def reboot(self) -> None:
+        self.boot_id = str(uuid.uuid4())
+        self._uptime_ms = 0
+
+    def tick(self, ms: int = 5000) -> None:
+        self._uptime_ms += ms
+
+    def sync_ntp(self) -> None:
+        self.time_source = "ntp"
+
+    def sync_gateway(self) -> None:
+        self.time_source = "gateway"
+
+    def go_offline(self) -> None:
+        self.time_source = "unsynced"
+
+    @property
+    def uptime_ms(self) -> int:
+        return self._uptime_ms
+
+    def generate_reading(
+        self,
+        sequence_number: int,
+        *,
+        temperatura: float = 72.0,
+        vibracao: float = 0.35,
+        rpm: int = 1800,
+        source: str = "simulador",
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "device_id": self.device_id,
+            "maquina_id": self.device_id,
+            "message_id": str(uuid.uuid4()),
+            "sequence_number": sequence_number,
+            "boot_id": self.boot_id,
+            "uptime_ms": self._uptime_ms,
+            "time_source": self.time_source,
+            "temperatura": temperatura,
+            "vibracao": vibracao,
+            "vibracao_unit": "indice_0_10",
+            "rpm": rpm,
+            "source": source,
+            "transport": "http",
+            "schema_version": "1.1",
+        }
+        if self.time_source != "unsynced":
+            payload["timestamp"] = utc_now()
+        return payload
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -8,7 +8,6 @@ software, não rádio, proximidade física ou comunicação entre ESP32.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import logging
 import os
@@ -21,17 +20,13 @@ from typing import Any
 import requests
 
 try:
-    from .edge_client import PRIORITIES, STATUS_PENDING, STATUS_SENDING, EdgeBuffer, canonical_json, utc_now
+    from .edge_client import PRIORITIES, STATUS_PENDING, STATUS_SENDING, EdgeBuffer, canonical_json, payload_hash as _hash_payload, utc_now
 except ImportError:  # execução direta: python simulators/transbordo_mule_client.py
-    from edge_client import PRIORITIES, STATUS_PENDING, STATUS_SENDING, EdgeBuffer, canonical_json, utc_now
+    from edge_client import PRIORITIES, STATUS_PENDING, STATUS_SENDING, EdgeBuffer, canonical_json, payload_hash as _hash_payload, utc_now
 
 LOGGER = logging.getLogger("fieldnode.transbordo_mule")
 STATUS_SYNCED = "SINCRONIZADA"
 STATUS_CONFLICT = "CONFLITO"
-
-
-def _hash_payload(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 class MuleBuffer:

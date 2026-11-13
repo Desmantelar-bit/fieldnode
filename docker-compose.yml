@@ -59,9 +59,19 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
-    command: ["sh", "/mosquitto/config/docker-entrypoint.sh"]
+    env_file:
+      - .env
+    command:
+      - sh
+      - -ec
+      - |
+        : "$${MQTT_USERNAME:?MQTT_USERNAME is required}"
+        : "$${MQTT_PASSWORD:?MQTT_PASSWORD is required}"
+        touch /mosquitto/data/passwordfile
+        mosquitto_passwd -b /mosquitto/data/passwordfile "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
     ports:
-      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:${MQTT_HOST_PORT:-1883}:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/acl.conf:/mosquitto/config/acl.conf:ro
