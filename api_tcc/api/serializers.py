@@ -408,6 +408,8 @@ class DecisionActionSerializer(StrictSerializer):
 
 class DecisionSerializer(serializers.ModelSerializer):
     metodologia = serializers.SerializerMethodField()
+    transicoes_permitidas = serializers.SerializerMethodField()
+    evidencia = serializers.SerializerMethodField()
     machine = serializers.UUIDField(source="machine.id", read_only=True)
     machine_external_code = serializers.CharField(
         source="machine.external_code", read_only=True
@@ -438,11 +440,42 @@ class DecisionSerializer(serializers.ModelSerializer):
             "decidido_em",
             "outcome_texto",
             "metodologia",
+            "transicoes_permitidas",
+            "evidencia",
         ]
         read_only_fields = fields
 
     def get_metodologia(self, obj):
         return obj.detalhes.get("metodologia") if isinstance(obj.detalhes, dict) else None
+
+    def get_transicoes_permitidas(self, obj):
+        from api_tcc.services.decisions import DECISION_TRANSICOES_PERMITIDAS
+        request = self.context.get("request")
+        from api_tcc.permissions import user_can_access_machine
+        if request is None or not user_can_access_machine(request.user, obj.machine, write=True):
+            return []
+        return sorted(DECISION_TRANSICOES_PERMITIDAS.get(obj.status, set()))
+
+    def get_evidencia(self, obj):
+        event = obj.event
+        if event is None:
+            return None
+        reading = event.leitura_origem
+        return {
+            "evento": {
+                "id": str(event.id), "tipo": event.tipo, "severidade": event.severidade,
+                "criado_em": event.criado_em, "evidence_quality": event.evidence_quality,
+                "needs_verification": event.needs_verification,
+                "dados_contexto": event.dados_contexto,
+            },
+            "leitura": None if reading is None else {
+                "id": str(reading.id), "event_time": reading.timestamp,
+                "time_source": reading.time_source,
+                "event_time_confidence": reading.event_time_confidence,
+                "temperatura": reading.temperatura, "vibracao": reading.vibracao,
+                "rpm": reading.rpm, "trust_score": reading.trust_score,
+            },
+        }
 
 
 class EventSerializer(serializers.ModelSerializer):

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, LayoutGrid, Map, Tractor, Users } from 'lucide-react';
+import { Activity, FileText, LayoutGrid, Map, Tractor, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { FieldNodeLogo } from '@/components/FieldNodeLogo';
 import { LogoutButton } from '@/components/LogoutButton';
@@ -12,6 +12,7 @@ const items = [
   { icon: LayoutGrid, href: '/dashboard',    label: 'Dashboard',  short: 'Início' },
   { icon: Map,         href: '/mapa',         label: 'Mapa',       short: 'Mapa' },
   { icon: Tractor,     href: '/colheitadeiras', label: 'Máquinas', short: 'Frota' },
+  { icon: Activity,    href: '/decisoes',       label: 'Decisões', short: 'Decisões' },
   { icon: Users,       href: '/operarios',    label: 'Operários',  short: 'Equipe' },
   { icon: FileText,    href: '/relatorios',   label: 'Relatórios', short: 'Relatos' },
 ] as const;

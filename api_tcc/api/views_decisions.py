@@ -84,7 +84,7 @@ class DecisionListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = DecisionSerializer(page_obj.object_list, many=True)
+        serializer = DecisionSerializer(page_obj.object_list, many=True, context={"request": request})
 
         def _build_page_url(num):
             params = request.query_params.copy()

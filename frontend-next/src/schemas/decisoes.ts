@@ -16,6 +16,12 @@ export const DecisaoSchema = z.object({
   decidido_em: z.string().datetime({ offset: true }).nullable(),
   outcome_texto: z.string().nullable(),
   metodologia: z.string().nullable(),
+  transicoes_permitidas: z.array(z.enum(['PENDENTE', 'APROVADA', 'REJEITADA', 'EXECUTADA', 'EXPIRADA'])).default([]),
+  evidencia: z.object({
+    evento: z.object({ id: z.string(), tipo: z.string(), severidade: z.string(), criado_em: z.string(), evidence_quality: z.string(), needs_verification: z.boolean(), dados_contexto: z.record(z.string(), z.unknown()) }),
+    leitura: z.object({ id: z.string(), event_time: z.string().nullable(), time_source: z.string(), event_time_confidence: z.number(), temperatura: z.number(), vibracao: z.number(), rpm: z.number(), trust_score: z.number().nullable() }).nullable(),
+  }).nullable().optional(),
+  historico: z.array(z.object({ action: z.string(), quando: z.string(), ator: z.string().nullable(), metadata: z.record(z.string(), z.unknown()) })).optional(),
 });
 
 export const DecisaoPageSchema = z.object({

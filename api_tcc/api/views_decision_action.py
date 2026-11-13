@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api_tcc.api.serializers import DecisionActionSerializer, DecisionSerializer
-from api_tcc.models import Decision
+from api_tcc.models import AuditLog, Decision
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, request_can_access_machine, user_can_access_machine
 from api_tcc.services.decisions import aplicar_acao_decision
 from api_tcc.services.audit import record as audit_record
@@ -40,7 +40,19 @@ class DecisionActionView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        return Response(DecisionSerializer(decision).data, status=status.HTTP_200_OK)
+        payload = DecisionSerializer(decision, context={"request": request}).data
+        payload["historico"] = list(
+            AuditLog.objects.filter(
+                object_type="api_tcc.decision", object_id=str(decision.id),
+                action__startswith="decision.", result="allowed",
+            ).select_related("actor").order_by("created_at").values(
+                "action", "created_at", "actor__username", "metadata",
+            )
+        )
+        for item in payload["historico"]:
+            item["ator"] = item.pop("actor__username")
+            item["quando"] = item.pop("created_at")
+        return Response(payload, status=status.HTTP_200_OK)
 
     def patch(self, request, decision_id):
         serializer = DecisionActionSerializer(data=request.data)
@@ -99,4 +111,4 @@ class DecisionActionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(DecisionSerializer(decision).data, status=status.HTTP_200_OK)
+        return Response(DecisionSerializer(decision, context={"request": request}).data, status=status.HTTP_200_OK)
