@@ -159,7 +159,11 @@ class RegisterView(APIView):
             )
 
         return Response(
-            {"token": token.key, "user": _user_payload(user)},
+            {
+                "token": token.key,
+                "expires_in": token_expires_in(token),
+                "user": _user_payload(user),
+            },
             status=status.HTTP_201_CREATED,
         )
 

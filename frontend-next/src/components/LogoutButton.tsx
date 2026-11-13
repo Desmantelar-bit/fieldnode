@@ -32,19 +32,25 @@ type LogoutButtonProps = {
 export function LogoutButton({ variant = 'header', className = '' }: LogoutButtonProps) {
   const router = useRouter();
   const [isLeaving, setIsLeaving] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
 
   async function handleLogout() {
     if (isLeaving) return;
     setIsLeaving(true);
+    setLogoutError('');
     try {
       await logout();
-    } finally {
       router.replace('/login');
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : 'Não foi possível confirmar o encerramento da sessão.');
+    } finally {
+      setIsLeaving(false);
     }
   }
 
   if (variant === 'rail') {
     return (
+      <>
       <button
         type="button"
         onClick={handleLogout}
@@ -63,10 +69,13 @@ export function LogoutButton({ variant = 'header', className = '' }: LogoutButto
           Sair
         </span>
       </button>
+      {logoutError && <span role="alert" className="mt-2 block max-w-48 text-xs text-[var(--status-critico)]">{logoutError}</span>}
+      </>
     );
   }
 
   return (
+    <>
     <button
       type="button"
       onClick={handleLogout}
@@ -82,5 +91,7 @@ export function LogoutButton({ variant = 'header', className = '' }: LogoutButto
         <LogOut aria-hidden="true" size={16} strokeWidth={1.8} />
       )}
     </button>
+    {logoutError && <span role="alert" className="mt-2 block max-w-48 text-xs text-[var(--status-critico)]">{logoutError}</span>}
+    </>
   );
 }

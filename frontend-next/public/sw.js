@@ -108,11 +108,25 @@ self.addEventListener("sync", (event) => {
 });
 
 async function sendOrQueueTelemetry(request) {
-  const requestForNetwork = request.clone();
   const requestForQueue = request.clone();
 
   try {
+    const headers = new Headers(request.headers);
+    headers.set("X-FieldNode-CSRF", "1");
+    const requestForNetwork = new Request(new URL("/api/telemetria/", self.location.origin), {
+      method: "POST",
+      headers,
+      body: await request.clone().arrayBuffer(),
+      credentials: "include",
+    });
     const response = await fetch(requestForNetwork);
+    if (response.status === 401 || response.status === 403) {
+      await queueRequest(requestForQueue);
+      const db = await openDb();
+      await markAll(db, "auth_blocked", "Autenticação necessária");
+      await notifyClients({ type: "AUTH_REQUIRED" });
+      return queuedResponse("Sessão necessária. Leitura guardada para reenvio.");
+    }
     if (!response.ok && shouldRetryStatus(response.status)) {
       await queueRequest(requestForQueue);
       await requestSync();
@@ -145,12 +159,12 @@ async function syncTelemetriaData() {
       const apiUrl = new URL(apiConfig.apiUrl, self.location.origin);
       const response = await fetch(
         item.url || `${apiUrl.toString().replace(/\/$/, "")}/telemetria/`,
-        { method: "POST", headers: buildHeaders(item.headers), body: JSON.stringify(item.payload) },
+        { method: "POST", headers: buildHeaders(item.headers), body: JSON.stringify(item.payload), credentials: "include" },
       );
       if (response.ok) {
         await deleteItem(db, item.localId);
         synced++;
-      } else if (response.status === 401) {
+      } else if (response.status === 401 || response.status === 403) {
         item.attempts += 1;
         await putItem(db, item);
         await markAll(db, "auth_blocked", "Autenticação necessária");
@@ -177,7 +191,7 @@ async function queueRequest(request) {
   request.headers.forEach((value, key) => {
     headers[key] = value;
   });
-  await queueTelemetry(payload, headers, request.url);
+  await queueTelemetry(payload, headers, `${self.location.origin}/api/telemetria/`);
 }
 
 async function queueTelemetry(
@@ -277,6 +291,7 @@ function buildHeaders(headers) {
     ...headers,
     Accept: "application/json",
     "Content-Type": "application/json",
+    "X-FieldNode-CSRF": "1",
   };
 }
 

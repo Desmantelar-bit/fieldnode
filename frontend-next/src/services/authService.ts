@@ -81,7 +81,7 @@ async function submit(path: string, payload: unknown): Promise<AuthResult> {
   try {
     response = await fetch(`/api/auth/${path}/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FieldNode-CSRF': '1' },
       credentials: 'same-origin',
       body: JSON.stringify(payload),
       cache: 'no-store',
@@ -113,7 +113,11 @@ export function register(params: {
 
 export async function logout(): Promise<void> {
   try {
-    await fetch('/api/auth/logout/', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
+    const response = await fetch('/api/auth/logout/', { method: 'POST', headers: { 'X-FieldNode-CSRF': '1' }, credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) {
+      const error = await parseError(response);
+      throw new Error(error.message);
+    }
   } finally {
     clearSession();
     await clearPrivateOfflineCache();

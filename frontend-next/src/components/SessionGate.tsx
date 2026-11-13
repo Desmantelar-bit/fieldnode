@@ -12,20 +12,12 @@ import { verifyToken } from '@/services/authService';
    e prescrição), sem repetir a regra em cada página. `/login` e `/register`
    usam AuthLayout e ficam de fora, como deve ser.
 
-   ── Sobre a "tolerância offline" ──
-   A verificação é a PRESENÇA do token no storage, nunca uma ida ao servidor.
-   Isso é o que faz a guarda conviver com o offline-first: com o token salvo, a
-   guarda não faz requisição alguma e o app abre normalmente mesmo com o Django
-   fora do ar. Trocar isso por um `verifyToken()` na entrada seria pior em dois
-   sentidos — atrasaria toda navegação com uma chamada de rede e, quando o
-   servidor estivesse fora, expulsaria um usuário que está legitimamente logado.
+   A sessão é validada pelo BFF. Se o servidor estiver indisponível, a falha de
+   rede preserva a experiência offline; uma resposta 401/403 encerra a sessão.
 
    ── Sobre o que isto é e o que não é ──
-   É uma guarda de EXPERIÊNCIA: sem sessão, o usuário é levado ao login em vez de
-   ver um app que ele não deveria ver. NÃO é fronteira de segurança: o token
-   mora em localStorage, então quem quiser entrar pode escrever a chave à mão.
-   Proteção de verdade só existe no servidor, e para isso o backend precisa
-   negar os dados sem credencial — os endpoints de telemetria hoje são abertos.
+   É uma guarda de experiência. A autorização dos dados continua no backend;
+   este componente não substitui as permissões das APIs.
    ────────────────────────────────────────────────────────────────────────── */
 
 export function SessionGate({ children }: { children: ReactNode }) {

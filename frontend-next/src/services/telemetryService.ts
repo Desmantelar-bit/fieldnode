@@ -106,6 +106,7 @@ function validateApiContract<T extends z.ZodTypeAny>(
 function buildRequestHeaders(contentType?: string): Headers {
   const headers = new Headers({ Accept: "application/json" });
   if (contentType) headers.set("Content-Type", contentType);
+  headers.set("X-FieldNode-CSRF", "1");
   return headers;
 }
 

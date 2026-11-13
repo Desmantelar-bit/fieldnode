@@ -17,7 +17,9 @@ class IsStaffOrReadOnly(BasePermission):
 
     def has_permission(self, request, view):
         if request.method in ("GET", "HEAD", "OPTIONS"):
-            return IsAuthenticatedOrPublicDemo().has_permission(request, view)
+            # These global catalogs have no organization or is_demo boundary.
+            # Do not expose their contents anonymously in DEMO_MODE.
+            return bool(request.user and request.user.is_authenticated)
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
@@ -98,7 +100,21 @@ UnidadedeMedidaViewSet  = _make_viewset(models.UnidadedeMedida,  serializers.Uni
 MarcaViewSet            = _make_viewset(models.Marca,            serializers.MarcaSerializer,            _desc('marca'))
 ModeloViewSet           = _make_viewset(models.Modelo,           serializers.ModeloSerializer,           _desc('modelo'), queryset=models.Modelo.objects.select_related('marca'))
 CombustivelViewSet      = _make_viewset(models.Combustivel,      serializers.CombustivelSerializer,      _desc('combustível'))
-OperarioViewSet         = _make_viewset(models.Operario,         serializers.OperarioSerializer,         _desc('operário'))
+
+
+class OperarioViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.OperarioSerializer
+    permission_classes = [IsStaffOrReadOnly]
+
+    def get_queryset(self):
+        queryset = models.Operario.objects.all()
+        if self.request.user.is_staff:
+            return queryset
+        return queryset.filter(
+            colheitadeira__machine__in=get_machines_for_request(self.request)
+        ).distinct()
+
+
 PressaoPneusViewSet     = _make_viewset(models.PressaoPneus,     serializers.PressaoPneusSerializer,     _desc('pressão dos pneus'), queryset=models.PressaoPneus.objects.select_related('unidade_de_medida'))
 AlturadoCorteViewSet    = _make_viewset(models.AlturadoCorte,    serializers.AlturadoCorteSerializer,    _desc('altura de corte'), queryset=models.AlturadoCorte.objects.select_related('unidade_de_medida'))
 PressaodoCorteViewSet   = _make_viewset(models.PressaodoCorte,   serializers.PressaodoCorteSerializer,   _desc('pressão de corte'), queryset=models.PressaodoCorte.objects.select_related('unidade_de_medida'))

@@ -61,7 +61,7 @@ export async function createOperator(input: OperatorInput): Promise<Operator> {
 
   let response: Response;
   try {
-    const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' });
+    const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json', 'X-FieldNode-CSRF': '1' });
     response = await fetch(`${resolveApiUrl()}/operario/`, {
       method: 'POST',
       headers,

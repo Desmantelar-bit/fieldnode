@@ -8,7 +8,7 @@ Este documento registra o modelo de segurança atual do FieldNode. Ele descreve 
 - `POST`, `PUT`, `PATCH` e `DELETE` nos cadastros administrativos exigem usuário autenticado.
 - `POST /api/telemetria/` e `POST /api/telemetria/lote/` continuam sendo endpoints máquina-a-máquina protegidos por `X-API-Key`, validada no backend.
 - GETs públicos existem para demonstração, dashboard e consultas operacionais do MVP.
-- O frontend usa `Authorization: Token <token>` para operações autenticadas e não deve receber `FIELDNODE_API_KEY`.
+- O frontend chama o BFF same-origin; apenas o BFF lê o cookie HttpOnly e injeta `Authorization: Token <token>` ao encaminhar ao Django.
 - O BFF Next.js já mantém o token DRF em cookie `HttpOnly` (`fieldnode_session`); o browser recebe apenas dados de perfil. `localStorage` armazena somente o perfil visual, nunca o token.
 
 ## MQTT por dispositivo (S2-T1)
@@ -109,7 +109,7 @@ A decisão é coerente com o estágio atual: equipe de TCC, protótipo controlad
 
 ## Estado de autenticacao e segredos
 
-- O navegador recebe a sessao em cookie HttpOnly, SameSite=Strict e, em producao, Secure. O proxy Next encaminha o token DRF ao Django sem expor o token ao JavaScript.
+- O navegador recebe a sessao em cookie HttpOnly, SameSite=Lax e, em producao, Secure. O proxy Next encaminha o token DRF ao Django sem expor o token ao JavaScript; mutações exigem X-FieldNode-CSRF e origem pública permitida.
 - A sessao e conferida na entrada e periodicamente enquanto o app esta aberto; uma resposta de expiracao retorna ao login.
 - A permissao global da API exige autenticacao. Acesso anonimo de demonstracao depende de permissao explicita e do filtro de dados demo.
 - Mosquitto exige usuario e senha. O Compose publica a porta MQTT somente em 127.0.0.1.

@@ -53,11 +53,12 @@ class DecisionActionView(APIView):
         try:
             with transaction.atomic():
                 decision = Decision.objects.select_for_update().get(id=decision_id)
-                if not user_can_access_machine(
-                    request.user,
-                    decision.machine,
-                    write=True,
-                ):
+                if not request_can_access_machine(request, decision.machine):
+                    return Response(
+                        {"status": "erro", "detalhe": "Decision nao encontrada"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+                if not user_can_access_machine(request.user, decision.machine, write=True):
                     return Response(
                         {"status": "erro", "detalhe": "sem permissao para esta machine"},
                         status=status.HTTP_403_FORBIDDEN,
