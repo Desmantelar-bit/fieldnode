@@ -8,5 +8,10 @@ export const SaudeMaquinaSchema = z.object({
   ultima_atualizacao: z.string().datetime({ offset: true }).nullable(),
   leituras_analisadas: z.number().int().nonnegative(),
   sinais_de_alerta: z.record(z.unknown()),
+  fatores_ultima_leitura: z.array(z.object({
+    codigo: z.string(),
+    peso: z.number().nullable(),
+    detalhe: z.string(),
+  })).default([]),
 });
 export type SaudeMaquina = z.infer<typeof SaudeMaquinaSchema>;

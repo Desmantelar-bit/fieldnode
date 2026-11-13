@@ -17,6 +17,9 @@ import { telemetryService } from '@/services/telemetryService';
 import { ReportButton } from '@/components/ReportButton';
 import type { EstadoRequisicao } from '@/types/api';
 import type { Telemetry } from '@/types/telemetry';
+import { healthService } from '@/services/healthService';
+import type { SaudeMaquina } from '@/schemas/saude';
+import { TrustBadge } from '@/components/TrustBadge';
 
 /** Tom do card de linha por métrica — o mesmo vocabulário de risco que a API usa. */
 const CHART_TONE: Record<MetricKey, 'red' | 'amber' | 'emerald'> = {
@@ -40,6 +43,7 @@ function DetailsPageContent() {
   const [showPrescricao, setShowPrescricao] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [falhaAtualizacao, setFalhaAtualizacao] = useState(false);
+  const [machineHealth, setMachineHealth] = useState<SaudeMaquina | null>(null);
 
   const carregar = useCallback((id: string, silencioso = false) => {
     if (!silencioso) setEstado({ tipo: 'carregando' });
@@ -87,6 +91,13 @@ function DetailsPageContent() {
       if (timeout !== undefined) window.clearTimeout(timeout);
     };
   }, [machineId, carregar]);
+
+  useEffect(() => {
+    if (!machineId) return;
+    const controller = new AbortController();
+    void healthService.get(machineId, controller.signal).then(setMachineHealth).catch(() => setMachineHealth(null));
+    return () => controller.abort();
+  }, [machineId]);
 
   if (estado.tipo === 'carregando') {
     return (
@@ -167,6 +178,13 @@ function DetailsPageContent() {
               </div>
               <p className="mt-2 text-xs text-[var(--text-3)]">informado pela API</p>
             </article>
+          </section>
+          <section aria-label="Confiabilidade dos dados da máquina" className="metric-card flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text-1)]">Confiabilidade da telemetria</h2>
+              <p className="mt-1 text-xs text-[var(--text-3)]">Pontuação agregada e condições observadas na leitura mais recente.</p>
+            </div>
+            <TrustBadge health={machineHealth} />
           </section>
 
           <section aria-labelledby="can-modules-title" className="space-y-3">

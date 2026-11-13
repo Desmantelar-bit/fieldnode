@@ -11,6 +11,7 @@ const ts = require('typescript');
 const sourcePath = new URL('src/lib/metricThresholds.ts', frontendRoot);
 const fixturesPath = new URL('contracts/fixtures/classificacao.json', repoRoot);
 const contractPath = new URL('contracts/severity.v1.json', repoRoot);
+const attentionContractPath = new URL('contracts/attention.v1.json', repoRoot);
 
 const source = await readFile(sourcePath, 'utf8');
 const compiled = ts.transpileModule(source, {
@@ -52,4 +53,47 @@ test('frontend severity classification matches shared golden boundaries', () => 
     ).at(-1);
     assert.equal(actual, fixture.severidade, `frontend consolidada, caso ${caseId}`);
   }
+});
+
+test('attention priority follows the shared heuristic boundaries and critical override', async () => {
+  const attentionSource = await readFile(new URL('src/lib/attentionPriority.ts', frontendRoot), 'utf8');
+  const attentionContract = JSON.parse(await readFile(attentionContractPath, 'utf8'));
+  const attentionModule = {} as { classifyAttention: (score: number | null, severity: string) => string | null };
+  const attentionCompiled = ts.transpileModule(attentionSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  vm.runInNewContext(attentionCompiled, {
+    exports: attentionModule,
+    require: () => ({ default: attentionContract }),
+    Number,
+  });
+  const classify = attentionModule.classifyAttention;
+  assert.equal(classify(0.2999, 'ATENCAO'), 'P3');
+  assert.equal(classify(0.30, 'ATENCAO'), 'P2');
+  assert.equal(classify(0.5999, 'ATENCAO'), 'P2');
+  assert.equal(classify(0.60, 'ATENCAO'), 'P1');
+  assert.equal(classify(0.9, 'ATENCAO'), 'P1');
+  assert.equal(classify(0.01, 'CRITICO'), 'P1');
+  assert.equal(classify(null, 'ATENCAO'), null);
+  assert.equal(classify(Number.NaN, 'ATENCAO'), null);
+  assert.equal(classify(-0.01, 'ATENCAO'), null);
+  assert.equal(classify(1.01, 'ATENCAO'), null);
+});
+
+test('every known trust factor has a nonempty Portuguese explanation', async () => {
+  const factorsSource = await readFile(new URL('src/lib/trustFactors.ts', frontendRoot), 'utf8');
+  const factorsModule = {} as {
+    trustFactorLabels: Record<string, { title: string; description: string }>;
+    describeTrustFactor: (code: string) => { title: string; description: string };
+  };
+  const factorsCompiled = ts.transpileModule(factorsSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  vm.runInNewContext(factorsCompiled, { exports: factorsModule });
+  for (const code of Object.keys(factorsModule.trustFactorLabels)) {
+    const definition = factorsModule.describeTrustFactor(code);
+    assert.ok(definition.title.trim());
+    assert.ok(definition.description.trim());
+  }
+  assert.equal(factorsModule.describeTrustFactor('NOVO_CODIGO').title, 'Outro fator (NOVO_CODIGO)');
 });

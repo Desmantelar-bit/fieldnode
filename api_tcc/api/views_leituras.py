@@ -47,6 +47,8 @@ class MachineDataHealthView(APIView):
             )
 
         health = MachineDataHealth.objects.filter(machine=machine).first()
+        latest = LeituraTelemetria.objects.filter(machine=machine).order_by("-recebido_em").only("trust_factors").first()
+        fatores = _fatores_trust_legiveis(latest.trust_factors if latest else [])
         if health is None:
             return Response({
                 "machine_id": str(machine.id),
@@ -56,6 +58,7 @@ class MachineDataHealthView(APIView):
                 "ultima_atualizacao": None,
                 "leituras_analisadas": 0,
                 "sinais_de_alerta": {},
+                "fatores_ultima_leitura": fatores,
             })
 
         return Response({
@@ -66,7 +69,33 @@ class MachineDataHealthView(APIView):
             "ultima_atualizacao": health.ultima_atualizacao,
             "leituras_analisadas": health.leituras_analisadas,
             "sinais_de_alerta": health.sinais_de_alerta,
+            "fatores_ultima_leitura": fatores,
         })
+
+
+def _fatores_trust_legiveis(raw_factors):
+    """Expose only reasons recorded by the actual per-reading score calculation."""
+    if not isinstance(raw_factors, list):
+        return []
+    definitions = (
+        ("hora_do_dispositivo_nao_confiavel", "RELOGIO_NAO_CONFIAVEL"),
+        ("gap temporal acima", "GAP_TEMPORAL"),
+        ("timestamp fora de ordem", "TIMESTAMP_FORA_DE_ORDEM"),
+        ("timestamp indisponivel", "TIMESTAMP_INDISPONIVEL"),
+        ("valores repetidos consecutivamente", "VALORES_REPETIDOS"),
+        ("leitura proxima ao limite fisico", "PROXIMO_LIMITE_FISICO"),
+        ("salto abrupto", "SALTO_ABRUPTO"),
+        ("continuidade suave", "CONTINUIDADE_SUAVE"),
+        ("primeira leitura", "PRIMEIRA_LEITURA"),
+    )
+    result = []
+    for reason in raw_factors:
+        if not isinstance(reason, str):
+            continue
+        normalized = reason.lower()
+        code = next((code for phrase, code in definitions if phrase in normalized), "FATOR_NAO_CLASSIFICADO")
+        result.append({"codigo": code, "peso": None, "detalhe": reason})
+    return result
 
 
 class UltimaLeituraView(APIView):

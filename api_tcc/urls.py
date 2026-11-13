@@ -15,6 +15,7 @@ from api_tcc.api.views_health import HealthView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
 from api_tcc.api.views_events import EventListView, EventDetailView
 from api_tcc.api.views_decisions import DecisionListView
+from api_tcc.api.views_attention import AttentionSummaryView
 from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
@@ -53,6 +54,7 @@ urlpatterns = [
     path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("events/", EventListView.as_view(), name="events-list"),
+    path("attention/summary/", AttentionSummaryView.as_view(), name="attention-summary"),
     path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),
     path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),

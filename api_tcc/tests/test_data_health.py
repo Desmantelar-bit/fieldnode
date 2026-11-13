@@ -381,6 +381,13 @@ class MachineDataHealthIntegrationTest(TestCase):
         self.assertEqual(data["leituras_analisadas"], 1)
         self.assertIsNotNone(data["ultima_atualizacao"])
         self.assertIn("score_baixo", data["sinais_de_alerta"])
+        self.assertIsInstance(data["fatores_ultima_leitura"], list)
+        self.assertTrue(data["fatores_ultima_leitura"])
+        self.assertEqual(
+            set(data["fatores_ultima_leitura"][0]),
+            {"codigo", "peso", "detalhe"},
+        )
+        self.assertIsNone(data["fatores_ultima_leitura"][0]["peso"])
 
     def test_endpoint_machine_inexistente_retorna_404(self):
         response = self.client.get(f"/api/machines/{uuid.uuid4()}/health/")

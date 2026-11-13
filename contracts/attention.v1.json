@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "classification": {
+    "P1": { "min_score": 0.6 },
+    "P2": { "min_score": 0.3 },
+    "P3": { "min_score": 0.0 }
+  },
+  "overrides": { "critical_severity_always_p1": true },
+  "metadata": {
+    "type": "heuristic",
+    "calibrated": false,
+    "description": "Bandas heurísticas calibráveis de atenção; não representam probabilidades de falha."
+  }
+}
