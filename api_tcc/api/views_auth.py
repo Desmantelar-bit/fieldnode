@@ -45,14 +45,14 @@ class ExpiringAuthTokenView(ObtainAuthToken):
         failure_key = f"login:failed:{identity}"
         if security_counter_value(failure_key) >= 5:
             logger.warning("Tentativa recusada por lockout temporário de autenticação")
-            audit_security_event("login_lockout", "blocked", identity=identity, metadata={"window_seconds": 900})
+            audit_security_event("auth.login.failure", "blocked", identity=identity, metadata={"window_seconds": 900}, request=request)
             return Response(
                 {"detail": "Não foi possível autenticar com as credenciais informadas."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         if not serializer.is_valid():
             record_login_failure(identity)
-            audit_security_event("login_failed", "denied", identity=identity, metadata={"reason": "invalid_credentials"})
+            audit_security_event("auth.login.failure", "denied", identity=identity, metadata={"reason": "invalid_credentials"}, request=request)
             logger.warning("Falha de autenticação")
             return Response(
                 {"detail": "Não foi possível autenticar com as credenciais informadas."},
@@ -60,12 +60,12 @@ class ExpiringAuthTokenView(ObtainAuthToken):
             )
         user = serializer.validated_data["user"]
         reset_security_counter(failure_key)
-        audit_security_event("login_succeeded", "allowed", identity=identity, actor=user)
-
-        token, created = Token.objects.get_or_create(user=user)
-        if not created and is_token_expired(token):
-            token.delete()
-            token = Token.objects.create(user=user)
+        with transaction.atomic():
+            token, created = Token.objects.get_or_create(user=user)
+            if not created and is_token_expired(token):
+                token.delete()
+                token = Token.objects.create(user=user)
+            audit_security_event("auth.login.success", "allowed", identity=identity, actor=user, request=request)
 
         return Response({
             "token": token.key,
@@ -100,7 +100,7 @@ class RegisterView(APIView):
     def post(self, request):
         if not settings.REGISTRATION_ENABLED or settings.DEMO_MODE:
             logger.warning("Registro público bloqueado por configuração")
-            audit_security_event("registration_disabled", "blocked", metadata={"demo_mode": bool(settings.DEMO_MODE)})
+            audit_security_event("auth.register.blocked", "blocked", metadata={"demo_mode": bool(settings.DEMO_MODE)}, request=request)
             return Response({"detail": "Registro desabilitado."}, status=status.HTTP_403_FORBIDDEN)
 
         username = str(request.data.get("username", "")).strip()
@@ -146,6 +146,8 @@ class RegisterView(APIView):
                     last_name=last_name,
                 )
                 token = Token.objects.create(user=user)
+                from api_tcc.services.audit import record
+                record("user.register", user, request, after={"username": user.username, "email": user.email})
         except IntegrityError:
             return Response(
                 {"errors": {"username": "Este nome de usuário já está em uso."}},
@@ -173,7 +175,10 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        Token.objects.filter(user=request.user).delete()
+        from api_tcc.services.audit import record
+        with transaction.atomic():
+            record("auth.logout", request.user, request, before={"authenticated": True}, after={"authenticated": False})
+            Token.objects.filter(user=request.user).delete()
         return Response({"message": "Logout realizado com sucesso."})
 
 

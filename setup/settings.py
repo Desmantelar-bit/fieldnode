@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-import json
 from pathlib import Path
 from decouple import config as env_config
 
@@ -31,20 +30,11 @@ if os.environ.get("DEBUG") == "release":
     os.environ.pop("DEBUG", None)
 
 DEBUG = env_config("DEBUG", default=False, cast=bool)
-FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
-_device_api_keys_raw = env_config("FIELDNODE_DEVICE_API_KEYS", default="{}")
-try:
-    FIELDNODE_DEVICE_API_KEYS = json.loads(_device_api_keys_raw)
-except json.JSONDecodeError as exc:
-    raise ValueError("FIELDNODE_DEVICE_API_KEYS precisa ser um objeto JSON") from exc
-if not isinstance(FIELDNODE_DEVICE_API_KEYS, dict) or any(
-    not isinstance(device_id, str) or not device_id.strip()
-    or not isinstance(device_key, str) or not device_key
-    for device_id, device_key in FIELDNODE_DEVICE_API_KEYS.items()
-):
-    raise ValueError("FIELDNODE_DEVICE_API_KEYS deve mapear device_id não vazio para chave não vazia")
-if len(set(FIELDNODE_DEVICE_API_KEYS.values())) != len(FIELDNODE_DEVICE_API_KEYS):
-    raise ValueError("FIELDNODE_DEVICE_API_KEYS não pode reutilizar a mesma chave em dispositivos diferentes")
+FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY", default="")
+ALLOW_LEGACY_INGESTION_KEY = env_config("ALLOW_LEGACY_INGESTION_KEY", default=DEBUG, cast=bool)
+# Device credentials live in DeviceCredential. Keep an empty setting only so
+# legacy development tests may explicitly override it; environment parsing is removed.
+FIELDNODE_DEVICE_API_KEYS = {}
 DEMO_MODE = env_config("DEMO_MODE", default=False, cast=bool)
 REGISTRATION_ENABLED = env_config("REGISTRATION_ENABLED", default=False, cast=bool)
 # False protege a documentação com IsAdminUser; fora de DEBUG a proteção é
@@ -78,6 +68,8 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-api-key",
+    "x-device-id",
+    "x-device-key",
 ]
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -131,6 +123,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'setup.urls'
+# API mutations use explicit canonical trailing-slash routes. Disabling the
+# automatic 301 prevents POST/PATCH bodies from being redirected ambiguously.
+APPEND_SLASH = False
 
 TEMPLATES = [
     {

@@ -13,7 +13,6 @@ PORT=1883
 MQTT_DEVICE_ID=os.getenv('MQTT_DEVICE_ID', '').strip()
 MQTT_MACHINE_ID=os.getenv('MQTT_MACHINE_ID', '').strip()
 HEALTH_URL=os.getenv('FIELDNODE_HEALTH_URL', 'http://127.0.0.1:8000/api/health/')
-API_KEY=os.getenv('FIELDNODE_API_KEY', '')
 INTERVALO=2
 DURATION=30*60
 
@@ -28,8 +27,7 @@ def mon():
     while True:
         try:
             s=time.time()
-            headers={'X-API-Key': API_KEY} if API_KEY else {}
-            requests.get(HEALTH_URL,headers=headers,timeout=3)
+            requests.get(HEALTH_URL, timeout=3)
             lat.append((time.time()-s)*1000)
         except requests.RequestException:
             errors+=1

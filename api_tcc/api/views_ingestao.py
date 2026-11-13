@@ -30,7 +30,7 @@ class IngestaoTelemetriaView(APIView):
     POST /api/telemetria/ — recebe leitura do ESP32
     GET  /api/telemetria/ — lista últimas 50 leituras (dev/debug)
 
-    Autenticação: API key via header X-API-Key.
+    Autenticação: credencial individual nos headers X-Device-Id/X-Device-Key.
     Idempotência: UUID duplicado retorna 200 sem reprocessar.
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """

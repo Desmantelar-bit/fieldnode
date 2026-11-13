@@ -67,17 +67,12 @@ def reset_security_counter(value):
     SecurityCounter.objects.filter(key=_counter_key(value)).delete()
 
 
-def audit_security_event(action, result, *, identity="", metadata=None, actor=None):
-    try:
-        AuditLog.objects.create(
-            actor=actor,
-            actor_key=_counter_key(identity) if identity else "",
-            action=action,
-            result=result,
-            metadata=metadata or {},
-        )
-    except Exception:
-        logger.exception("Falha ao persistir evento de auditoria de segurança: %s", action)
+def audit_security_event(action, result, *, identity="", metadata=None, actor=None, request=None):
+    from api_tcc.services.audit import record
+    return record(
+        action.replace("_", "."), None, request, actor=actor, result=result,
+        metadata={**(metadata or {}), **({"identity_key": _counter_key(identity)} if identity else {})},
+    )
 
 
 def normalized_login_identity(request):
@@ -145,7 +140,7 @@ class IngestaoThrottle(SimpleRateThrottle):
         elif getattr(request.user, 'is_authenticated', False):
             identity = f'user:{request.user.pk}'
         else:
-            supplied_key = request.headers.get('X-API-Key', '')
+            supplied_key = request.headers.get('X-Device-Key', '')
             identity = (
                 f'credential:{hashlib.sha256(supplied_key.encode()).hexdigest()}'
                 if supplied_key else self.get_ident(request)

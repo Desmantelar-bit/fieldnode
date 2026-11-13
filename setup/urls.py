@@ -16,7 +16,7 @@ schema_view = get_schema_view(
             'em máquinas agrícolas em inteligência operacional acionável — '
             'detecção de anomalias, prescrições, eventos e análises em tempo real.\n\n'
             '**Autenticação:** Token via header `Authorization: Token <token>` '
-            'ou `X-API-Key` para ingestão de telemetria.\n\n'
+            'ou `X-Device-Id` + `X-Device-Key` para ingestão de telemetria.\n\n'
             '**Health check:** `GET /api/health/`'
         ),
         contact=openapi.Contact(email='contato@fieldnode.app'),

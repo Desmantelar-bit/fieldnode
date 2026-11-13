@@ -639,7 +639,7 @@ validade
 status
 ```
 
-A ingestão atual utiliza UUID e `X-API-Key`, portanto qualquer alteração deve preservar o contrato enquanto a arquitetura de autenticação não for explicitamente migrada.
+A ingestão utiliza UUID/idempotência e credenciais HTTP individuais `X-Device-Id` + `X-Device-Key`; credenciais MQTT permanecem separadas por finalidade. A chave global só pode ser habilitada explicitamente em DEBUG local.
 
 ---
 

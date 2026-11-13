@@ -13,16 +13,18 @@ import concurrent.futures
 from collections import Counter
 import requests
 import uuid
-from decouple import config
+import os
+import json
 
 API_URL = 'http://localhost:8000/api/telemetria/'
-API_KEY = config('FIELDNODE_API_KEY', default='')
+DEVICE_KEYS = json.loads(os.getenv('FIELDNODE_HTTP_DEVICE_KEYS', '{}'))
 
 
 def enviar_leitura(maquina_id: str):
     payload = {
         'id': str(uuid.uuid4()),
         'maquina_id': maquina_id,
+        'device_id': maquina_id,
         'temperatura': 75.0,
         'vibracao': 3.2,
         'rpm': 1800,
@@ -30,7 +32,8 @@ def enviar_leitura(maquina_id: str):
     }
     inicio = time.perf_counter()
     try:
-        headers = {'X-API-Key': API_KEY} if API_KEY else {}
+        key = DEVICE_KEYS.get(maquina_id, '')
+        headers = {'X-Device-Id': maquina_id, 'X-Device-Key': key} if key else {}
         resp = requests.post(API_URL, json=payload, headers=headers, timeout=5)
         status_code = resp.status_code
     except requests.RequestException:

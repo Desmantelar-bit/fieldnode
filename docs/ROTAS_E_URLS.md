@@ -51,8 +51,8 @@ Este documento cataloga todas as rotas do FieldNode (Frontend Next.js e Backend 
 
 | Rota | Método | Autenticação | Resposta | Descrição |
 |---|---|---|---|---|
-| `/api/telemetria/` | POST, GET | X-API-Key / Token | JSON | Ingestão individual idempotente de leitura (validação, deduplicação por UUID, isolamento). |
-| `/api/telemetria/lote/` | POST | X-API-Key | JSON | Ingestão em lote tolerante a falhas parciais para clientes Edge / Data Mule. |
+| `/api/telemetria/` | POST, GET | X-Device-Id + X-Device-Key / Token | JSON | Ingestão individual idempotente de leitura (validação, deduplicação por UUID, isolamento). |
+| `/api/telemetria/lote/` | POST | X-Device-Id + X-Device-Key | JSON | Ingestão em lote tolerante a falhas parciais para clientes Edge / Data Mule. |
 | `/api/leituras/ultimas/` | GET | Token / Demo | JSON | Retorna a leitura mais recente de cada máquina ativa. |
 | `/api/status-mqtt/` | GET | Token / Demo | JSON | Status de conectividade do broker MQTT e atraso da última leitura. |
 | `/api/dlq/` | GET | Token | JSON | Dead Letter Queue para inspeção de leituras rejeitadas ou payloads corrompidos. |

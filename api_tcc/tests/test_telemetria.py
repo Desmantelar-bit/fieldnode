@@ -9,7 +9,7 @@ import requests
 
 from django.conf import settings
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -116,6 +116,7 @@ def _payload(**overrides):
     return base
 
 
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True)
 class IngestaoTelemetriaTest(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -362,7 +363,7 @@ class IngestaoTelemetriaTest(TestCase):
                                      HTTP_X_API_KEY="device-key-a")
             second = self.client.post(
                 "/api/telemetria/lote/",
-                {"leituras": [{**payload, "device_id": "THROTTLE-DEVICE-2"}]},
+                {"leituras": [{**payload, "device_id": "THROTTLE-DEVICE-2", "maquina_id": "THROTTLE-DEVICE-2"}]},
                 format="json",
                 HTTP_X_API_KEY="device-key-b",
             )
@@ -381,7 +382,7 @@ class IngestaoTelemetriaTest(TestCase):
                 format="json",
                 HTTP_X_API_KEY="device-key-a",
             )
-        self.assertEqual(mismatched_identity.status_code, 401)
+        self.assertEqual(mismatched_identity.status_code, 403)
 
         with override_settings(REST_FRAMEWORK=throttle_settings, FIELDNODE_DEVICE_API_KEYS=provisioned_keys,
                               CACHES=shared_cache), patch(

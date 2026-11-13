@@ -20,7 +20,8 @@ import requests
 API_HOST = os.environ.get("FIELDNODE_API_HOST", "http://127.0.0.1:8000")
 API_BASE = os.environ.get("FIELDNODE_API_URL", f"{API_HOST}/api")
 FRONTEND_URL = os.environ.get("FIELDNODE_FRONTEND_URL", "http://127.0.0.1:3000")
-API_KEY = os.environ.get("FIELDNODE_API_KEY", "")
+DEVICE_ID = os.environ.get("FIELDNODE_DEVICE_ID", "COLH-01")
+DEVICE_KEY = os.environ.get("FIELDNODE_DEVICE_KEY", "")
 TIMEOUT = 5
 
 def print_status(msg, status="INFO"):
@@ -103,7 +104,8 @@ def testar_dashboard():
 def testar_ingestao_telemetria():
     payload = {
         "id": str(uuid.uuid4()),
-        "maquina_id": "COLH-01",
+        "maquina_id": DEVICE_ID,
+        "device_id": DEVICE_ID,
         "temperatura": 78.5,
         "vibracao": 0.42,
         "rpm": 1850,
@@ -111,7 +113,8 @@ def testar_ingestao_telemetria():
     }
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
+        "X-Device-Id": DEVICE_ID,
+        "X-Device-Key": DEVICE_KEY,
     }
     return testar_endpoint(
         "Ingestão de telemetria",

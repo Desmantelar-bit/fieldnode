@@ -1,5 +1,6 @@
 from datetime import timedelta
 import uuid
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -8,7 +9,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api_tcc.models import Decision, Event, Machine, Membership, Organization, RegistroAnalise
+from api_tcc.models import AuditLog, Decision, Event, Machine, Membership, Organization, RegistroAnalise
 from api_tcc.services.decisions import (
     DECISION_DEDUP_WINDOW,
     validar_transicao_decision,
@@ -220,6 +221,8 @@ class DecisionActionViewTest(TestCase):
             f"/api/decisions/{decision.id}/",
             {"status": Decision.Status.APROVADA},
             format="json",
+            HTTP_X_CORRELATION_ID="audit-test-001",
+            HTTP_USER_AGENT="test-client",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -228,6 +231,14 @@ class DecisionActionViewTest(TestCase):
         self.assertEqual(decision.decidido_por, self.user_a)
         self.assertIsNotNone(decision.decidido_em)
         self.assertEqual(response.data["decidido_por"], self.user_a.id)
+        audit = AuditLog.objects.get(action="decision.approve")
+        self.assertEqual(audit.actor, self.user_a)
+        self.assertEqual(audit.object_type, "api_tcc.decision")
+        self.assertEqual(audit.object_id, str(decision.id))
+        self.assertEqual(audit.correlation_id, "audit-test-001")
+        self.assertEqual(audit.user_agent, "test-client")
+        self.assertTrue(audit.before_hash)
+        self.assertTrue(audit.after_hash)
 
     def test_rejeicao_valida_persiste_outcome(self):
         decision = self._decision()
@@ -251,6 +262,21 @@ class DecisionActionViewTest(TestCase):
             decision.outcome_texto,
             "Inspecao manual nao confirmou a condicao.",
         )
+
+    def test_falha_de_auditoria_reverte_mudanca_da_decision(self):
+        decision = self._decision()
+        self._auth_as(self.token_a)
+        self.client.raise_request_exception = False
+        with patch("api_tcc.api.views_decision_action.audit_record", side_effect=RuntimeError("audit unavailable")):
+            response = self.client.patch(
+                f"/api/decisions/{decision.id}/",
+                {"status": Decision.Status.APROVADA},
+                format="json",
+            )
+        decision.refresh_from_db()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(decision.status, Decision.Status.PENDENTE)
+        self.assertEqual(AuditLog.objects.filter(object_id=str(decision.id)).count(), 0)
 
     def test_execucao_valida_preserva_autor_original_da_aprovacao(self):
         aprovado_em = timezone.now() - timedelta(minutes=5)

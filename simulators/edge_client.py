@@ -226,13 +226,13 @@ class EdgeBuffer:
 
 
 class EdgeClient:
-    def __init__(self, buffer: EdgeBuffer, api_url: str, api_key: str, *, timeout: float = 10.0,
+    def __init__(self, buffer: EdgeBuffer, api_url: str, device_key: str, *, timeout: float = 10.0,
                  max_attempts: int | None = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
                  session: Any | None = None,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         self.buffer = buffer
         self.api_url = api_url.rstrip("/") + "/"
-        self.api_key = api_key
+        self.device_key = device_key
         self.timeout = timeout
         self.max_attempts = max_attempts
         self.backoff_base = backoff_base
@@ -263,7 +263,8 @@ class EdgeClient:
         try:
             response = self.session.post(
                 self.api_url, json=payload,
-                headers={"X-API-Key": self.api_key, "Content-Type": "application/json"},
+                headers={"X-Device-Id": self.buffer.device_id, "X-Device-Key": self.device_key,
+                         "Content-Type": "application/json"},
                 timeout=self.timeout,
             )
         except requests.RequestException as exc:
@@ -320,7 +321,7 @@ class EdgeClient:
         return False
 
 
-﻿def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador",
+def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador",
                      time_source: str = "gateway", boot_id: str | None = None) -> dict[str, Any]:
     if index % 10 == 0:
         temperature, vibration = 115.0, 2.0
@@ -414,7 +415,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--time-source", choices=("rtc", "gateway", "ntp", "unsynced"), default="gateway")
     parser.add_argument("--interval", type=float, default=0.0)
     parser.add_argument("--api-url", default=os.getenv("FIELDNODE_API_URL", "http://127.0.0.1:8000/api") + "/telemetria/")
-    parser.add_argument("--api-key", default=os.getenv("FIELDNODE_API_KEY", ""))
+    parser.add_argument("--device-key", default=os.getenv("FIELDNODE_DEVICE_KEY", ""))
     parser.add_argument("--buffer-path", default="simulators/edge_buffer.db")
     parser.add_argument("--offline", action="store_true", help="gera e persiste sem sincronizar nesta execução")
     parser.add_argument("--sync-only", action="store_true")
@@ -433,8 +434,8 @@ def main() -> int:
         raise SystemExit("--count e --max-attempts devem ser válidos")
     if args.watch and (args.interval <= 0 or args.offline or args.sync_only):
         raise SystemExit("--watch exige --interval positivo e não combina com --offline/--sync-only")
-    if args.watch and not args.api_key:
-        raise SystemExit("FIELDNODE_API_KEY/--api-key é obrigatório para sincronizar")
+    if args.watch and not args.device_key:
+        raise SystemExit("FIELDNODE_DEVICE_KEY/--device-key é obrigatório para sincronizar")
     boot_id = str(uuid.uuid4())
     buffer = EdgeBuffer(args.buffer_path, args.device_id)
     try:
@@ -442,7 +443,7 @@ def main() -> int:
             client = EdgeClient(
                 buffer,
                 args.api_url,
-                args.api_key,
+                args.device_key,
                 timeout=args.timeout,
                 max_attempts=None,
                 backoff_base=args.backoff_base,
@@ -474,7 +475,7 @@ def main() -> int:
                                 EdgeClient(
                                     sync_buffer,
                                     args.api_url,
-                                    args.api_key,
+                                    args.device_key,
                                     timeout=args.timeout,
                                     max_attempts=None,
                                     backoff_base=args.backoff_base,
@@ -507,9 +508,9 @@ def main() -> int:
                 if args.interval > 0:
                     time.sleep(args.interval)
         if not args.offline:
-            if not args.api_key:
-                raise SystemExit("FIELDNODE_API_KEY/--api-key é obrigatório para sincronizar")
-            EdgeClient(buffer, args.api_url, args.api_key, timeout=args.timeout,
+            if not args.device_key:
+                raise SystemExit("FIELDNODE_DEVICE_KEY/--device-key é obrigatório para sincronizar")
+            EdgeClient(buffer, args.api_url, args.device_key, timeout=args.timeout,
                        max_attempts=args.max_attempts, backoff_base=args.backoff_base,
                        backoff_max=args.backoff_max).synchronize()
         LOGGER.info("outbox device=%s cursor_contiguo=%d counts=%s", args.device_id, buffer.cursor(), buffer.counts())

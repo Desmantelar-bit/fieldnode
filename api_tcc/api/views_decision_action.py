@@ -7,6 +7,7 @@ from api_tcc.api.serializers import DecisionActionSerializer, DecisionSerializer
 from api_tcc.models import Decision
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, request_can_access_machine, user_can_access_machine
 from api_tcc.services.decisions import aplicar_acao_decision
+from api_tcc.services.audit import record as audit_record
 
 
 
@@ -63,12 +64,29 @@ class DecisionActionView(APIView):
                         {"status": "erro", "detalhe": "sem permissao para esta machine"},
                         status=status.HTTP_403_FORBIDDEN,
                     )
+                before_state = {
+                    "status": decision.status,
+                    "decidido_por_id": decision.decidido_por_id,
+                    "decidido_em": decision.decidido_em,
+                    "outcome_texto": decision.outcome_texto,
+                }
                 aplicar_acao_decision(
                     decision,
                     usuario=request.user,
                     novo_status=novo_status,
                     outcome_texto_fornecido=outcome_fornecido,
                     outcome_texto=outcome_texto,
+                )
+                decision_action = {
+                    Decision.Status.APROVADA: "decision.approve",
+                    Decision.Status.REJEITADA: "decision.reject",
+                    Decision.Status.EXECUTADA: "decision.execute",
+                }.get(novo_status, f"decision.{novo_status.lower()}")
+                audit_record(
+                    decision_action, decision, request,
+                    before=before_state,
+                    after={"status": decision.status, "decidido_por_id": decision.decidido_por_id,
+                           "decidido_em": decision.decidido_em, "outcome_texto": decision.outcome_texto},
                 )
         except Decision.DoesNotExist:
             return Response(

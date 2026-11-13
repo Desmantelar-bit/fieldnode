@@ -102,6 +102,7 @@ class CorrelationIDMiddleware:
 
         # ── 3. Definir correlation ID: reutiliza externo ou gera novo ──────
         correlation_id = external_id if external_id is not None else new_correlation_id()
+        request.correlation_id = correlation_id
 
         # ── 4. Injetar no ContextVar e preservar token para reset ──────────
         token = set_correlation_id(correlation_id)

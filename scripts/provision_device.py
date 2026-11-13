@@ -96,6 +96,7 @@ def _delete_mosquitto_user(path: Path, username: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("device_id")
+    parser.add_argument("--http", action="store_true", help="provisiona credencial HTTP de ingestão")
     parser.add_argument("--rotate", action="store_true", help="revoga e substitui a credencial ativa")
     parser.add_argument("--revoke", action="store_true", help="revoga a credencial existente")
     args = parser.parse_args()
@@ -108,9 +109,23 @@ def main() -> int:
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "setup.settings")
     django.setup()
+    if args.http:
+        from api_tcc.services.device_credentials import provision_http_credential
+        try:
+            key = provision_http_credential(args.device_id, rotate=args.rotate, revoke=args.revoke)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if key:
+            print(f"X-Device-Id: {args.device_id}")
+            print(f"X-Device-Key (exibida uma vez): {key}")
+        else:
+            print(f"Credencial HTTP revogada para {args.device_id}.")
+        return 0
     from api_tcc.models import DeviceCredential
+    from api_tcc.services.audit import record as audit_record
 
     existing = DeviceCredential.objects.filter(device_id=args.device_id).first()
+    has_mqtt_credential = bool(existing and existing.credential_hash != "!")
     if args.revoke:
         if not existing or not existing.active:
             parser.error("nenhuma credencial ativa encontrada para revogação")
@@ -123,6 +138,7 @@ def main() -> int:
                 existing.save(update_fields=["active", "revoked_at", "provisioning_state"])
                 _delete_mosquitto_user(PASSWORD_FILE, existing.username)
                 _reload_broker_if_running()
+                audit_record("credential.revoked", existing, before={"active": True}, after={"active": False}, metadata={"purpose": "mqtt"})
         except Exception:
             if old_bytes is not None:
                 PASSWORD_FILE.write_bytes(old_bytes)
@@ -135,7 +151,7 @@ def main() -> int:
         print(f"Credencial MQTT revogada para {args.device_id}.")
         return 0
 
-    if existing and not args.rotate:
+    if has_mqtt_credential and not args.rotate:
         parser.error("credencial existente; use --rotate para uma rotação explícita")
     if PASSWORD_FILE.exists():
         usernames = {
@@ -177,6 +193,13 @@ def main() -> int:
             credential.active = True
             credential.provisioning_state = "active"
             credential.save(update_fields=["active", "provisioning_state"])
+            audit_record(
+                "credential.rotated" if has_mqtt_credential else "credential.created",
+                credential,
+                before={"active": bool(existing)},
+                after={"active": True},
+                metadata={"purpose": "mqtt"},
+            )
     except Exception:
         if old_bytes is None:
             PASSWORD_FILE.unlink(missing_ok=True)

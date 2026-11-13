@@ -73,7 +73,7 @@ flowchart LR
 
 ## O que está implementado
 
-- ingestão HTTP autenticada por `X-API-Key`, validação de payload e deduplicação por UUID;
+- ingestão HTTP autenticada por credencial individual `X-Device-Id`/`X-Device-Key`, validação de payload e deduplicação por UUID;
 - persistência em SQLite/MySQL, com identidade de máquina, sequência, timestamp e hash no cliente de borda;
 - cliente Python de bancada com outbox SQLite, prioridades A/B/C, retry, ACK e cursor contíguo;
 - Trust Score heurístico e estado agregado de qualidade dos dados por máquina;
@@ -113,7 +113,7 @@ Edite o `.env` e preencha no mínimo:
 | Variável | O que colocar |
 | --- | --- |
 | `SECRET_KEY` | Chave secreta Django |
-| `FIELDNODE_API_KEY` | UUID para autenticação de ingestão |
+| `ALLOW_LEGACY_INGESTION_KEY` | Compatibilidade legada local; somente `DEBUG=True` |
 | `DB_PASSWORD` | Senha do usuário MySQL |
 | `DB_ROOT_PASSWORD` | Senha do root MySQL |
 
@@ -230,7 +230,7 @@ Copie `.env.example` para `.env` e ajuste.
 | Variável | Descrição |
 | --- | --- |
 | `SECRET_KEY` | Chave secreta Django |
-| `FIELDNODE_API_KEY` | API key exigida no header `X-API-Key` |
+| `FIELDNODE_DEVICE_KEY` | Chave individual do dispositivo; use com `FIELDNODE_DEVICE_ID` |
 | `DEMO_MODE` | Quando `True`, leitura pública anônima usa somente `Machine.is_demo=True` |
 | `DEBUG` | `True` em dev, `False` em produção |
 | `ALLOWED_HOSTS` | Hosts permitidos pelo Django |
@@ -240,7 +240,7 @@ Copie `.env.example` para `.env` e ajuste.
 | `USE_SQLITE` | `True` para SQLite em dev |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | Conexão MySQL |
 
-`FIELDNODE_API_KEY` pertence ao backend, scripts locais e dispositivos de ingestão.
+Credenciais de ingestão são provisionadas por dispositivo; não há segredo global de produção.
 O frontend não recebe segredo via `NEXT_PUBLIC_*`. O `.env` está no `.gitignore`.
 
 ---
@@ -273,7 +273,7 @@ A documentação completa fica em `/swagger/`. Os endpoints mais relevantes:
 | `/api/auth/logout/` | POST | Token | Revoga token |
 | `/api/auth/me/` | GET | Token | Perfil do usuário |
 | `/api/health/` | GET | — | Health check da API e banco |
-| `/api/telemetria/` | POST | `X-API-Key` | Ingestão com deduplicação UUID |
+| `/api/telemetria/` | POST | `X-Device-Id` + `X-Device-Key` | Ingestão com deduplicação UUID |
 | `/api/leituras/ultimas/` | GET | Token / Demo | Última leitura por máquina |
 | `/api/anomalias/` | GET | Token / Demo | Detecção de anomalias |
 | `/api/manutencao/` | GET | Token / Demo | Análise preditiva de manutenção |
@@ -290,13 +290,23 @@ Isso não libera escrita nem substitui autorização.
 
 ### Exemplo de ingestão
 
+Primeiro provisione uma credencial individual para uma `Machine` já cadastrada:
+
+```powershell
+python scripts\provision_device.py COLH-01 --http
+```
+
+Guarde a chave exibida uma vez em `FIELDNODE_DEVICE_KEY` no ambiente local do dispositivo; não a salve no repositório. Configure `FIELDNODE_DEVICE_ID=COLH-01` e envie `device_id` e `maquina_id` correspondentes.
+
 ```bash
 curl -X POST http://127.0.0.1:8000/api/telemetria/ \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ${FIELDNODE_API_KEY}" \
+  -H "X-Device-Id: ${FIELDNODE_DEVICE_ID}" \
+  -H "X-Device-Key: ${FIELDNODE_DEVICE_KEY}" \
   -d '{
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "maquina_id": "COLH-01",
+    "device_id": "COLH-01",
     "temperatura": 78.5,
     "vibracao": 0.42,
     "rpm": 1850,
@@ -371,7 +381,7 @@ A ingestão operacional confiável deve ser feita por clientes de dispositivo/bo
 novamente. Para ensaiar coleta contínua com buffer e reenvio automático:
 
 ```powershell
-$env:FIELDNODE_API_KEY = "<sua chave de ingestão>"
+$env:FIELDNODE_DEVICE_KEY = "<chave individual provisionada uma única vez>"
 .\.venv\Scripts\python.exe simulators\edge_client.py `
   --watch --device-id COLH-01 --interval 5 `
   --api-url http://127.0.0.1:8000/api/telemetria/
@@ -401,8 +411,8 @@ local do dispositivo.
 
 - Token de autenticação fica em `localStorage` no MVP — dívida técnica explícita.
   Em produção, migrar para cookie `httpOnly` + CSRF adequado.
-- `FIELDNODE_API_KEY` nunca deve entrar no bundle do frontend via `NEXT_PUBLIC_*`.
-- Se uma API key anterior foi exposta no frontend, rotacione `FIELDNODE_API_KEY`
+- `FIELDNODE_DEVICE_KEY` nunca deve entrar no bundle do frontend via `NEXT_PUBLIC_*`.
+- Se uma credencial individual foi exposta, revogue e reprovisione somente o dispositivo afetado.
   no backend e nos dispositivos. Apagar o arquivo atual não reescreve o histórico Git.
 - `DEBUG=False` e `ALLOWED_HOSTS` configurados antes de qualquer exposição pública.
 

@@ -580,6 +580,12 @@ class DeviceCredential(models.Model):
     revoked_at = models.DateTimeField(null=True, blank=True)
     rotated_at = models.DateTimeField(null=True, blank=True)
     provisioning_state = models.CharField(max_length=20, default="pending")
+    http_key_hash = models.CharField(max_length=64, blank=True)
+    http_created_at = models.DateTimeField(null=True, blank=True)
+    http_revoked_at = models.DateTimeField(null=True, blank=True)
+    http_last_seen_at = models.DateTimeField(null=True, blank=True)
+    http_previous_key_hash = models.CharField(max_length=64, blank=True)
+    http_rotation_deadline = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "Credencial de dispositivo"
@@ -601,8 +607,31 @@ class SecurityCounter(models.Model):
         indexes = [models.Index(fields=["expires_at"])]
 
 
+class AuditLogQuerySet(models.QuerySet):
+    def bulk_create(self, objs, **kwargs):
+        if kwargs.get("update_conflicts"):
+            raise TypeError("AuditLog é append-only.")
+        return super().bulk_create(objs, **kwargs)
+
+    def update(self, **kwargs):
+        raise TypeError("AuditLog é append-only.")
+
+    def delete(self):
+        raise TypeError("AuditLog é append-only.")
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise TypeError("AuditLog é append-only.")
+
+    def _raw_delete(self, using):
+        raise TypeError("AuditLog é append-only.")
+
+
+class AuditLogManager(models.Manager.from_queryset(AuditLogQuerySet)):
+    pass
+
+
 class AuditLog(models.Model):
-    """Minimal append-only audit trail for security-relevant authentication events."""
+    """Append-only audit trail. Legacy fields remain for S2-T2 events."""
 
     actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     actor_key = models.CharField(max_length=64, blank=True, db_index=True)
@@ -610,10 +639,28 @@ class AuditLog(models.Model):
     result = models.CharField(max_length=24)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    object_type = models.CharField(max_length=100, blank=True)
+    object_id = models.CharField(max_length=100, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
+    correlation_id = models.CharField(max_length=100, blank=True, db_index=True)
+    before_hash = models.CharField(max_length=64, blank=True)
+    after_hash = models.CharField(max_length=64, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = AuditLogManager()
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["action", "-created_at"])]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise TypeError("AuditLog é append-only.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TypeError("AuditLog é append-only.")
 
 
 class Prescricao(models.Model):

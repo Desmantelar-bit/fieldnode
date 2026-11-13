@@ -193,12 +193,12 @@ class MuleBuffer:
 
 
 class MuleClient:
-    def __init__(self, buffer: MuleBuffer, api_url: str, api_key: str, *, timeout: float = 10.0,
+    def __init__(self, buffer: MuleBuffer, api_url: str, device_key: str, *, timeout: float = 10.0,
                  max_attempts: int = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
                  session: Any | None = None, sleep: Callable[[float], None] = time.sleep) -> None:
         self.buffer = buffer
         self.api_url = api_url.rstrip("/") + "/"
-        self.api_key = api_key
+        self.device_key = device_key
         self.timeout = timeout
         self.max_attempts = max_attempts
         self.backoff_base = backoff_base
@@ -222,7 +222,8 @@ class MuleClient:
         try:
             response = self.session.post(
                 self.api_url, json=json.loads(str(row["payload"])),
-                headers={"X-API-Key": self.api_key, "Content-Type": "application/json"},
+                headers={"X-Device-Id": str(row["device_id"]), "X-Device-Key": self.device_key,
+                         "Content-Type": "application/json"},
                 timeout=self.timeout,
             )
         except requests.RequestException as exc:
@@ -272,7 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mule-buffer-path", default="simulators/transbordo_mule_buffer.db")
     parser.add_argument("--transport-id", default=os.getenv("TRANSPORT_ID", "transbordo-bench-01"))
     parser.add_argument("--api-url", default=os.getenv("FIELDNODE_API_URL", "http://127.0.0.1:8000/api") + "/telemetria/")
-    parser.add_argument("--api-key", default=os.getenv("FIELDNODE_API_KEY", ""))
+    parser.add_argument("--device-key", default=os.getenv("FIELDNODE_DEVICE_KEY", ""))
     parser.add_argument("--offline", action="store_true", help="coleta sem conectar ao backend")
     parser.add_argument("--repeat-encounter", action="store_true")
     parser.add_argument("--timeout", type=float, default=10.0)
@@ -303,9 +304,9 @@ def main() -> int:
             collected, _ = collect_from_harvester(harvester, mule)
             LOGGER.info("[DATA MULE] encontro repetido: %d novas mensagens", collected)
         if not args.offline:
-            if not args.api_key:
-                raise SystemExit("FIELDNODE_API_KEY/--api-key é obrigatório para sincronizar")
-            synced = MuleClient(mule, args.api_url, args.api_key, timeout=args.timeout,
+            if not args.device_key:
+                raise SystemExit("FIELDNODE_DEVICE_KEY/--device-key é obrigatório para sincronizar")
+            synced = MuleClient(mule, args.api_url, args.device_key, timeout=args.timeout,
                                 max_attempts=args.max_attempts).synchronize()
             LOGGER.info("[DATA MULE] %d leituras confirmadas pelo backend", synced)
         LOGGER.info("[DATA MULE] buffer=%s counts=%s", mule.path, mule.counts())

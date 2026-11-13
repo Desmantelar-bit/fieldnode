@@ -28,7 +28,7 @@ PORT = int(os.getenv('MQTT_PORT', '1883'))
 MQTT_DEVICE_ID = os.getenv('MQTT_DEVICE_ID', '').strip()
 MQTT_MACHINE_ID = os.getenv('MQTT_MACHINE_ID', '').strip()
 API_URL = os.getenv('FIELDNODE_API_URL', 'http://127.0.0.1:8000/api/telemetria/').strip()
-API_KEY = os.getenv('FIELDNODE_API_KEY', '')
+HTTP_DEVICE_KEYS = json.loads(os.getenv('FIELDNODE_HTTP_DEVICE_KEYS', '{}'))
 DEMO_CYCLES = int(os.getenv('DEMO_CYCLES', '0'))
 
 DEMO_ROUTE = [
@@ -88,6 +88,7 @@ def gerar_leitura(maquina_id, cenario):
     return {
         "id": str(uuid.uuid4()),
         "maquina_id": maquina_id,
+        "device_id": maquina_id,
         "temperatura": round(random.uniform(*cenario["temp"]), 1),
         "vibracao": round(random.uniform(*cenario["vib"]), 2),
         "rpm": int(random.uniform(*cenario["rpm"])),
@@ -118,10 +119,15 @@ def gerar_leitura_demo(maquina_id, ponto):
     }
 
 def enviar_para_api(leitura):
+    device_id = leitura["device_id"]
+    device_key = HTTP_DEVICE_KEYS.get(device_id)
+    if not device_key:
+        raise RuntimeError(f"Credencial HTTP individual ausente para {device_id}.")
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "X-API-Key": API_KEY,
+        "X-Device-Id": device_id,
+        "X-Device-Key": device_key,
     }
     response = requests.post(API_URL, headers=headers, json=leitura, timeout=10)
     response.raise_for_status()
@@ -156,8 +162,8 @@ def loop_fallback_api():
         time.sleep(2)
 
 def main():
-    if not API_KEY:
-        raise RuntimeError('Defina FIELDNODE_API_KEY no ambiente antes de executar o simulador.')
+    if not isinstance(HTTP_DEVICE_KEYS, dict):
+        raise RuntimeError('FIELDNODE_HTTP_DEVICE_KEYS deve ser um objeto JSON de device_id para chave individual.')
     if not MQTT_DEVICE_ID or not MQTT_MACHINE_ID:
         raise RuntimeError('Defina MQTT_DEVICE_ID e MQTT_MACHINE_ID para uma identidade provisionada.')
     mqtt_password = getpass.getpass(f'Senha MQTT de {MQTT_DEVICE_ID}: ')

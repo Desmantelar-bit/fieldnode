@@ -2,6 +2,32 @@ from django.contrib import admin
 from api_tcc import models
 
 
+@admin.register(models.AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("action", "result", "actor", "object_type", "object_id", "ip", "correlation_id", "criado_em")
+    list_filter = ("action", "result", "criado_em")
+    search_fields = ("action", "actor__username", "object_type", "object_id", "correlation_id")
+    ordering = ("-criado_em",)
+    readonly_fields = tuple(field.name for field in models.AuditLog._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        opts = self.opts
+        return request.user.is_active and request.user.is_staff and (
+            request.user.is_superuser
+            or request.user.has_perm(f"{opts.app_label}.view_{opts.model_name}")
+            or request.user.has_perm(f"{opts.app_label}.change_{opts.model_name}")
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(models.LeituraTelemetria)
 class LeituraTelemetriaAdmin(admin.ModelAdmin):
     list_display   = ('maquina_id', 'temperatura', 'vibracao', 'rpm', 'timestamp', 'recebido_em')

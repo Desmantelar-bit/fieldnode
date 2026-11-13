@@ -41,19 +41,6 @@ def seconds_between(start: str, end: str) -> float:
     return round((datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds(), 3)
 
 
-def parse_dotenv(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip("\"'")
-    return values
-
-
 def run_command(command: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
     print("$", " ".join(command), flush=True)
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
@@ -154,19 +141,6 @@ print(json.dumps({{
     raise RuntimeError("não foi possível ler as métricas do banco")
 
 
-def ensure_api_key(compose_args: list[str]) -> str:
-    key = os.getenv("FIELDNODE_API_KEY") or parse_dotenv(ROOT / ".env").get("FIELDNODE_API_KEY")
-    if key:
-        return key
-    result = compose(
-        compose_args, "exec", "-T", "web", "sh", "-c", "printf '%s' \"$FIELDNODE_API_KEY\""
-    )
-    key = result.stdout.strip()
-    if not key:
-        raise RuntimeError("FIELDNODE_API_KEY não encontrada no ambiente do host ou do Compose")
-    return key
-
-
 def run_edge(args: argparse.Namespace, device_id: str, buffer_path: Path, *, count: int, offline: bool) -> None:
     command = [
         sys.executable,
@@ -186,7 +160,7 @@ def run_edge(args: argparse.Namespace, device_id: str, buffer_path: Path, *, cou
         command.extend(["--sync-only", "--timeout", str(args.timeout)])
     environment = os.environ.copy()
     if not offline:
-        environment["FIELDNODE_API_KEY"] = args.api_key
+        environment["FIELDNODE_DEVICE_KEY"] = args.device_key
     print("$", " ".join(command), flush=True)
     result = subprocess.run(command, cwd=ROOT, env=environment, text=True)
     if result.returncode:
@@ -202,7 +176,7 @@ def sync_edge_and_measure(args: argparse.Namespace, device_id: str, buffer_path:
         "--backoff-base", str(args.backoff_base), "--backoff-max", str(args.backoff_max),
     ]
     environment = os.environ.copy()
-    environment["FIELDNODE_API_KEY"] = args.api_key
+    environment["FIELDNODE_DEVICE_KEY"] = args.device_key
     print("$", " ".join(command), flush=True)
     process = subprocess.Popen(command, cwd=ROOT, env=environment, text=True)
     first: str | None = None
@@ -327,6 +301,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--count", type=int, default=100)
     parser.add_argument("--interval", type=float, default=0.0)
     parser.add_argument("--api-url", default="http://127.0.0.1:8000/api/telemetria/")
+    parser.add_argument("--device-id", default=os.getenv("DEVICE_ID", "edge-s8-t2"))
+    parser.add_argument("--device-key", default=os.getenv("FIELDNODE_DEVICE_KEY", ""))
     parser.add_argument("--health-url", default="http://127.0.0.1:8000/api/health/")
     parser.add_argument("--health-timeout", type=float, default=180.0)
     parser.add_argument("--timeout", type=float, default=10.0)
@@ -358,7 +334,8 @@ def main() -> int:
 
     try:
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        args.api_key = ensure_api_key(args.compose_args)
+        if not args.device_key:
+            raise SystemExit("Defina FIELDNODE_DEVICE_KEY ou --device-key para o dispositivo provisionado.")
         output = args.output_dir / "resultados.json"
         results: list[dict[str, Any]] = []
         if args.append_results and output.exists():
@@ -370,7 +347,7 @@ def main() -> int:
         for index, duration in enumerate(args.durations, start=args.start_index):
             print(f"\n=== R{index}: indisponibilidade de {duration}s ===", flush=True)
             run_id = uuid.uuid4().hex[:12]
-            device_id = f"edge-s8-t2-r{index}-{run_id}"
+            device_id = args.device_id
             try:
                 row = measure(args, duration, index, run_id=run_id, device_id=device_id)
             except KeyboardInterrupt:

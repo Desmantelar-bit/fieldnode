@@ -98,17 +98,59 @@ class HasValidIngestionAPIKey(BasePermission):
     message = 'API key inválida ou ausente.'
 
     def has_permission(self, request, view):
-        import hmac
-        supplied = request.headers.get('X-API-Key', '')
-        expected = getattr(settings, 'FIELDNODE_API_KEY', '')
-        if supplied and expected and hmac.compare_digest(supplied, expected):
+        return _authenticate_http_device(request)
+
+
+def _authenticate_http_device(request):
+    import hashlib
+    import hmac
+    from django.utils import timezone
+    from api_tcc.models import DeviceCredential
+
+    device_id = request.headers.get("X-Device-Id", "").strip()
+    supplied = request.headers.get("X-Device-Key", "")
+    request.authenticated_ingestion_device_id = None
+    if device_id and supplied:
+        credential = DeviceCredential.objects.filter(device_id=device_id).first()
+        candidate = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
+        dummy = "0" * 64
+        expected_current = credential.http_key_hash if credential and credential.http_key_hash else dummy
+        current_valid = hmac.compare_digest(expected_current, candidate)
+        now = timezone.now()
+        if credential and credential.http_rotation_deadline and now > credential.http_rotation_deadline:
+            DeviceCredential.objects.filter(pk=credential.pk).update(
+                http_previous_key_hash="", http_rotation_deadline=None
+            )
+        previous_valid = bool(
+            credential and credential.http_previous_key_hash and credential.http_rotation_deadline
+            and now <= credential.http_rotation_deadline
+            and hmac.compare_digest(credential.http_previous_key_hash, candidate)
+        )
+        if credential and credential.http_key_hash and not credential.http_revoked_at and (current_valid or previous_valid):
+            request.authenticated_ingestion_device_id = credential.device_id
+            request.authenticated_ingestion_credential = credential
+            return True
+
+    # Once an individual credential is presented, never fall through to the
+    # development-only global key, even when that individual credential fails.
+    if device_id or supplied:
+        return False
+
+    # Development-only escape hatch, deliberately opt-in and not used after a
+    # failed individual credential check.
+    if getattr(settings, "DEBUG", False) and getattr(settings, "ALLOW_LEGACY_INGESTION_KEY", False):
+        legacy = getattr(settings, "FIELDNODE_API_KEY", "")
+        presented = request.headers.get("X-API-Key", "")
+        if legacy and presented and hmac.compare_digest(legacy, presented):
             request.authenticated_ingestion_device_id = None
             return True
-        for device_id, device_key in getattr(settings, 'FIELDNODE_DEVICE_API_KEYS', {}).items():
-            if supplied and hmac.compare_digest(supplied, device_key):
-                request.authenticated_ingestion_device_id = device_id
+        # Temporary development-only compatibility for pre-S2-T8 test fixtures.
+        # This environment mapping is never consulted outside DEBUG.
+        for configured_id, configured_key in getattr(settings, "FIELDNODE_DEVICE_API_KEYS", {}).items():
+            if presented and hmac.compare_digest(str(configured_key), presented):
+                request.authenticated_ingestion_device_id = configured_id
                 return True
-        return False
+    return False
 
 
 class HasIngestionCredential(BasePermission):
@@ -116,22 +158,36 @@ class HasIngestionCredential(BasePermission):
     message = 'Credencial inválida ou sem acesso de escrita à máquina.'
 
     def has_permission(self, request, view):
-        if HasValidIngestionAPIKey().has_permission(request, view):
+        if _authenticate_http_device(request):
             device_id = getattr(request, 'authenticated_ingestion_device_id', None)
             if not device_id:
                 return True
             payloads = request.data.get('leituras') if isinstance(request.data, dict) else None
             if payloads is None:
                 payloads = [request.data]
-            return bool(
+            matches = bool(
                 isinstance(payloads, list)
                 and payloads
                 and all(
                     isinstance(payload, dict)
                     and str(payload.get('device_id') or '').strip() == device_id
+                    and str(payload.get('maquina_id') or '').strip().upper() == device_id.upper()
                     for payload in payloads
                 )
             )
+            if not matches:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Identidade do dispositivo não corresponde ao payload.")
+            from django.utils import timezone
+            from api_tcc.models import DeviceCredential
+            credential = getattr(request, "authenticated_ingestion_credential", None)
+            now = timezone.now()
+            if credential and (
+                not credential.http_last_seen_at
+                or (now - credential.http_last_seen_at).total_seconds() >= 300
+            ):
+                DeviceCredential.objects.filter(pk=credential.pk).update(http_last_seen_at=now)
+            return True
         if not request.user.is_authenticated:
             return False
 

@@ -6,13 +6,14 @@ registros duplicados.
 import concurrent.futures
 import time
 import uuid
+import os
 
 import requests
-from decouple import config
 
 
 API_URL = "http://localhost:8000/api/telemetria/"
-API_KEY = config("FIELDNODE_API_KEY", default="")
+DEVICE_ID = os.getenv("FIELDNODE_DEVICE_ID", "teste-dedup-concorrencia")
+DEVICE_KEY = os.getenv("FIELDNODE_DEVICE_KEY", "")
 
 
 def enviar_requisicao(payload_base: dict, headers: dict) -> requests.Response | None:
@@ -29,13 +30,14 @@ def teste_deduplicacao() -> None:
     id_fixo = str(uuid.uuid4())
     payload_base = {
         "id": id_fixo,
-        "maquina_id": "teste-dedup-concorrencia",
+        "maquina_id": DEVICE_ID,
+        "device_id": DEVICE_ID,
         "temperatura": 70.0,
         "vibracao": 1.0,
         "rpm": 1500,
         "timestamp": "2026-08-12T10:00:00Z",
     }
-    headers = {"X-API-Key": API_KEY} if API_KEY else {}
+    headers = {"X-Device-Id": DEVICE_ID, "X-Device-Key": DEVICE_KEY} if DEVICE_KEY else {}
 
     print(f"Disparando 10 threads simultâneas com o UUID: {id_fixo}")
     inicio = time.perf_counter()

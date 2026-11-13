@@ -10,7 +10,7 @@
 #
 # Uso:
 #   cp .env.example .env
-#   # edite .env (SECRET_KEY, FIELDNODE_API_KEY, senhas)
+#   # edite .env (SECRET_KEY, credenciais de banco e senhas)
 #   docker compose up --build
 #   docker compose exec web python manage.py migrate
 #
