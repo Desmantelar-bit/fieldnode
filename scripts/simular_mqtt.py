@@ -19,13 +19,14 @@ import uuid
 import time
 import random
 import os
+import getpass
 import requests
 from datetime import datetime, timezone
 
 BROKER = os.getenv('MQTT_BROKER', 'localhost')
 PORT = int(os.getenv('MQTT_PORT', '1883'))
-MQTT_USERNAME = os.getenv('MQTT_USERNAME', '')
-MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', '')
+MQTT_DEVICE_ID = os.getenv('MQTT_DEVICE_ID', '').strip()
+MQTT_MACHINE_ID = os.getenv('MQTT_MACHINE_ID', '').strip()
 API_URL = os.getenv('FIELDNODE_API_URL', 'http://127.0.0.1:8000/api/telemetria/').strip()
 API_KEY = os.getenv('FIELDNODE_API_KEY', '')
 DEMO_CYCLES = int(os.getenv('DEMO_CYCLES', '0'))
@@ -157,9 +158,13 @@ def loop_fallback_api():
 def main():
     if not API_KEY:
         raise RuntimeError('Defina FIELDNODE_API_KEY no ambiente antes de executar o simulador.')
+    if not MQTT_DEVICE_ID or not MQTT_MACHINE_ID:
+        raise RuntimeError('Defina MQTT_DEVICE_ID e MQTT_MACHINE_ID para uma identidade provisionada.')
+    mqtt_password = getpass.getpass(f'Senha MQTT de {MQTT_DEVICE_ID}: ')
+    if not mqtt_password:
+        raise RuntimeError('Senha MQTT vazia; conexão cancelada.')
     client = mqtt.Client()
-    if MQTT_USERNAME and MQTT_PASSWORD:
-        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+    client.username_pw_set(MQTT_DEVICE_ID, mqtt_password)
     
     try:
         client.connect(BROKER, PORT, 60)
@@ -169,8 +174,11 @@ def main():
         contador = 0
         while True:
             for maquina_id, cenario in CENARIOS.items():
+                if maquina_id != MQTT_MACHINE_ID:
+                    continue
                 leitura = gerar_leitura(maquina_id, cenario)
-                topico = f"fieldnode/{maquina_id}/leitura"
+                leitura['device_id'] = MQTT_DEVICE_ID
+                topico = f"fieldnode/{MQTT_DEVICE_ID}/telemetria"
                 
                 client.publish(topico, json.dumps(leitura))
                 

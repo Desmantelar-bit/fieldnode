@@ -58,6 +58,11 @@ Thumbs.db
 **/.env*
 !.env.example
 !**/.env.example
+mosquitto/broker-secrets/*
+!mosquitto/broker-secrets/.gitkeep
+mosquitto/worker-secrets/*
+!mosquitto/worker-secrets/.gitkeep
+mosquitto/secrets/*
 local_settings.py
 
 # IDE e Tooling Caches

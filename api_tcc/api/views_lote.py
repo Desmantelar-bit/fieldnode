@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.api.parsers import BoundedTelemetryJSONParser
@@ -22,7 +23,7 @@ class IngestaoLoteView(APIView):
     Nota Técnica (TCC): o processamento ocorre item a item (não bulk_create) para
     privilegiar o relatório detalhado de debug em campo sobre performance bruta.
     """
-    throttle_classes = [IngestaoThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle, IngestaoThrottle]
     parser_classes = [BoundedTelemetryJSONParser, FormParser, MultiPartParser]
 
     def get_permissions(self):

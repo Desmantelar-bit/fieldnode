@@ -59,31 +59,15 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
-    env_file:
-      - .env
-    command:
-      - sh
-      - -ec
-      - |
-        : "$${MQTT_USERNAME:?MQTT_USERNAME is required}"
-        : "$${MQTT_PASSWORD:?MQTT_PASSWORD is required}"
-        mosquitto_passwd -b -c /mosquitto/data/passwordfile "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
-        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    command: ["sh", "/mosquitto/config/docker-entrypoint.sh"]
     ports:
       - "127.0.0.1:1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - mosquitto_data:/mosquitto/data/
-    healthcheck:
-      # mosquitto_sub com -C 1 conecta e aguarda uma mensagem;
-      # com -W 2 (timeout) prova que o broker aceita conexões.
-      test:
-        - "CMD-SHELL"
-        - "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" -t '$$SYS/#' -C 1 -W 2 || exit 1"
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - ./mosquitto/acl.conf:/mosquitto/config/acl.conf:ro
+      - ./mosquitto/docker-entrypoint.sh:/mosquitto/config/docker-entrypoint.sh:ro
+      - ./mosquitto/broker-secrets:/mosquitto/secrets:ro
+      - mosquitto_data:/mosquitto/data
 
   # ── web (Django + Gunicorn) ───────────────────────────────────────────────
   web:
@@ -104,6 +88,8 @@ services:
       DB_PORT: "3306"
       MQTT_BROKER: mosquitto
       MQTT_PORT: "1883"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
       # Garante que cookies seguros e HSTS não sejam ativados sem HTTPS real
       SECURE_SSL: "False"
     ports:
@@ -142,14 +128,19 @@ services:
       # Resolve "mosquitto" pelo DNS interno do Compose — nunca localhost
       MQTT_BROKER: mosquitto
       MQTT_PORT: "1883"
+      MQTT_WORKER_USERNAME: fieldnode-worker
+      MQTT_WORKER_PASSWORD_FILE: /run/secrets/worker_password
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
       SECURE_SSL: "False"
     volumes:
+      - ./mosquitto/worker-secrets:/run/secrets:ro
       - media_models:/app/media/models
     depends_on:
       db:
         condition: service_healthy
       mosquitto:
-        condition: service_healthy
+        condition: service_started
 
   # ── frontend (Next.js 15) ──────────────────────────────────────────────────
   frontend:
@@ -176,5 +167,5 @@ volumes:
   mysql_data:
   # Modelos .pkl gerados pelo pipeline de IA persistem entre deploys
   media_models:
-  # Persistência de sessão do Mosquitto
+  # User/password file and persistent broker state owned by uid/gid 1883.
   mosquitto_data:

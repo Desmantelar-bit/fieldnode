@@ -93,7 +93,8 @@ def chamar_gemini(prompt: str) -> dict[str, Any]:
         raise AgenticOutputError("GEMINI_API_KEY não configurada")
     try:
         response = requests.post(
-            f"{GEMINI_URL}?key={api_key}",
+            GEMINI_URL,
+            headers={"x-goog-api-key": api_key},
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=10.0,
         )

@@ -7,6 +7,7 @@ from django.test.utils import override_settings
 from rest_framework.test import APIClient
 
 from api_tcc.models import DeadLetterEntry, Decision, Event, Machine
+from api_tcc.services import agentic
 
 
 class AgenticDecisionCommandTest(TestCase):
@@ -82,6 +83,9 @@ class AgenticDecisionCommandTest(TestCase):
         self.assertEqual(decision.detalhes["prompt_version"], "agentic_decision_v1")
         self.assertEqual(decision.confianca, 0.82)
         post.assert_called_once()
+        self.assertEqual(post.call_args.args[0], agentic.GEMINI_URL)
+        self.assertEqual(post.call_args.kwargs["headers"]["x-goog-api-key"], "test-key")
+        self.assertNotIn("key=", post.call_args.args[0])
 
     @override_settings(GEMINI_API_KEY="test-key")
     @patch("api_tcc.services.agentic.requests.post")

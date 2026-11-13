@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from api_tcc import models
 
 
-@override_settings(DEMO_MODE=False)
+@override_settings(DEMO_MODE=False, REGISTRATION_ENABLED=True)
 class TokenAuthTest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -28,14 +28,14 @@ class TokenAuthTest(TestCase):
         self.assertIn("token", response.data)
         self.assertEqual(response.data["token"], Token.objects.get(user=self.user).key)
 
-    def test_login_com_credencial_invalida_retorna_400(self):
+    def test_login_com_credencial_invalida_retorna_401(self):
         response = self.client.post(
             reverse("auth-login"),
             {"username": "admin-token", "password": "senha-errada"},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertNotIn("token", response.data)
 
     def test_cadastro_publico_cria_usuario_comum_e_retorna_token(self):

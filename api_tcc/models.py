@@ -546,6 +546,7 @@ class DeadLetterEntry(models.Model):
         DECISAO = "DECISAO", "Decisão"
         AGENTIC_LLM = "AGENTIC_LLM", "Agentic LLM"
         SYNC = "SYNC", "Sincronização"
+        MQTT_SPOOF = "MQTT_SPOOF", "Tentativa de spoof MQTT"
 
     id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
     contexto = models.CharField(max_length=20, choices=Contexto.choices, db_index=True)
@@ -566,6 +567,53 @@ class DeadLetterEntry(models.Model):
 
     def __str__(self):
         return f"{self.contexto} — {self.motivo[:80]} — {self.criado_em}"
+
+
+class DeviceCredential(models.Model):
+    """Credential registry for a stable device identity (never stores plaintext)."""
+
+    device_id = models.CharField(max_length=100, unique=True, db_index=True)
+    username = models.CharField(max_length=100, unique=True)
+    credential_hash = models.CharField(max_length=256)
+    active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    rotated_at = models.DateTimeField(null=True, blank=True)
+    provisioning_state = models.CharField(max_length=20, default="pending")
+
+    class Meta:
+        verbose_name = "Credencial de dispositivo"
+        verbose_name_plural = "Credenciais de dispositivos"
+
+    def __str__(self):
+        return f"{self.device_id} ({'ativa' if self.active else 'revogada'})"
+
+
+class SecurityCounter(models.Model):
+    """Shared, database-backed fixed-window counters used for auth abuse controls."""
+
+    key = models.CharField(max_length=64, primary_key=True)
+    count = models.PositiveIntegerField(default=0)
+    window_started_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["expires_at"])]
+
+
+class AuditLog(models.Model):
+    """Minimal append-only audit trail for security-relevant authentication events."""
+
+    actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    actor_key = models.CharField(max_length=64, blank=True, db_index=True)
+    action = models.CharField(max_length=64, db_index=True)
+    result = models.CharField(max_length=24)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["action", "-created_at"])]
 
 
 class Prescricao(models.Model):

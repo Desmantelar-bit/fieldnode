@@ -69,7 +69,8 @@ def gerar_explicacao_natural(resultado: ResultadoAnalise) -> dict:
 
     try:
         resp = requests.post(
-            f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
+            GEMINI_URL,
+            headers={"x-goog-api-key": settings.GEMINI_API_KEY},
             json={"contents": [{"parts": [{"text": _montar_prompt(resultado)}]}]},
             timeout=2.0,  # CRÍTICO: timeout curto
         )

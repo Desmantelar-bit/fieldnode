@@ -9,6 +9,45 @@ Este documento registra o modelo de segurança atual do FieldNode. Ele descreve 
 - `POST /api/telemetria/` e `POST /api/telemetria/lote/` continuam sendo endpoints máquina-a-máquina protegidos por `X-API-Key`, validada no backend.
 - GETs públicos existem para demonstração, dashboard e consultas operacionais do MVP.
 - O frontend usa `Authorization: Token <token>` para operações autenticadas e não deve receber `FIELDNODE_API_KEY`.
+- O BFF Next.js já mantém o token DRF em cookie `HttpOnly` (`fieldnode_session`); o browser recebe apenas dados de perfil. `localStorage` armazena somente o perfil visual, nunca o token.
+
+## MQTT por dispositivo (S2-T1)
+
+Cada dispositivo autentica com username igual ao `device_id`. `DeviceCredential` guarda o hash Django da credencial, estado de provisionamento, estado ativo/revogado e datas de ciclo de vida; o Mosquitto mantém o hash no password file no formato produzido por `mosquitto_passwd`. A senha em claro é gerada pelo provisionador e exibida uma única vez. Ela não é persistida no banco ou repositório.
+
+`mosquitto/acl.conf` aplica estas permissões:
+
+- `fieldnode-worker`: lê `fieldnode/+/telemetria` e `fieldnode/+/status`, escreve somente em `fieldnode/_ack/#`.
+- usuário de dispositivo `%u`: escreve somente em `fieldnode/%u/telemetria` e `fieldnode/%u/status`, lê somente `fieldnode/_ack/%u`.
+
+O worker exige `MQTT_WORKER_USERNAME=fieldnode-worker` e um arquivo secreto em `MQTT_WORKER_PASSWORD_FILE`; segredo ausente resulta em erro de inicialização sem tentativa anônima. O callback também valida forma do tópico, JSON, existência de credencial ativa e igualdade exata entre `device_id` do payload e do tópico. Divergências são persistidas em `DeadLetterEntry` com `contexto=MQTT_SPOOF`, sem processar leitura ou estado de máquina. `maquina_id` não prova identidade.
+
+Provisionamento local: execute primeiro `python scripts/provision_mqtt_worker.py`; o segredo do worker fica em `mosquitto/worker-secrets/worker_password`, diretório ignorado pelo Git, e o hash entra em `mosquitto/broker-secrets/passwordfile`. Então execute `python scripts/provision_device.py <device_id>`. Ambos exigem `mosquitto_passwd` no PATH, não passam senha em argumentos de processo, e recusam sobrescrever credencial existente sem `--rotate`. Revogue com `python scripts/provision_device.py --revoke <device_id>`; reprovisione uma identidade revogada com `--rotate`. O Compose monta o diretório de hashes somente no broker; no boot, o entrypoint copia o password file para o volume privado `/mosquitto/data` e o entrega ao UID/GID 1883 usado pelo broker. O broker é reiniciado automaticamente se estiver ativo, encerrando sessões MQTT existentes para que credencial revogada/substituída não continue válida numa conexão aberta; reinicie o worker após rotação do segredo dele. Se o banco ou arquivo falhar, a operação restaura o arquivo anterior.
+
+Para reconstruir uma demo, use um dispositivo por credencial, por exemplo `python scripts/provision_device.py demo-tractor-01`; grave a senha exibida uma vez no firmware de bancada e descarte a cópia temporária. Não há senha universal nem fallback anônimo. `DeviceCredential.device_id` é a identidade de transporte e deve coincidir com o `device_id` do contrato de telemetria. A autenticação HTTP individual existente também compara a identidade da chave com cada payload; a chave global legada não representa uma identidade individual e precisa ser removida antes de operação compartilhada.
+
+Autenticação MQTT e ACL não criptografam o transporte. O listener atual usa MQTT sem TLS na rede local, portanto não protege credenciais e payloads contra interceptação no segmento. HTTPS local e TLS do broker não são implementados aqui; HTTPS local segue a decisão D-35/S13-T12. A prova local/demo não equivale a piloto compartilhado seguro.
+
+## Proteção de autenticação (S2-T2)
+
+`AnonRateThrottle` limita requisições anônimas a 60/min e `UserRateThrottle` usuários autenticados a 300/min. Login aplica limite atômico adicional de 5/min por IP e por identidade normalizada; os IPs vêm de `REMOTE_ADDR` (cabeçalho `X-Forwarded-For` não é confiado). Após cinco falhas por identidade em janela de 15 minutos, novas tentativas recebem 429 genérico. O estado do lockout e dos limites críticos está em `SecurityCounter`, no banco compartilhado, com operações transacionais; indisponibilidade do banco falha fechada. Em desenvolvimento e produção, `DatabaseCache` usa a tabela `fieldnode_throttle_cache`, criada por migration. Os limites globais do DRF também usam esse cache compartilhado.
+
+Registro inicia desabilitado (`REGISTRATION_ENABLED=False`) e é sempre bloqueado em `DEMO_MODE=True`. Quando habilitado fora da demo, permite no máximo 3 tentativas/hora por IP. Com registro desabilitado a resposta é sempre 403, sem criar usuário. Respostas de falha de login são genéricas e não revelam existência da conta.
+
+Swagger/ReDoc só são roteados quando `SWAGGER_ENABLED=True` (default acompanha `DEBUG`, portanto é desabilitado fora de desenvolvimento). As duas chamadas Gemini enviam `GEMINI_API_KEY` em `x-goog-api-key`, não na URL.
+
+## Modelo de ameaça e isolamento
+
+| Ativo / fronteira | Ameaça | Controle atual | Evidência/limite |
+|---|---|---|---|
+| Telemetria MQTT | dispositivo publica em identidade alheia | ACL `%u` e comparação de identidade do payload/tópico | integração broker ainda precisa ser executada no Compose |
+| Login | brute force distribuído ou por IP | contadores compartilhados por IP, usuário e lockout | validação de carga entre 2 workers pendente |
+| Cadastro | spam/criação em demo | flags do servidor e throttle condicionado a cadastro habilitado | teste local cobre flags; 50 chamadas pendentes |
+| Gemini | chave exposta em logs/proxy URL | header `x-goog-api-key` | chamadas mockadas pendentes |
+| Browser | roubo de token via JS | cookie `HttpOnly` via BFF Next.js | cookie não significa proteção CSRF para outros deployments; origem é validada no BFF |
+| Dados multi-organização | leitura ou escrita cruzada | Membership e filtros por organização já existentes | suíte de isolamento deve ser executada para provar toda matriz |
+
+Limitações: `DatabaseCache` em SQLite é compartilhado apenas entre processos que usam o mesmo arquivo e não é adequado a escrita concorrente elevada; produção multi-worker deve usar MySQL. `SecurityCounter` usa transação/row lock no banco e precisa ser validado em MySQL com duas instâncias Gunicorn. Agende `python manage.py cleanup_security_counters` em execução periódica (por exemplo, a cada 15 minutos); a tabela verifica expiração em cada consulta, mas este repositório ainda não instala um scheduler.
 
 ## Demo Mode
 

@@ -7,6 +7,7 @@ import logging
 
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from rest_framework import status
@@ -16,8 +17,13 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from api_tcc.authentication import is_token_expired, token_expires_in
+from api_tcc.api.throttles import (
+    LoginThrottle, RegisterThrottle, audit_security_event, normalized_login_identity,
+    record_login_failure, reset_security_counter, security_counter_value,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +37,30 @@ class ExpiringAuthTokenView(ObtainAuthToken):
     Retorna o token e metadados de expiração.
     """
 
+    throttle_classes = [AnonRateThrottle, UserRateThrottle, LoginThrottle]
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        identity = normalized_login_identity(request)
+        failure_key = f"login:failed:{identity}"
+        if security_counter_value(failure_key) >= 5:
+            logger.warning("Tentativa recusada por lockout temporário de autenticação")
+            audit_security_event("login_lockout", "blocked", identity=identity, metadata={"window_seconds": 900})
+            return Response(
+                {"detail": "Não foi possível autenticar com as credenciais informadas."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if not serializer.is_valid():
+            record_login_failure(identity)
+            audit_security_event("login_failed", "denied", identity=identity, metadata={"reason": "invalid_credentials"})
+            logger.warning("Falha de autenticação")
+            return Response(
+                {"detail": "Não foi possível autenticar com as credenciais informadas."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         user = serializer.validated_data["user"]
+        reset_security_counter(failure_key)
+        audit_security_event("login_succeeded", "allowed", identity=identity, actor=user)
 
         token, created = Token.objects.get_or_create(user=user)
         if not created and is_token_expired(token):
@@ -65,7 +91,18 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    def get_throttles(self):
+        # Disabled registration must consistently return 403, including repeated calls.
+        if not settings.REGISTRATION_ENABLED or settings.DEMO_MODE:
+            return [AnonRateThrottle()]
+        return [AnonRateThrottle(), RegisterThrottle()]
+
     def post(self, request):
+        if not settings.REGISTRATION_ENABLED or settings.DEMO_MODE:
+            logger.warning("Registro público bloqueado por configuração")
+            audit_security_event("registration_disabled", "blocked", metadata={"demo_mode": bool(settings.DEMO_MODE)})
+            return Response({"detail": "Registro desabilitado."}, status=status.HTTP_403_FORBIDDEN)
+
         username = str(request.data.get("username", "")).strip()
         email = str(request.data.get("email", "")).strip().lower()
         password = request.data.get("password", "")

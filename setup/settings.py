@@ -46,6 +46,8 @@ if not isinstance(FIELDNODE_DEVICE_API_KEYS, dict) or any(
 if len(set(FIELDNODE_DEVICE_API_KEYS.values())) != len(FIELDNODE_DEVICE_API_KEYS):
     raise ValueError("FIELDNODE_DEVICE_API_KEYS não pode reutilizar a mesma chave em dispositivos diferentes")
 DEMO_MODE = env_config("DEMO_MODE", default=False, cast=bool)
+REGISTRATION_ENABLED = env_config("REGISTRATION_ENABLED", default=False, cast=bool)
+SWAGGER_ENABLED = bool(DEBUG and env_config("SWAGGER_ENABLED", default=True, cast=bool))
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
 
@@ -225,29 +227,28 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
     'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/minute',
+        'user': '300/minute',
         'ingestao': '120/minute',
+        'login': '5/minute',
+        'register': '3/hour',
     },
 }
 
 # LocMem is sufficient for single-process development. Production shares throttle
 # state through the primary database so separate web workers enforce one quota.
-if USE_SQLITE:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'fieldnode-development-cache',
-        }
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'fieldnode_throttle_cache',
+        'TIMEOUT': 60,
     }
-else:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-            'LOCATION': 'fieldnode_throttle_cache',
-            'TIMEOUT': 60,
-        }
-    }
+}
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
 TOKEN_TTL_HOURS = env_config('TOKEN_TTL_HOURS', default=24, cast=int)

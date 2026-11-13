@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from django.conf import settings
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -20,7 +21,7 @@ schema_view = get_schema_view(
         contact=openapi.Contact(email='contato@fieldnode.app'),
         license=openapi.License(name='Proprietário'),
     ),
-    public=True,
+    public=bool(settings.SWAGGER_ENABLED),
 )
 
 # Configuração do Django Admin
@@ -30,10 +31,13 @@ admin.site.index_title = 'Painel Administrativo'
 
 urlpatterns = [
     # Raiz: redireciona para Swagger (útil para desenvolvimento)
-    path('', RedirectView.as_view(url='/swagger/', permanent=False), name='root'),
+    path('', RedirectView.as_view(url='/swagger/' if settings.SWAGGER_ENABLED else '/api/health/', permanent=False), name='root'),
     path('admin/', admin.site.urls),
     path('api/', include('api_tcc.urls')),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('swagger.json/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
+if settings.SWAGGER_ENABLED:
+    urlpatterns += [
+        path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+        path('swagger.json/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+        path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    ]

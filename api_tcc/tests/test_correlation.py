@@ -311,13 +311,21 @@ class MQTTCorrelationTest(TestCase):
     Não sobe broker MQTT real — testa apenas a camada de processamento.
     """
 
+    def setUp(self):
+        from api_tcc.models import DeviceCredential
+        DeviceCredential.objects.create(
+            device_id="COLH-01", username="COLH-01", credential_hash="!",
+            active=True, provisioning_state="active",
+        )
+
     def _build_message(self, reading_uuid: str) -> object:
         """Cria um objeto msg MQTT mínimo com um payload JSON válido."""
         import json
 
         class _FakeMsg:
-            topic = "fieldnode/COLH-01/leitura"
+            topic = "fieldnode/COLH-01/telemetria"
             payload = json.dumps({
+                "device_id": "COLH-01",
                 "id": reading_uuid,
                 "maquina_id": "COLH-01",
                 "temperatura": 75.0,

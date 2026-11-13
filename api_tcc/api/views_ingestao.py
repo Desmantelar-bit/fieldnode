@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
 from api_tcc.api.parsers import BoundedTelemetryJSONParser
@@ -33,7 +34,7 @@ class IngestaoTelemetriaView(APIView):
     Idempotência: UUID duplicado retorna 200 sem reprocessar.
     Validação: payload inválido retorna 400 e é arquivado em TelemetriaInvalida.
     """
-    throttle_classes = [IngestaoThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle, IngestaoThrottle]
     parser_classes = [BoundedTelemetryJSONParser, FormParser, MultiPartParser]
 
     def get_permissions(self):
