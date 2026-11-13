@@ -5,6 +5,7 @@ import { SessionGate } from '@/components/SessionGate';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UserProfile } from '@/components/UserProfile';
 import { ApiStatusIndicator } from '@/components/ApiStatusIndicator';
+import { TeamPanel } from '@/components/TeamPanel';
 
 /**
  * AppShell — o chrome compartilhado das rotas do app.
@@ -75,6 +76,7 @@ export function AppShell({
                   <ApiStatusIndicator />
                 </div>
                 {actions}
+                <TeamPanel />
                 {/* Perfil da sessão. No mobile ele é também o caminho de saída,
                     porque o menu traz "Sair da conta" e o rail não existe lá;
                     no desktop a saída continua no pé do rail. Um só lugar de

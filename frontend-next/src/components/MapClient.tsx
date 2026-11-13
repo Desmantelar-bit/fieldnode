@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "leaflet/dist/leaflet.css";
-import { Activity, Search, Tractor, X } from "lucide-react";
+import { Activity, Search, Tractor, X, SlidersHorizontal, ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { resolveApiUrl } from "@/services/telemetryService";
 import { classifyMetric, type MetricKey } from "@/lib/metricThresholds";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
@@ -209,7 +211,13 @@ export default function MapClient({
   const initialBoundsAppliedRef = useRef(false);
   const selectedMachineIdRef = useRef<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchInitialized, setSearchInitialized] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const sheetRef = useRef<HTMLElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const panelTriggerRef = useRef<HTMLElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const positions = useMemo(() => estado.tipo === "sucesso" ? estado.dados : [], [estado]);
   const visiblePositionCount = positions.filter(isValidPosition).length;
@@ -223,6 +231,59 @@ export default function MapClient({
     mq.addEventListener("change", listener);
     return () => mq.removeEventListener("change", listener);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSearchTerm(params.get("q") ?? "");
+    setSearchInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!searchInitialized) return;
+    const params = new URLSearchParams(window.location.search);
+    if (searchTerm) params.set("q", searchTerm);
+    else params.delete("q");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+  }, [searchTerm, searchInitialized]);
+
+  useEffect(() => {
+    if (!selectedMachineId && !filterDrawerOpen) return;
+    const panel = filterDrawerOpen ? drawerRef.current : sheetRef.current;
+    if (!panel) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusables = () => Array.from(panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ));
+    focusables()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (filterDrawerOpen) setFilterDrawerOpen(false);
+        else closeSelection();
+      }
+      if (event.key === "Tab") {
+        const items = focusables();
+        if (!items.length) return;
+        if (event.shiftKey && document.activeElement === items[0]) {
+          event.preventDefault(); items[items.length - 1].focus();
+        } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
+          event.preventDefault(); items[0].focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      (panelTriggerRef.current ?? previousFocus)?.focus?.();
+    };
+  }, [selectedMachineId, filterDrawerOpen]);
+
+  function closeSelection() {
+    selectedMachineIdRef.current = null;
+    setSelectedMachineId(null);
+    mapRef.current?.closePopup();
+  }
 
   useEffect(() => {
     const root = document.documentElement;
@@ -318,7 +379,7 @@ export default function MapClient({
 
     if (isMobile) {
       map.scrollWheelZoom.disable();
-      map.dragging.disable();
+      map.dragging.enable();
     } else {
       map.scrollWheelZoom.enable();
       map.dragging.enable();
@@ -376,18 +437,27 @@ export default function MapClient({
           keyboard: true,
           title: `${machineId} — ${getMarkerStatus(machine.status).label}`,
           alt: `${machineId}, status ${getMarkerStatus(machine.status).label}`,
-        })
-          .bindPopup(getPopupHtml(machine), { closeButton: true, autoPan: true })
-          .on("click", () => {
+        });
+        if (!isMobile) marker.bindPopup(getPopupHtml(machine), { closeButton: true, autoPan: true, autoClose: false });
+        marker.addTo(markers);
+        const markerElement = marker.getElement();
+        const selectMarker = () => {
             selectedMachineIdRef.current = machineId;
-            setSelectedMachineId(machineId);
-          })
-          .addTo(markers);
+          panelTriggerRef.current = markerElement ?? null;
+          setSelectedMachineId(machineId);
+        };
+        markerElement?.addEventListener("click", selectMarker);
+        markerElement?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectMarker();
+          }
+        });
         markerRefs.current.set(machineId, marker);
       });
 
       markerRefs.current.forEach((marker, machineId) => {
-        if (machineId === selectedMachineIdRef.current) marker.openPopup();
+        if (!isMobile && machineId === selectedMachineIdRef.current) marker.openPopup();
       });
     };
 
@@ -418,7 +488,7 @@ export default function MapClient({
       resizeObserver?.disconnect();
       window.clearTimeout(invalidateTimer);
     };
-  }, [mapReady, positions]);
+  }, [mapReady, positions, isMobile]);
 
   useEffect(() => {
     if (!selectedMachineId || !mapRef.current || !leafletRef.current) return;
@@ -433,17 +503,17 @@ export default function MapClient({
       if (currentMachine) currentMarker.setIcon(createMarkerIcon(L, currentMachine, machineId === selectedMachineId, map.getZoom() >= 14));
     });
 
-    if (marker) {
+    if (marker && !isMobile) {
       marker.openPopup();
       return;
     }
-
+    if (isMobile) { map.closePopup(); return; }
     map.flyTo([machine.lat, machine.lng], Math.max(map.getZoom() + 3, 16), { duration: 0.6 });
     L.popup({ closeButton: true, autoPan: true })
       .setLatLng([machine.lat, machine.lng])
       .setContent(getPopupHtml(machine))
       .openOn(map);
-  }, [selectedMachineId, positions, mapReady]);
+  }, [selectedMachineId, positions, mapReady, isMobile]);
 
   const validPositions = positions.filter(isValidPosition);
   const filteredPositions = validPositions.filter((machine) => {
@@ -462,9 +532,11 @@ export default function MapClient({
     const marker = markerRefs.current.get(machineId);
     if (map && marker) {
       map.flyTo([machine.lat, machine.lng], Math.max(map.getZoom(), 13), { duration: 0.6 });
-      marker.openPopup();
+      if (!isMobile) marker.openPopup();
     }
   }
+
+  const selectedMachine = positions.find((item) => (item.maquina_id ?? String(item.id)) === selectedMachineId);
 
   useEffect(() => {
     let cancelled = false;
@@ -565,7 +637,7 @@ export default function MapClient({
               </div>
             </section>
 
-            <section className="liquid-glass--subtle p-3" aria-label="Buscar máquina">
+            <section className="liquid-glass--subtle hidden p-3 lg:block" aria-label="Buscar máquina">
               <label className="relative block">
                 <span className="sr-only">Buscar máquina no mapa</span>
                 <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
@@ -588,6 +660,51 @@ export default function MapClient({
             </section>
           </div>
         </div>
+      ) : null}
+
+      {fullBleed && isMobile ? (
+        <div className="absolute inset-x-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-20 flex items-center justify-between gap-2">
+          <button type="button" onClick={(event) => { panelTriggerRef.current = event.currentTarget; setFilterDrawerOpen(true); }} className="flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--surface-1)]/95 px-4 text-sm font-semibold text-[var(--text-1)] shadow-lg backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ui-accent)]" aria-haspopup="dialog" aria-expanded={filterDrawerOpen}>
+            <SlidersHorizontal size={16} aria-hidden="true" /> Filtros {searchTerm ? <span className="rounded-full bg-[var(--ui-accent)] px-2 py-0.5 text-xs text-black">1</span> : null}
+          </button>
+          <span className="rounded-xl border border-[var(--line)] bg-[var(--surface-1)]/90 px-3 py-2 text-xs font-medium text-[var(--text-2)]">{filteredPositions.length} máquinas</span>
+        </div>
+      ) : null}
+
+      {fullBleed && isMobile && selectedMachine && typeof document !== "undefined" ? createPortal(<>
+        <div className="fixed inset-0 z-[60] bg-transparent" aria-hidden="true" />
+        <section ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="map-sheet-title" className="map-mobile-sheet fixed inset-x-2 z-[65] overflow-y-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-1)] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl" style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }} onTouchStart={(event) => { const t = event.touches[0]; touchStartRef.current = { x: t.clientX, y: t.clientY }; }} onTouchEnd={(event) => { const start = touchStartRef.current; const t = event.changedTouches[0]; if (start && t.clientY - start.y > 70 && Math.abs(t.clientX - start.x) < 55 && event.currentTarget.scrollTop === 0) closeSelection(); touchStartRef.current = null; }}>
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--text-3)]/50" aria-hidden="true" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="section-heading">Máquina selecionada</p>
+              <h2 id="map-sheet-title" className="mt-1 truncate text-lg font-bold text-[var(--text-1)]">{selectedMachine.maquina_id ?? selectedMachine.modelo}</h2>
+              <p className="mt-0.5 text-xs text-[var(--text-3)]">{selectedMachine.modelo}</p>
+            </div>
+            <button type="button" onClick={closeSelection} aria-label="Fechar detalhes da máquina" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--line)] text-[var(--text-1)] transition hover:bg-[var(--panel-glass-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ui-accent)]"><X size={18} aria-hidden="true" /></button>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-[var(--line)] px-3 py-2"><p className="text-[10px] uppercase tracking-wider text-[var(--text-3)]">Status</p><p className="mt-1 text-sm font-semibold text-[var(--text-1)]">{selectedMachine.status}</p></div>
+            <div className="rounded-xl border border-[var(--line)] px-3 py-2"><p className="text-[10px] uppercase tracking-wider text-[var(--text-3)]">Temperatura</p><p className="mt-1 text-sm font-semibold text-[var(--text-1)]">{selectedMachine.telemetria.temperatura} °C</p></div>
+            <div className="rounded-xl border border-[var(--line)] px-3 py-2"><p className="text-[10px] uppercase tracking-wider text-[var(--text-3)]">Rotação</p><p className="mt-1 text-sm font-semibold text-[var(--text-1)]">{selectedMachine.telemetria.rpm} rpm</p></div>
+          </div>
+          <p className="mt-3 text-[11px] text-[var(--text-3)]">Última posição recebida: {new Date(selectedMachine.telemetria.timestamp).toLocaleString("pt-BR")}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <Link href={`/detalhes?id=${encodeURIComponent(selectedMachine.maquina_id ?? String(selectedMachine.id))}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[var(--ui-accent)] px-4 text-sm font-bold text-black">Ver máquina <ChevronDown className="-rotate-90" size={15} aria-hidden="true" /></Link>
+            <span className="text-[10px] text-[var(--text-3)]">Deslize para baixo para fechar</span>
+          </div>
+        </section>
+      </>, document.body) : null}
+
+      {fullBleed && isMobile && filterDrawerOpen && typeof document !== "undefined" ? createPortal(
+        <div className="fixed inset-0 z-[70] flex items-end bg-black/35" onMouseDown={(event) => { if (event.target === event.currentTarget) setFilterDrawerOpen(false); }}>
+          <section ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="map-filter-title" className="map-mobile-drawer max-h-[45dvh] w-full overflow-y-auto rounded-t-[1.5rem] border border-[var(--line)] bg-[var(--surface-1)] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl">
+            <div className="flex items-center justify-between gap-3"><div><p className="section-heading">Explorar frota</p><h2 id="map-filter-title" className="mt-1 text-lg font-bold text-[var(--text-1)]">Buscar máquina</h2></div><button type="button" onClick={() => setFilterDrawerOpen(false)} aria-label="Fechar gaveta de filtros" className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] text-[var(--text-1)] hover:bg-[var(--panel-glass-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ui-accent)]"><X size={18} aria-hidden="true" /></button></div>
+            <label className="mt-5 block"><span className="sr-only">Buscar por identificador, modelo ou status</span><span className="relative block"><Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" /><input autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="ID, modelo ou status" className="h-12 w-full rounded-xl border border-[var(--line)] bg-[var(--panel-glass-mid)] pl-10 pr-10 text-sm text-[var(--text-1)] outline-none placeholder:text-[var(--text-3)] focus:border-[color:var(--ui-accent)]/60" />{searchTerm ? <button type="button" onClick={() => setSearchTerm("")} aria-label="Limpar busca" className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-3)] hover:bg-[var(--panel-glass-strong)]"><X size={14} aria-hidden="true" /></button> : null}</span></label>
+            <p className="mt-3 text-xs text-[var(--text-3)]" aria-live="polite">Busca aplicada enquanto você digita · {filteredPositions.length} resultado(s)</p>
+            {filteredPositions.length > 0 && searchTerm ? <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">{filteredPositions.map((machine) => <button key={machine.maquina_id ?? machine.id} type="button" onClick={() => { selectMachine(machine); setFilterDrawerOpen(false); }} className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm text-[var(--text-2)] hover:bg-[var(--panel-glass-strong)]"><span>{machine.maquina_id ?? machine.id}</span><span className="text-xs text-[var(--text-3)]">{machine.modelo}</span></button>)}</div> : null}
+          </section>
+        </div>, document.body,
       ) : null}
     </div>
   );

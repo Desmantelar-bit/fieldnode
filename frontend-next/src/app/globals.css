@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+@keyframes panel-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.map-mobile-sheet,
+.map-mobile-drawer,
+.team-panel {
+  animation: panel-rise 180ms ease-out both;
+  max-height: 45dvh;
+}
+
+.map-mobile-sheet { max-height: 39dvh; }
+
+.team-panel { max-height: min(90dvh, 900px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .map-mobile-sheet,
+  .map-mobile-drawer,
+  .team-panel { animation: none; }
+}
+
 /* ─── DARK THEME (padrão) ───────────────────────────────────────────────────
    Paleta FieldNode: verde-lima (#A7FF2C) + preto + cinza-claro (#EFEFEF).
    A MARCA vive no lima; o STATUS continua em esmeralda/âmbar/vermelho para
