@@ -8,8 +8,7 @@ be accepted, but reduce trust_score as an initial calibrable heuristic.
 
 from api_tcc.contracts import severity_contract
 
-
 LIMITES = {
-    name: tuple(metric["range"])
-    for name, metric in severity_contract()["metrics"].items()
+    metric: tuple(definition["range"])
+    for metric, definition in severity_contract()["metrics"].items()
 }

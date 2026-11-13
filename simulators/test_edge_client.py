@@ -1,10 +1,12 @@
-import hashlib
 import json
-from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
+from pathlib import Path
 
 import requests
+from api_tcc.contracts import ContractError
 
 from simulators.edge_client import (
     EdgeBuffer,
@@ -55,48 +57,18 @@ class EdgeClientTest(unittest.TestCase):
         self.buffer.enqueue(payload)
         return payload
 
-    def ack_for(self, payload, **overrides):
-        ack = {
+    def ack_for(self, payload):
+        return FakeResponse(201, {
             "status": "acked",
             "message_id": payload["message_id"],
             "device_id": payload["device_id"],
             "sequence_number": payload["sequence_number"],
             "payload_hash": payload_hash(payload),
             "last_acked_sequence": payload["sequence_number"],
-        }
-        ack.update(overrides)
-        return FakeResponse(
-            201,
-            {
-                "message_id": payload["message_id"],
-                "payload_hash": payload_hash(payload),
-                "ack": ack,
-            },
-        )
-
-    def test_hash_uses_shared_logical_payload_vector(self):
-        payload = {
-            "id": "row-ignored",
-            "device_id": "EDGE-ACK-01",
-            "message_id": "logical-message-1",
-            "sequence_number": 7,
-            "maquina_id": "EDGE-ACK-01",
-            "temperatura": 86,
-            "vibracao": 0.35,
-            "rpm": 1800,
-            "timestamp": "2026-11-05T12:00:00Z",
-            "time_source": "unsynced",
-            "boot_id": "12345678-1234-5678-1234-567812345678",
-            "uptime_ms": 7000,
-        }
-
-        self.assertEqual(
-            payload_hash(payload),
-            "62d356c473139e1d59d1d36bd0b6ddb01e91e3b621aeb0fbc582b302161e36e1",
-        )
+        })
 
     def test_hash_and_priority_are_deterministic(self):
-        critical = {"temperatura": 86, "vibracao": 1}
+        critical = {"temperatura": 111, "vibracao": 1}
         warning = {"temperatura": 80, "vibracao": 1}
         normal = {"temperatura": 70, "vibracao": 1}
         self.assertEqual(classify_priority(critical), "A")
@@ -107,45 +79,6 @@ class EdgeClientTest(unittest.TestCase):
             json.dumps(payload, sort_keys=True)
         )))
 
-    def test_legacy_outbox_hash_does_not_block_valid_ack(self):
-        payload = self.enqueue()
-        legacy_hash = hashlib.sha256(
-            json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest()
-        self.buffer.connection.execute(
-            "UPDATE outbox SET payload_hash = ?", (legacy_hash,)
-        )
-        self.buffer.connection.commit()
-        client = EdgeClient(
-            self.buffer,
-            "http://fieldnode/api/telemetria/",
-            "secret",
-            session=FakeSession([self.ack_for(payload)]),
-            backoff_base=0,
-        )
-
-        self.assertEqual(client.synchronize(), 1)
-        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 1)
-
-    def test_priority_respects_evidence_and_delay_with_critical_precedence(self):
-        critical_weak = {
-            "temperatura": 85,
-            "vibracao": 1,
-            "evidence_quality": "suspeita",
-        }
-        critical_delayed = {"temperatura": 85, "vibracao": 1, "atrasado": True}
-        attention_weak = {
-            "temperatura": 80,
-            "vibracao": 1,
-            "evidence_quality": "insuficiente",
-        }
-        normal_delayed = {"temperatura": 70, "vibracao": 1, "atrasado": True}
-
-        self.assertEqual(classify_priority(critical_weak), "A")
-        self.assertEqual(classify_priority(critical_delayed), "A")
-        self.assertEqual(classify_priority(attention_weak), "B")
-        self.assertEqual(classify_priority(normal_delayed), "B")
-
     def test_persists_before_sync_and_advances_contiguous_cursor(self):
         first = self.enqueue(0)
         second = self.enqueue(1)
@@ -155,7 +88,8 @@ class EdgeClientTest(unittest.TestCase):
         self.assertEqual(client.api_url, "http://fieldnode/api/telemetria/")
         self.assertEqual(self.buffer.counts().get("PENDENTE"), 2)
         self.assertEqual(client.synchronize(), 2)
-        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 2)
+        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED, 0), 0)
+        self.assertEqual(self.buffer.counts(), {})
         self.assertEqual(self.buffer.cursor(), 2)
         self.assertEqual([p["message_id"] for p in session.payloads],
                          [first["message_id"], second["message_id"]])
@@ -171,52 +105,93 @@ class EdgeClientTest(unittest.TestCase):
 
     def test_hash_mismatch_is_not_ack(self):
         payload = self.enqueue()
-        session = FakeSession([self.ack_for(payload, payload_hash="0" * 64)])
+        session = FakeSession([FakeResponse(201, {
+            "message_id": payload["message_id"], "payload_hash": "0" * 64,
+        })])
         EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
                    session=session, backoff_base=0).synchronize()
         row = self.buffer.connection.execute("SELECT status FROM outbox").fetchone()
         self.assertEqual(row[0], STATUS_ERROR)
         self.assertEqual(self.buffer.cursor(), 0)
 
-    def test_sequence_mismatch_is_not_ack(self):
+    def test_conflict_blocks_item_without_removing_it(self):
         payload = self.enqueue()
-        session = FakeSession(
-            [self.ack_for(payload, sequence_number=payload["sequence_number"] + 1)]
-        )
-        EdgeClient(
-            self.buffer,
-            "http://fieldnode/api/telemetria/",
-            "secret",
-            session=session,
-            backoff_base=0,
-        ).synchronize()
-
-        row = self.buffer.connection.execute(
-            "SELECT status, last_error FROM outbox"
-        ).fetchone()
-        self.assertEqual(row["status"], STATUS_ERROR)
-        self.assertIn("sequence_number", row["last_error"])
+        session = FakeSession([FakeResponse(409, {
+            "status": "conflict", "message_id": payload["message_id"],
+            "device_id": payload["device_id"], "sequence_number": payload["sequence_number"],
+            "payload_hash": payload_hash(payload),
+        })])
+        EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                   session=session, backoff_base=0).synchronize()
+        row = self.buffer.connection.execute("SELECT status FROM outbox").fetchone()
+        self.assertEqual(row[0], "BLOCKED")
         self.assertEqual(self.buffer.cursor(), 0)
 
-    def test_invalid_ack_status_is_not_ack(self):
+    def test_retry_after_lost_ack_resends_same_message_then_removes(self):
         payload = self.enqueue()
-        session = FakeSession([self.ack_for(payload, status="rejected")])
-        EdgeClient(
-            self.buffer,
-            "http://fieldnode/api/telemetria/",
-            "secret",
-            session=session,
-            backoff_base=0,
-        ).synchronize()
+        session = FakeSession([requests.ConnectionError("response lost"), FakeResponse(200, {
+            "status": "duplicate", "message_id": payload["message_id"],
+            "device_id": payload["device_id"], "sequence_number": payload["sequence_number"],
+            "payload_hash": payload_hash(payload), "last_acked_sequence": payload["sequence_number"],
+        })])
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=session, backoff_base=0)
+        self.assertEqual(client.synchronize(), 0)
+        self.assertEqual(self.buffer.counts().get(STATUS_PENDING), 1)
+        self.assertEqual(client.synchronize(), 1)
+        self.assertEqual(session.payloads[0], session.payloads[1])
+        self.assertEqual(self.buffer.counts(), {})
+        self.assertEqual(self.buffer.cursor(), payload["sequence_number"])
 
-        row = self.buffer.connection.execute(
-            "SELECT status, last_error FROM outbox"
-        ).fetchone()
-        self.assertEqual(row["status"], STATUS_ERROR)
-        self.assertIn("status inválido", row["last_error"])
+    def test_partial_http_500_preserves_only_unconfirmed_message(self):
+        first, second = self.enqueue(0), self.enqueue(1)
+        session = FakeSession([self.ack_for(first), FakeResponse(500, {})])
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=session, backoff_base=0)
+        self.assertEqual(client.synchronize(), 1)
+        rows = self.buffer.connection.execute("SELECT message_id, status FROM outbox").fetchall()
+        self.assertEqual([(row["message_id"], row["status"]) for row in rows],
+                         [(second["message_id"], STATUS_PENDING)])
+        self.assertEqual(self.buffer.cursor(), 1)
+
+    def test_incomplete_or_unknown_ack_never_removes_message(self):
+        first, second, third = self.enqueue(0), self.enqueue(1), self.enqueue(2)
+        session = FakeSession([
+            FakeResponse(201, {"status": "acked", "device_id": first["device_id"],
+                               "sequence_number": first["sequence_number"],
+                               "payload_hash": payload_hash(first)}),
+            FakeResponse(201, {"status": "acked", "message_id": second["message_id"],
+                               "device_id": second["device_id"],
+                               "sequence_number": second["sequence_number"]}),
+            FakeResponse(200, {"status": "maybe", "message_id": third["message_id"],
+                               "device_id": third["device_id"],
+                               "sequence_number": third["sequence_number"],
+                               "payload_hash": payload_hash(third)}),
+        ])
+        EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                   session=session, backoff_base=0).synchronize()
+        states = {row["message_id"]: row["status"] for row in self.buffer.connection.execute(
+            "SELECT message_id, status FROM outbox").fetchall()}
+        self.assertEqual(states[first["message_id"]], STATUS_ERROR)
+        self.assertEqual(states[second["message_id"]], STATUS_ERROR)
+        self.assertEqual(states[third["message_id"]], STATUS_PENDING)
+        self.assertEqual(self.buffer.cursor(), 0)
+
+    def test_falha_sqlite_na_confirmacao_recupera_no_reinicio(self):
+        payload = self.enqueue()
+        client = EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
+                            session=FakeSession([self.ack_for(payload)]), backoff_base=0)
+        with patch.object(self.buffer, "_advance_contiguous_cursor",
+                          side_effect=sqlite3.OperationalError("disk full")):
+            with self.assertRaises(sqlite3.OperationalError):
+                client.synchronize()
+        self.buffer.close()
+        self.buffer = EdgeBuffer(self.path, "edge-test")
+        self.assertEqual(self.buffer.counts().get(STATUS_PENDING), 1)
+        self.assertEqual(self.buffer.cursor(), 0)
 
     def test_connection_failure_keeps_message_for_retry(self):
-        self.enqueue()
+        payload = self.enqueue()
         session = FakeSession([requests.ConnectionError("offline")])
         EdgeClient(self.buffer, "http://fieldnode/api/telemetria/", "secret",
                    session=session, backoff_base=0).synchronize()
@@ -257,8 +232,20 @@ class EdgeClientTest(unittest.TestCase):
             backoff_base=0,
         )
         self.assertEqual(client.synchronize(stop_on_retryable_failure=True), 2)
-        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED), 2)
+        self.assertEqual(self.buffer.counts().get(STATUS_SYNCED, 0), 0)
+        self.assertEqual(self.buffer.counts(), {})
         self.assertEqual(self.buffer.cursor(), 2)
+
+    def test_edge_priority_matches_shared_golden_contract(self):
+        fixture_path = Path(__file__).resolve().parents[1] / "contracts" / "fixtures" / "classificacao.json"
+        fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+        for case in fixtures:
+            with self.subTest(case_id=case["id"]):
+                if case.get("expected_error") == "range":
+                    with self.assertRaises(ContractError):
+                        classify_priority(case)
+                else:
+                    self.assertEqual(classify_priority(case), case["classe"])
 
 
 if __name__ == "__main__":

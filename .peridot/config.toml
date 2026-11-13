@@ -1,0 +1,116 @@
+mcp = []
+
+[auth]
+primary = "claude-api"
+
+[models]
+main = "claude-sonnet-4-6"
+reasoning_effort = "off"
+
+[defaults]
+mode = "execute"
+permission = "auto"
+max_turns = 100
+budget_usd = 5.0
+budget_warning_pct = 50
+auto_verify_after_mutation = true
+auto_grade_on_done = true
+
+[api]
+base_url = "https://api.anthropic.com"
+timeout_seconds = 120
+max_retries = 3
+cache_ttl = "5m"
+
+[context]
+budget_tokens = 180000
+compaction_threshold = 100000
+hard_limit = 160000
+offload_threshold_chars = 9223372036854775807
+observation_max_chars = 8000
+thinking = "auto"
+
+[memory]
+session_history = true
+auto_skills = true
+skills_review = true
+max_sessions_stored = 100
+auto_skill_reflection = true
+ngram_min_count = 5
+ngram_max_length = 3
+ngram_batch_cap = 8
+
+[tui]
+theme = "peridot-night"
+language = "en"
+show_thinking = true
+show_token_count = false
+show_cost = false
+show_cache_rate = false
+show_subagent_panel = false
+stream_speed = "realtime"
+show_mascot = false
+mouse_capture = true
+
+[security]
+sandbox = "os"
+docker_image = "rust:1-bookworm"
+docker_network = false
+docker_read_only_rootfs = false
+shell_command_timeout_seconds = 0
+docker_memory_limit = ""
+shell_dry_run = false
+ask_before_install = true
+ask_before_delete = true
+approved_shell_commands = []
+approved_shell_path_scopes = []
+approved_tool_calls = []
+approved_session_tools = []
+approved_tool_path_scopes = []
+sandbox_allow_write = []
+scrub_env_keys = [
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+]
+
+[git]
+auto_commit = false
+commit_frequency = "logical_unit"
+branch_prefix = "peridot/"
+auto_branch = false
+commit_message_style = "conventional"
+
+[updates]
+auto_check = true
+auto_check_interval = "24h"
+auto_install = false
+
+[hooks]
+tool = []
+event = []
+lifecycle = []
+timeout_seconds = 30
+
+[committee]
+mode = "off"
+planner_model = ""
+reviewer_model = ""
+executor_model = ""
+max_review_passes = 3
+min_task_chars = 0
+use_llm_complexity_gate = true
+
+[subagents]
+
+[auto_fix]
+max_attempts = 3
+commands = []
+enabled = true
+
+[vision]
+enabled = true
+max_image_bytes = 5242880
+ocr = "off"
+
+[ui]

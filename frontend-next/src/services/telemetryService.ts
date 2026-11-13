@@ -19,6 +19,8 @@ import {
   TelemetryInputSchema,
 } from '@/schemas';
 import type { z } from 'zod';
+import { CanMotorSchema, type CanMotorResponse } from '@/schemas/canMotor';
+import { EventListSchema, type OperationalEvent } from '@/schemas/events';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -108,6 +110,18 @@ function buildRequestHeaders(contentType?: string): Headers {
 }
 
 export const telemetryService = {
+  async getPriorityEvents(): Promise<OperationalEvent[]> {
+    const response = await withTimeout((signal) =>
+      fetch(`${resolveApiUrl()}/events/?page_size=5`, {
+        cache: 'no-store',
+        headers: buildRequestHeaders(),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, 'getPriorityEvents:');
+    return validateApiContract(EventListSchema, data, 'getPriorityEvents').results;
+  },
+
   async getFleetStatus(): Promise<Machine[]> {
     const response = await withTimeout((signal) =>
       fetch(`${resolveApiUrl()}/colheitadeira/`, {
@@ -159,6 +173,18 @@ export const telemetryService = {
     );
     const data = await handleResponse(response, "getMachineReadings:");
     return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
+  },
+
+  async getMotorCAN(machineId: string): Promise<CanMotorResponse> {
+    const response = await withTimeout((signal) =>
+      fetch(`${resolveApiUrl()}/can/motor/?maquina_id=${encodeURIComponent(machineId)}`, {
+        cache: 'no-store',
+        headers: buildRequestHeaders(),
+        signal,
+      }),
+    );
+    const data = await handleResponse(response, 'getMotorCAN:');
+    return validateApiContract(CanMotorSchema, data, 'getMotorCAN');
   },
 
   async getOperators(): Promise<Operator[]> {

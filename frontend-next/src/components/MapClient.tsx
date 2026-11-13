@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Activity, Search, Tractor, X } from "lucide-react";
 import { resolveApiUrl } from "@/services/telemetryService";
-import { METRIC_THRESHOLDS, type MetricKey } from "@/lib/metricThresholds";
+import { classifyMetric, type MetricKey } from "@/lib/metricThresholds";
 import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
 import type { EstadoRequisicao } from "@/types/api";
@@ -67,15 +67,8 @@ function parsePositions(data: UnknownRecord[]) {
 type MetricTone = "normal" | "atencao" | "critico";
 
 function metricTone(key: MetricKey, value: number): MetricTone {
-  const thresholds = METRIC_THRESHOLDS[key];
-  if (thresholds.higherIsWorse) {
-    if (thresholds.critical !== null && value >= thresholds.critical) return "critico";
-    if (thresholds.alert !== null && value >= thresholds.alert) return "atencao";
-    return "normal";
-  }
-  if (thresholds.critical !== null && value <= thresholds.critical) return "critico";
-  if (thresholds.alert !== null && value <= thresholds.alert) return "atencao";
-  return "normal";
+  const severity = classifyMetric(key, value);
+  return severity === "CRITICO" ? "critico" : severity === "ATENCAO" ? "atencao" : "normal";
 }
 
 const toneColor: Record<MetricTone, string> = {

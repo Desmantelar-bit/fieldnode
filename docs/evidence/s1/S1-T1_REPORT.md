@@ -1,36 +1,35 @@
-# S1-T1 — evidência do contrato de severidade v1
+# S1-T1 / S1-T2 — execução neste checkout
 
-## Estado inicial
+## Resultado
 
-O checkout estava limpo em `main`. `FIELDNODE_LEVIATA_ROADMAP_V5.md` não está presente neste checkout. A baseline histórica registra pendências de Compose, Gitleaks e frontend; elas não foram reclassificadas como resolvidas por esta tarefa.
-
-## Divergências encontradas
-
-| Camada | Antes | Ação |
-|---|---|---|
-| Eventos backend | temperatura crítica com 85 e comparação `>` | `classify()` lê o contrato e usa `>=` |
-| Serviço de telemetria | 95/110 e vibração 5/8 | risco lê o contrato v1 |
-| Borda | 95/110 e vibração 5/8 | prioridade lê o contrato v1 |
-| Frontend | 95/110 e 0,5/0,8 g | artefato gerado com 75/85 e 5/8 índice |
-| RPM | limiares próprios no frontend | dependente de regime, sem classificação fixa |
+Implementação realizada para o contrato de severidade e escala de vibração v1. As alterações staged existentes no checkout foram preservadas; os artefatos apagados no estado staged foram recriados no diretório de trabalho. Este relatório documenta somente validações executadas nesta execução.
 
 ## Decisões
 
-D-01: fronteiras inclusivas (`>=`). D-02: `vibracao` é índice adimensional `indice_0_10`, faixa 0–10. Classe A tem precedência absoluta para `CRITICO`, inclusive com evidência fraca ou dado atrasado.
+- D-01: comparação inclusiva `>=`; fronteiras testadas em temperatura e vibração.
+- D-02: `vibracao` é índice adimensional 0–10 (`indice_0_10`). Unidade `g` não é convertida e é rejeitada. O campo ausente usa o default do contrato para manter compatibilidade com payload legado; isso não prova a proveniência histórica.
+- Classe de transmissão: CRÍTICO tem precedência e sempre é A. Evidência não `boa` ou atraso em casos não críticos conduz a B.
+- Firmware físico continua em v0. Não foi criado header ou declarada migração do hardware.
 
-## Implementação
+## Arquivos centrais
 
-- `contracts/severity.v1.json` é a fonte de verdade, com origem `bancada-2026` e `calibravel_por_modelo: true`.
-- `api_tcc/contracts.py` valida valores finitos, faixa, métrica e vocabulário de evidência.
-- `scripts/gen_contracts.py` valida e gera `frontend-next/src/lib/metricThresholds.ts`; `--check` detecta divergência.
-- O firmware v0 não foi alterado. Não há diretório firmware neste checkout, então nenhum header C++ fictício foi criado.
+- `contracts/severity.v1.json`: fonte de limiares heurísticos de bancada.
+- `api_tcc/contracts.py`, `api_tcc/services/telemetria.py`, `api_tcc/services/eventos.py`: carregamento, classificação e validação.
+- `api_tcc/models.py` e migration `0027_leituratelemetria_vibracao_unit.py`: unidade persistida; valores históricos não foram convertidos.
+- `scripts/gen_contracts.py` e `frontend-next/src/lib/metricThresholds.ts`: geração e modo `--check`.
+- Simulador, validação/visualização frontend e documentação: alinhados ao índice 0–10.
 
-## Verificação
+## Verificações realizadas
 
-- `python manage.py test api_tcc simulators -v 1`: 302 passaram.
-- `python manage.py check`: passou.
-- `python manage.py makemigrations --check --dry-run`: nenhuma alteração pendente.
-- `python scripts/gen_contracts.py --check`: passou.
-- `frontend-next`: `npm run type-check` e `npm run lint`: passaram.
+- `python manage.py test api_tcc simulators -v 0`: 302 testes passaram.
+- `python manage.py check`: sem problemas.
+- `python manage.py makemigrations --check --dry-run`: nenhuma migration pendente.
+- `python scripts/gen_contracts.py --check`: artefato TS verificado.
+- `npm run type-check` e `npm run lint`: passaram após as alterações finais no card.
+- `npm run build`: passou após as alterações finais, com 14 páginas estáticas geradas.
 
-Warnings de sklearn, fallback do Gemini e limitações históricas do Compose/Gitleaks permanecem como pendências ambientais/metodológicas, não como evidência de falha do contrato.
+## Paridade e limitações
+
+Não foi executada varredura 0–150/0,1 e 0–10/0,05 comparando backend, borda e TypeScript, nem foi produzido CSV/JSON de paridade. A borda importa diretamente o classificador Python; TypeScript não foi executado numa harness independente. Portanto, paridade tripla e critério de zero divergências permanecem NÃO VERIFICADOS. O gerador atual emite TypeScript, não header C++; não há firmware v1 reivindicado.
+
+Busca manual indicou que ainda há literais `g` em comentários e outros arquivos de relatório/histórico a classificar; o texto dos relatórios principais foi atualizado, mas não foi concluída auditoria automatizada abrangente de todos os resíduos. Verificação visual/captura de tela não foi produzida.

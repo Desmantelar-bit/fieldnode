@@ -1,30 +1,10 @@
 {
   "schema": "severity.v1",
+  "severity_order": ["NORMAL", "ATENCAO", "CRITICO"],
   "metrics": {
-    "temperatura": {
-      "unit": "C",
-      "atencao": 75.0,
-      "critico": 85.0,
-      "range": [0, 150],
-      "source": "bancada-2026",
-      "calibravel_por_modelo": true
-    },
-    "vibracao": {
-      "unit": "indice_0_10",
-      "allowed_units": ["indice_0_10"],
-      "atencao": 5.0,
-      "critico": 8.0,
-      "range": [0, 10],
-      "source": "bancada-2026",
-      "calibravel_por_modelo": true
-    },
-    "rpm": {
-      "unit": "rpm",
-      "severity": "dependente_de_regime",
-      "range": [0, 5000],
-      "source": "bancada-2026",
-      "calibravel_por_modelo": true
-    }
+    "temperatura": {"unit": "C", "atencao": 75.0, "critico": 85.0, "range": [0, 150], "source": "bancada-2026", "calibravel_por_modelo": true},
+    "vibracao": {"unit": "indice_0_10", "allowed_units": ["indice_0_10"], "atencao": 5.0, "critico": 8.0, "range": [0, 10], "source": "bancada-2026", "calibravel_por_modelo": true},
+    "rpm": {"unit": "rpm", "severity": "dependente_de_regime", "range": [0, 5000], "source": "bancada-2026", "calibravel_por_modelo": true}
   },
   "evidence_quality": ["boa", "suspeita", "insuficiente"],
   "transmission_class": {

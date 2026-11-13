@@ -9,7 +9,6 @@ import logging
 import math
 import pandas as pd
 from django.db.models import QuerySet
-from api_tcc.contracts import classify
 from api_tcc.ia.deteccao_multivariada import calcular_score_anomalia
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ def carregar_janela(maquina_id: str, limite: int = 500) -> pd.DataFrame:
     from api_tcc.models import LeituraTelemetria
     qs: QuerySet = (
         LeituraTelemetria.objects
-        .filter(maquina_id=maquina_id)
+        .filter(maquina_id=maquina_id, timestamp__isnull=False)
         .order_by('-timestamp')
         .values('timestamp', 'temperatura', 'vibracao', 'rpm')[:limite]
     )
@@ -55,11 +54,13 @@ def detectar_anomalia(
 ) -> tuple[bool, list[str]]:
     """Regras determinísticas documentadas — nada de threshold chutado sem justificativa."""
     motivos = []
-    if classify("temperatura", features.get("temp_max", 0)) == "CRITICO":
-        motivos.append("temperatura em nível crítico")
+    # LIMIARES DEFINIDOS PARA FINS DE PROTOTIPAÇÃO — documentar a origem
+    # (dataset simulado de bancada, ver docs/limiares.md)
+    if features.get('temp_max', 0) > 85:
+        motivos.append('temperatura acima de 85°C')
     if features.get('temp_tendencia', 0) > 0.5:
         motivos.append('tendência de aumento sustentado de temperatura')
-    if classify("vibracao", features.get("vib_media", 0)) in {"ATENCAO", "CRITICO"}:
+    if features.get('vib_media', 0) > 5:
         motivos.append('vibração média acima do padrão esperado')
 
     # Sinal adicional multivariado: complementa, sem substituir, os limiares acima.
@@ -115,11 +116,11 @@ def analisar_maquina(
 ) -> ResultadoAnalise:
     """
     Ponto de entrada único para classificação de risco operacional.
-
-    O QUE CALCULA: Classifica o estado da máquina como NORMAL, ATENCAO ou CRITICO com base em
+    
+    O QUE CALCULA: Classifica o estado da máquina como NORMAL, ATENCAO ou CRITICO com base em 
     limiares determinísticos de sensores e sinais de anomalia não supervisionada (Isolation Forest).
-
-    O QUE NÃO CALCULA: Não prevê a data/hora de falha mecânica, nem a probabilidade calibrada
+    
+    O QUE NÃO CALCULA: Não prevê a data/hora de falha mecânica, nem a probabilidade calibrada 
     de quebra iminente, pois não utiliza dataset rotulado de falhas históricas.
     """
     logger.debug(

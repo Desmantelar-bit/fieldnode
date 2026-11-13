@@ -56,7 +56,7 @@ class EventListView(APIView):
             qs = Event.objects.filter(machine__in=accessible_machines)
 
         qs = qs.select_related("machine", "leitura_origem").order_by(
-            F("priority_score").desc(nulls_last=True), "-criado_em"
+            F("priority_score").desc(nulls_last=True), "-criado_em", "-id"
         )
 
         tipo = request.query_params.get("tipo")
@@ -137,3 +137,4 @@ class EventDetailView(APIView):
             )
 
         return Response(EventSerializer(event).data)
+

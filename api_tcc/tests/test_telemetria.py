@@ -1,23 +1,28 @@
 import uuid
+import tempfile
+import time
+from datetime import timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+import requests
 
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from api_tcc.api.serializers import LeituraTelemetriaSerializer
-from api_tcc.services.telemetria import (
-    _computar_payload_hash,
-    registrar_leitura,
-    validar_payload,
-)
+from api_tcc.services.telemetria import registrar_leitura, validar_payload
 
 from api_tcc.models import (
     AlturadoCorte,
     Colheitadeira,
     Combustivel,
-    DeadLetterEntry,
     EstadodeMovimento,
     LeituraTelemetria,
+    DeadLetterEntry,
     Machine,
     Marca,
     Modelo,
@@ -29,6 +34,42 @@ from api_tcc.models import (
     TemperaturaMaquina,
     UnidadedeMedida,
 )
+from simulators.edge_client import EdgeBuffer, EdgeClient, generate_payload
+
+
+class _APIResponseAdapter:
+    def __init__(self, response):
+        self.status_code = response.status_code
+        self._data = response.data
+
+    def json(self):
+        return self._data
+
+
+class _DropFirstAckSession:
+    def __init__(self, api_client, api_key):
+        self.api_client = api_client
+        self.api_key = api_key
+        self.drop = True
+
+    def post(self, _url, *, json, headers, timeout):
+        response = self.api_client.post("/api/telemetria/", json, format="json",
+                                        HTTP_X_API_KEY=self.api_key)
+        if self.drop:
+            self.drop = False
+            raise requests.ConnectionError("response lost after server commit")
+        return _APIResponseAdapter(response)
+
+
+class _APIClientSession:
+    def __init__(self, api_client, api_key):
+        self.api_client = api_client
+        self.api_key = api_key
+
+    def post(self, _url, *, json, headers, timeout):
+        response = self.api_client.post("/api/telemetria/", json, format="json",
+                                        HTTP_X_API_KEY=self.api_key)
+        return _APIResponseAdapter(response)
 
 
 def _criar_maquina(maquina_id: str) -> Colheitadeira:
@@ -85,12 +126,72 @@ class IngestaoTelemetriaTest(TestCase):
         self.client = APIClient()
         self.headers = {"HTTP_X_API_KEY": getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")}
 
+    def test_edge_recupera_queda_apos_persistencia_com_uma_linha(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "edge.sqlite3"
+            api_key = getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")
+            payload = generate_payload("EDGE-RECOVERY", 1, 0, boot_id=str(uuid.uuid4()))
+            buffer = EdgeBuffer(db_path, "EDGE-RECOVERY")
+            buffer.enqueue(payload)
+            client = EdgeClient(buffer, "http://fieldnode/api/telemetria/", api_key,
+                                session=_DropFirstAckSession(self.client, api_key), backoff_base=0)
+            self.assertEqual(client.synchronize(), 0)
+            self.assertEqual(LeituraTelemetria.objects.filter(message_id=payload["message_id"]).count(), 1)
+            self.assertEqual(buffer.counts().get("PENDENTE"), 1)
+            buffer.close()
+
+            restarted = EdgeBuffer(db_path, "EDGE-RECOVERY")
+            session = _DropFirstAckSession(self.client, api_key)
+            session.drop = False
+            replay_client = EdgeClient(restarted, "http://fieldnode/api/telemetria/", api_key,
+                                       session=session, backoff_base=0)
+            self.assertEqual(replay_client.synchronize(), 1)
+            self.assertEqual(LeituraTelemetria.objects.filter(message_id=payload["message_id"]).count(), 1)
+            self.assertEqual(restarted.counts(), {})
+            self.assertEqual(restarted.cursor(), 1)
+            restarted.close()
+
+    def test_edge_conflict_registra_dlq_e_fica_blocked(self):
+        api_key = getattr(settings, "FIELDNODE_API_KEY", "00000000-0000-4000-8000-000000000000")
+        original = generate_payload("EDGE-CONFLICT", 1, 0, boot_id=str(uuid.uuid4()))
+        original["message_id"] = "stable-conflict-id"
+        self.client.post("/api/telemetria/", original, format="json", HTTP_X_API_KEY=api_key)
+        changed = {**original, "temperatura": 73.0}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            buffer = EdgeBuffer(Path(temp_dir) / "edge.sqlite3", "EDGE-CONFLICT")
+            buffer.enqueue(changed)
+            EdgeClient(buffer, "http://fieldnode/api/telemetria/", api_key,
+                       session=_APIClientSession(self.client, api_key), backoff_base=0).synchronize()
+            row = buffer.connection.execute("SELECT status FROM outbox").fetchone()
+            self.assertEqual(row["status"], "BLOCKED")
+            self.assertEqual(buffer.cursor(), 0)
+            self.assertTrue(DeadLetterEntry.objects.filter(contexto="SYNC").exists())
+            self.assertEqual(LeituraTelemetria.objects.filter(message_id="stable-conflict-id").count(), 1)
+            buffer.close()
+
+    def test_lote_http_500_preserva_confirmados_e_identifica_pendentes(self):
+        first = _payload(device_id="BATCH-500", message_id="confirmed-1", sequence_number=1,
+                         maquina_id="BATCH-500")
+        status_item, reading_id = registrar_leitura(first)
+        self.assertEqual(status_item, "criado")
+        payloads = [first, {**first, "message_id": "failed-2", "sequence_number": 2},
+                    {**first, "message_id": "pending-3", "sequence_number": 3}]
+        with patch("api_tcc.api.views_lote.registrar_leitura",
+                   side_effect=[("criado", reading_id), ("erro", "db down")]):
+            response = self.client.post("/api/telemetria/lote/", {"leituras": payloads},
+                                        format="json", **self.headers)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual([item["status"] for item in response.data["items"]], ["acked"])
+        self.assertEqual(response.data["failure"]["message_id"], "failed-2")
+        self.assertEqual(response.data["pending_message_ids"], ["pending-3"])
+        self.assertEqual(LeituraTelemetria.objects.filter(device_id="BATCH-500").count(), 1)
+
     def test_ingestao_valida_retorna_201(self):
         response = self.client.post(
             "/api/telemetria/", _payload(maquina_id=" colh-t01 "), format="json", **self.headers
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["status"], "ok")
+        self.assertEqual(response.data["status"], "acked")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
         leitura = LeituraTelemetria.objects.get()
         self.assertIsNotNone(leitura.machine)
@@ -115,7 +216,6 @@ class IngestaoTelemetriaTest(TestCase):
 
     def test_ingestao_sem_schema_version_retorna_201(self):
         payload = _payload(maquina_id="schema-legacy-01")
-        expected_hash = _computar_payload_hash(payload)
 
         with self.assertLogs("api_tcc.services.telemetria", level="WARNING") as logs:
             response = self.client.post(
@@ -124,7 +224,6 @@ class IngestaoTelemetriaTest(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
-        self.assertEqual(response.data["ack"]["payload_hash"], expected_hash)
         self.assertTrue(any("schema_version" in mensagem for mensagem in logs.output))
 
     def test_ingestao_sem_api_key_retorna_401(self):
@@ -175,6 +274,158 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertIsNotNone(leitura.machine)
         self.assertEqual(leitura.machine.external_code, "LOTE-01")
 
+    def test_ingestao_em_lote_retorna_contadores_do_contrato(self):
+        payload = _payload(maquina_id="LOTE-COUNTS", device_id="LOTE-COUNTS")
+        invalid = _payload(maquina_id="LOTE-COUNTS", temperatura=-999)
+        response = self.client.post(
+            "/api/telemetria/lote/",
+            {"leituras": [payload, payload, invalid]},
+            format="json",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["accepted"], 1)
+        self.assertEqual(response.data["duplicates"], 1)
+        self.assertEqual(response.data["rejected"], 1)
+
+    def test_conflito_de_hash_conta_como_rejeitado_e_nao_duplicado(self):
+        original = _payload(
+            maquina_id="LOTE-CONFLICT", device_id="LOTE-CONFLICT",
+            message_id="batch-conflict", sequence_number=1,
+        )
+        self.assertEqual(registrar_leitura(original)[0], "criado")
+        changed = {**original, "temperatura": original["temperatura"] + 1}
+        response = self.client.post(
+            "/api/telemetria/lote/", {"leituras": [changed]}, format="json", **self.headers
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["accepted"], 0)
+        self.assertEqual(response.data["rejected"], 1)
+        self.assertEqual(response.data["duplicates"], 0)
+
+    def test_ingestao_em_lote_com_501_itens_retorna_400(self):
+        response = self.client.post(
+            "/api/telemetria/lote/",
+            {"leituras": [_payload(maquina_id="LOTE-501") for _ in range(501)]},
+            format="json",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
+    def test_ingestao_em_lote_com_500_itens_fica_dentro_do_limite(self):
+        payloads = [
+            _payload(maquina_id="LOTE-500", device_id="LOTE-500", temperatura=-1, sequence_number=index + 1)
+            for index in range(500)
+        ]
+        with patch("api_tcc.api.views_lote.registrar_leitura", return_value=("invalido", "payload fixture")) as registrar:
+            response = self.client.post(
+                "/api/telemetria/lote/", {"leituras": payloads}, format="json", **self.headers
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["rejected"], 500)
+        self.assertEqual(registrar.call_count, 500)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
+    def test_corpo_acima_de_data_upload_max_memory_size_retorna_400(self):
+        from django.test import override_settings
+
+        payload = _payload(maquina_id="BODY-LIMIT", padding="x" * 2048)
+        with override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024):
+            response = self.client.post(
+                "/api/telemetria/", payload, format="json", **self.headers
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(LeituraTelemetria.objects.count(), 0)
+
+    def test_ingestao_acima_da_taxa_retorna_429_e_retry_after_por_device(self):
+        from django.test import override_settings
+
+        throttle_settings = {
+            **settings.REST_FRAMEWORK,
+            "DEFAULT_THROTTLE_RATES": {"ingestao": "1/minute"},
+        }
+        shared_cache = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                "LOCATION": "fieldnode_throttle_cache",
+            }
+        }
+        payload = _payload(device_id="THROTTLE-DEVICE", maquina_id="THROTTLE-DEVICE")
+        provisioned_keys = {"THROTTLE-DEVICE": "device-key-a", "THROTTLE-DEVICE-2": "device-key-b"}
+        with override_settings(REST_FRAMEWORK=throttle_settings, FIELDNODE_DEVICE_API_KEYS=provisioned_keys,
+                              CACHES=shared_cache), patch(
+            "api_tcc.api.views_lote.registrar_leitura", return_value=("duplicata", None)
+        ) as registrar, patch("api_tcc.api.throttles.IngestaoThrottle.get_rate", return_value="1/minute"):
+            cache.clear()
+            first = self.client.post("/api/telemetria/lote/", {"leituras": [payload]}, format="json",
+                                     HTTP_X_API_KEY="device-key-a")
+            second = self.client.post(
+                "/api/telemetria/lote/",
+                {"leituras": [{**payload, "device_id": "THROTTLE-DEVICE-2"}]},
+                format="json",
+                HTTP_X_API_KEY="device-key-b",
+            )
+            limited = self.client.post(
+                "/api/telemetria/lote/", {"leituras": [payload]}, format="json",
+                HTTP_X_API_KEY="device-key-a",
+            )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(registrar.call_count, 2)
+        with override_settings(FIELDNODE_DEVICE_API_KEYS=provisioned_keys):
+            mismatched_identity = self.client.post(
+                "/api/telemetria/",
+                {**payload, "device_id": "THROTTLE-DEVICE-2"},
+                format="json",
+                HTTP_X_API_KEY="device-key-a",
+            )
+        self.assertEqual(mismatched_identity.status_code, 401)
+
+        with override_settings(REST_FRAMEWORK=throttle_settings, FIELDNODE_DEVICE_API_KEYS=provisioned_keys,
+                              CACHES=shared_cache), patch(
+            "api_tcc.api.views_lote.registrar_leitura", return_value=("duplicata", None)
+        ) as registrar, patch("api_tcc.api.throttles.IngestaoThrottle.get_rate", return_value="1/minute"):
+            cache.clear()
+            first = self.client.post("/api/telemetria/lote/", {"leituras": [payload]}, format="json",
+                                     HTTP_X_API_KEY="device-key-a")
+            limited = self.client.post("/api/telemetria/lote/", {"leituras": [payload]}, format="json",
+                                       HTTP_X_API_KEY="device-key-a")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(limited.status_code, 429)
+        self.assertIn("Retry-After", limited)
+        self.assertEqual(registrar.call_count, 1)
+
+        with override_settings(REST_FRAMEWORK=throttle_settings, FIELDNODE_DEVICE_API_KEYS={},
+                              CACHES=shared_cache), patch(
+            "api_tcc.api.views_ingestao.registrar_leitura", return_value=("duplicata", None)
+        ), patch("api_tcc.api.throttles.IngestaoThrottle.get_rate", return_value="1/minute"):
+            cache.clear()
+            first = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+            spoofed = self.client.post(
+                "/api/telemetria/",
+                {**payload, "device_id": "SPOOFED-DEVICE"},
+                format="json",
+                **self.headers,
+            )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(spoofed.status_code, 429)
+
+        cache.clear()
+        with override_settings(REST_FRAMEWORK=throttle_settings, FIELDNODE_DEVICE_API_KEYS=provisioned_keys,
+                              CACHES=shared_cache), patch(
+            "api_tcc.api.views_ingestao.registrar_leitura", return_value=("duplicata", None)
+        ), patch("api_tcc.api.throttles.IngestaoThrottle.get_rate", return_value="1/second"):
+            cache.clear()
+            first = self.client.post("/api/telemetria/", payload, format="json", HTTP_X_API_KEY="device-key-a")
+            limited = self.client.post("/api/telemetria/", payload, format="json", HTTP_X_API_KEY="device-key-a")
+            time.sleep(1.1)
+            recovered = self.client.post("/api/telemetria/", payload, format="json", HTTP_X_API_KEY="device-key-a")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(recovered.status_code, 200)
+
     def test_ingestao_em_lote_sem_api_key_retorna_401(self):
         response = self.client.post(
             "/api/telemetria/lote/",
@@ -198,9 +449,11 @@ class IngestaoTelemetriaTest(TestCase):
 
     def test_ingestao_invalida_retorna_400(self):
         response = self.client.post(
-            "/api/telemetria/", _payload(temperatura=-999), format="json", **self.headers
+            "/api/telemetria/", _payload(temperatura=-999, message_id="rejected-1"), format="json", **self.headers
         )
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["status"], "rejected")
+        self.assertEqual(response.data["message_id"], "rejected-1")
         self.assertEqual(LeituraTelemetria.objects.count(), 0)
 
     def test_ingestao_duplicada_retorna_200_sem_duplicar(self):
@@ -208,71 +461,8 @@ class IngestaoTelemetriaTest(TestCase):
         self.client.post("/api/telemetria/", payload, format="json", **self.headers)
         response = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], "duplicata ignorada")
-        self.assertEqual(response.data["ack"]["status"], "duplicate")
+        self.assertEqual(response.data["status"], "duplicate")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
-
-    def test_replay_logico_com_id_de_linha_diferente_retorna_hash_ackavel(self):
-        payload = _payload(
-            id=str(uuid.uuid4()),
-            device_id="EDGE-ACK-REPLAY",
-            message_id="logical-message-1",
-            maquina_id="EDGE-ACK-REPLAY",
-        )
-        self.client.post("/api/telemetria/", payload, format="json", **self.headers)
-        replay = {**payload, "id": str(uuid.uuid4())}
-
-        response = self.client.post(
-            "/api/telemetria/", replay, format="json", **self.headers
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["ack"]["status"], "duplicate")
-        self.assertEqual(
-            response.data["ack"]["payload_hash"],
-            _computar_payload_hash(replay),
-        )
-        self.assertEqual(LeituraTelemetria.objects.count(), 1)
-
-    def test_replay_de_hash_legado_retorna_ack_com_hash_logico(self):
-        payload = _payload(
-            id=str(uuid.uuid4()),
-            device_id="EDGE-ACK-LEGACY",
-            message_id="legacy-message-1",
-            maquina_id="EDGE-ACK-LEGACY",
-        )
-        self.client.post("/api/telemetria/", payload, format="json", **self.headers)
-        reading = LeituraTelemetria.objects.get()
-        reading.payload_hash = _computar_payload_hash(payload, incluir_id=True)
-        reading.save(update_fields=["payload_hash"])
-
-        response = self.client.post(
-            "/api/telemetria/", payload, format="json", **self.headers
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["ack"]["status"], "duplicate")
-        self.assertEqual(
-            response.data["ack"]["payload_hash"], _computar_payload_hash(payload)
-        )
-        self.assertEqual(LeituraTelemetria.objects.count(), 1)
-
-    def test_mesma_identidade_com_hash_diferente_vira_conflito_dlq(self):
-        payload = _payload(id=str(uuid.uuid4()), maquina_id="EDGE-CONFLICT-01")
-        first = self.client.post(
-            "/api/telemetria/", payload, format="json", **self.headers
-        )
-        changed = {**payload, "temperatura": payload["temperatura"] - 1}
-        response = self.client.post(
-            "/api/telemetria/", changed, format="json", **self.headers
-        )
-
-        self.assertEqual(first.status_code, 201)
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.data["ack"]["status"], "conflict")
-        self.assertEqual(LeituraTelemetria.objects.count(), 1)
-        entry = DeadLetterEntry.objects.get(contexto=DeadLetterEntry.Contexto.SYNC)
-        self.assertEqual(entry.payload_referencia["message_id"], payload["id"])
 
     def test_ingestao_retorna_ack_verificavel_para_o_edge(self):
         payload = _payload(
@@ -289,10 +479,88 @@ class IngestaoTelemetriaTest(TestCase):
         self.assertEqual(response.data["message_id"], leitura.message_id)
         self.assertEqual(response.data["sequence_number"], 7)
         self.assertEqual(response.data["payload_hash"], leitura.payload_hash)
-        self.assertEqual(response.data["sync_cursor"], 7)
-        self.assertEqual(response.data["ack"]["status"], "acked")
-        self.assertEqual(response.data["ack"]["sequence_number"], 7)
-        self.assertEqual(response.data["ack"]["payload_hash"], leitura.payload_hash)
+        self.assertEqual(response.data["sync_cursor"], 0)
+        self.assertEqual(response.data["last_acked_sequence"], 0)
+        self.assertEqual(response.data["status"], "acked")
+
+    def test_hash_divergente_para_mesma_identidade_retorna_conflict(self):
+        payload = _payload(device_id="SYNC-CONFLICT", message_id="same-message", maquina_id="SYNC-CONFLICT")
+        first = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+        changed = {**payload, "temperatura": 73.0}
+        second = self.client.post("/api/telemetria/", changed, format="json", **self.headers)
+        self.assertEqual(first.data["status"], "acked")
+        self.assertEqual(second.status_code, 409)
+        self.assertEqual(second.data["status"], "conflict")
+        self.assertEqual(LeituraTelemetria.objects.filter(message_id="same-message").count(), 1)
+        self.assertTrue(DeadLetterEntry.objects.filter(contexto="SYNC").exists())
+
+    def test_temporal_unsynced_reconstroi_lote_atrasado_por_boot(self):
+        boot = uuid.uuid4()
+        base = {"maquina_id": "TIME-BOOT", "device_id": "TIME-BOOT", "temperatura": 72,
+                "vibracao": 0.4, "rpm": 1700, "time_source": "unsynced", "boot_id": str(boot)}
+        old = {**base, "message_id": "old", "sequence_number": 1, "uptime_ms": 0}
+        self.assertEqual(registrar_leitura(old)[0], "criado")
+        middle = {**base, "message_id": "middle", "sequence_number": 2, "uptime_ms": 5000}
+        self.assertEqual(registrar_leitura(middle)[0], "criado")
+        anchor_time = timezone.now()
+        anchor = {**base, "message_id": "anchor", "sequence_number": 3,
+                  "uptime_ms": 21_600_000, "time_source": "gateway", "timestamp": anchor_time.isoformat()}
+        self.assertEqual(registrar_leitura(anchor)[0], "criado")
+        from api_tcc.services.event_time import reconstruct_boot
+        self.assertEqual(reconstruct_boot(boot), 2)
+        reading = LeituraTelemetria.objects.get(message_id="old")
+        first_provenance = reading.time_provenance
+        self.assertEqual(reading.timestamp, anchor_time - timedelta(hours=6))
+        self.assertNotEqual(reading.timestamp, reading.recebido_em)
+        self.assertAlmostEqual((reading.recebido_em - reading.timestamp).total_seconds(), 6 * 3600, delta=2)
+        self.assertEqual(reading.time_source, "unsynced")
+        self.assertEqual(reading.event_time_confidence, 0.65)
+        ordered = list(LeituraTelemetria.objects.filter(boot_id=boot).order_by("timestamp").values_list("message_id", flat=True))
+        self.assertEqual(ordered, ["old", "middle", "anchor"])
+        self.assertEqual(reconstruct_boot(boot), 0)
+        reading.refresh_from_db()
+        self.assertEqual(reading.time_provenance, first_provenance)
+        self.assertEqual(reading.time_provenance["original"]["resolution"], "unresolved")
+
+    def test_validacao_campos_temporais(self):
+        self.assertTrue(validar_payload(_payload(time_source="unsynced", timestamp=None))[0])
+        self.assertFalse(validar_payload(_payload(time_source="unknown"))[0])
+        self.assertFalse(validar_payload(_payload(boot_id="not-a-uuid"))[0])
+        self.assertFalse(validar_payload(_payload(uptime_ms=-1))[0])
+        self.assertFalse(validar_payload(_payload(uptime_ms=1.5))[0])
+        self.assertFalse(validar_payload(_payload(time_source="ntp", timestamp=None))[0])
+
+    def test_leitura_sem_relogio_persiste_fator_temporal_no_trust(self):
+        payload = _payload(maquina_id="TIME-UNSYNCED", device_id="TIME-UNSYNCED",
+                           message_id="unsynced-1", time_source="unsynced",
+                           boot_id=str(uuid.uuid4()), uptime_ms=2500, timestamp=None)
+        response = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
+        self.assertEqual(response.status_code, 201)
+        reading = LeituraTelemetria.objects.get(message_id="unsynced-1")
+        self.assertIsNone(reading.timestamp)
+        self.assertEqual(reading.event_time_confidence, 0.0)
+        self.assertIn("hora_do_dispositivo_nao_confiavel", reading.trust_factors)
+
+    def test_temporal_boots_isolados_e_sem_ancora_nao_inventa_hora(self):
+        boot_a, boot_b = uuid.uuid4(), uuid.uuid4()
+        for boot, message in ((boot_a, "unresolved-a"), (boot_b, "unresolved-b")):
+            payload = {"maquina_id": "TIME-ISOLATION", "device_id": "TIME-ISOLATION",
+                       "message_id": message, "sequence_number": 1, "temperatura": 72,
+                       "vibracao": 0.4, "rpm": 1700, "time_source": "unsynced",
+                       "boot_id": str(boot), "uptime_ms": 5000}
+            self.assertEqual(registrar_leitura(payload)[0], "criado")
+        anchor = {"maquina_id": "TIME-ISOLATION", "device_id": "TIME-ISOLATION",
+                  "message_id": "anchor-a", "sequence_number": 2, "temperatura": 72,
+                  "vibracao": 0.4, "rpm": 1700, "time_source": "ntp",
+                  "boot_id": str(boot_a), "uptime_ms": 6000,
+                  "timestamp": timezone.now().isoformat()}
+        registrar_leitura(anchor)
+        from api_tcc.services.event_time import reconstruct_boot
+        reconstruct_boot(boot_a)
+        a = LeituraTelemetria.objects.get(message_id="unresolved-a")
+        b = LeituraTelemetria.objects.get(message_id="unresolved-b")
+        self.assertIsNotNone(a.timestamp)
+        self.assertIsNone(b.timestamp)
 
 
 class SchemaVersionTest(TestCase):

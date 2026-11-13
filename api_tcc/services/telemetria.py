@@ -16,36 +16,27 @@ S1-T5 — Contrato de identidade e sincronização:
 import hashlib
 import json
 import logging
-import math
 import uuid as uuid_lib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from django.db import IntegrityError, transaction
-from django.utils import timezone
-from django.utils.timezone import is_aware, make_aware
+from django.utils.timezone import make_aware, is_aware, now
 
-from api_tcc.contracts import metric_definition
-from api_tcc.models import (
-    DeadLetterEntry,
-    DeviceClockAnchor,
-    LeituraTelemetria,
-    Machine,
-    SyncCursor,
-)
-from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
+from api_tcc.models import DeadLetterEntry, LeituraTelemetria, Colheitadeira, Machine, SyncCursor
 from api_tcc.services.data_health import (
     HISTORY_LIMIT,
     atualizar_machine_data_health,
     calcular_trust_score,
 )
+from api_tcc.services.eventos import avaliar_leitura
+from api_tcc.services.eventos import criar_evento_anomalia_estatistica
+from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
 from api_tcc.services.decisions import persistir_decision_da_anomalia
 from api_tcc.services.dlq import registrar_falha_dlq
-from api_tcc.services.eventos import (
-    avaliar_leitura,
-    criar_evento_anomalia_estatistica,
-)
-from api_tcc.services.normalizacao import registrar_e_normalizar
 from api_tcc.services.sensor_limits import LIMITES
+from api_tcc.services.normalizacao import registrar_e_normalizar
+from api_tcc.services.event_time import resolve_event_time, reconstruct_boot
+from api_tcc.contracts import severity_contract
 
 logger = logging.getLogger(__name__)
 
@@ -82,86 +73,53 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
         if campo not in dados or dados[campo] is None:
             return False, f"campo obrigatório ausente: {campo}"
 
-    time_source = dados.get("time_source", "unsynced")
-    if time_source not in {"rtc", "gateway", "ntp", "unsynced"}:
-        return False, f"time_source inválido: {time_source!r}"
-
-    boot_id = dados.get("boot_id")
-    if boot_id not in (None, ""):
-        try:
-            uuid_lib.UUID(str(boot_id))
-        except (TypeError, ValueError, AttributeError):
-            return False, "boot_id deve ser um UUID válido"
-    else:
-        boot_id = None
-
-    uptime_raw = dados.get("uptime_ms")
-    uptime_ms = None
-    if uptime_raw is not None:
-        if isinstance(uptime_raw, bool):
-            return False, "uptime_ms deve ser um inteiro não negativo"
-        try:
-            numeric_uptime = float(uptime_raw)
-            uptime_ms = int(uptime_raw)
-        except (TypeError, ValueError, OverflowError):
-            return False, "uptime_ms deve ser um inteiro não negativo"
-        if (
-            not math.isfinite(numeric_uptime)
-            or numeric_uptime != uptime_ms
-            or uptime_ms < 0
-        ):
-            return False, "uptime_ms deve ser um inteiro não negativo"
-    if (boot_id is None) != (uptime_ms is None):
-        return False, "boot_id e uptime_ms devem ser informados juntos"
-
-    clock_skew_raw = dados.get("clock_skew_ms")
-    clock_skew_ms = None
-    if clock_skew_raw is not None:
-        if time_source != "gateway" or isinstance(clock_skew_raw, bool):
-            return (
-                False,
-                "clock_skew_ms só pode vir de uma medição confiável do gateway",
-            )
-        try:
-            numeric_skew = float(clock_skew_raw)
-            clock_skew_ms = int(clock_skew_raw)
-        except (TypeError, ValueError, OverflowError):
-            return False, "clock_skew_ms deve ser um inteiro"
-        if not math.isfinite(numeric_skew) or numeric_skew != clock_skew_ms:
-            return False, "clock_skew_ms deve ser um inteiro"
-
-    has_timestamp = dados.get("timestamp") is not None
-    timestamp_optional = time_source == "gateway" or (
-        time_source == "unsynced" and boot_id is not None and uptime_ms is not None
-    )
-    if not has_timestamp and not timestamp_optional:
-        return False, "campo obrigatório ausente: timestamp"
+    allowed_units = severity_contract()["metrics"]["vibracao"]["allowed_units"]
+    vibration_unit = dados.get("vibracao_unit", "indice_0_10")
+    if vibration_unit not in allowed_units:
+        return False, f"vibracao_unit inválida: {vibration_unit!r}; esperado {allowed_units}"
+    dados["vibracao_unit"] = vibration_unit
 
     maquina_id = str(dados.get("maquina_id", "")).strip()
     if not maquina_id:
         return False, "maquina_id não pode ser vazio"
 
+    if dados.get("timestamp") is None and dados.get("event_time") is None and dados.get("time_source", "unsynced") != "unsynced":
+        return False, "timestamp obrigatório para time_source sincronizada"
+    if dados.get("boot_id") is not None:
+        try:
+            uuid_lib.UUID(str(dados["boot_id"]))
+        except (ValueError, TypeError, AttributeError):
+            return False, "boot_id deve ser UUID válido"
+    if dados.get("uptime_ms") is not None:
+        try:
+            if isinstance(dados["uptime_ms"], bool) or not float(dados["uptime_ms"]).is_integer() or int(dados["uptime_ms"]) < 0:
+                return False, "uptime_ms deve ser inteiro não negativo"
+        except (ValueError, TypeError, OverflowError):
+            return False, "uptime_ms deve ser inteiro não negativo"
+    if dados.get("clock_skew_ms") is not None:
+        try:
+            if isinstance(dados["clock_skew_ms"], bool) or not float(dados["clock_skew_ms"]).is_integer():
+                return False, "clock_skew_ms deve ser inteiro"
+            int(dados["clock_skew_ms"])
+        except (ValueError, TypeError, OverflowError):
+            return False, "clock_skew_ms deve ser inteiro"
+    if dados.get("time_source", "unsynced") not in {"rtc", "gateway", "ntp", "unsynced"}:
+        return False, "time_source desconhecido"
+    temporal_input = dados.get("timestamp", dados.get("event_time"))
+    if temporal_input is not None and not isinstance(temporal_input, datetime):
+        from django.utils.dateparse import parse_datetime
+        if parse_datetime(str(temporal_input)) is None:
+            return False, "timestamp/event_time inválido; esperado ISO-8601"
+
     # CORREÇÃO: Removida validação contra Colheitadeira que impedia dados de entrar
     # O simulador envia IDs como "CASE-TC5000-01" mas o banco tem Modelo.nome = "TC5000"
     # Agora aceitamos qualquer maquina_id e deixamos o sistema criar registros dinamicamente
 
-    vibracao_unit = dados.get("vibracao_unit", "indice_0_10")
-    if vibracao_unit not in metric_definition("vibracao").get("allowed_units", []):
-        return False, (
-            f"vibracao_unit inválida: {vibracao_unit!r}; "
-            "a unidade aceita no contrato v1 é 'indice_0_10'"
-        )
-
     for campo, (minimo, maximo) in LIMITES.items():
-        if isinstance(dados[campo], bool):
-            return False, f"{campo} não é numérico: {dados[campo]!r}"
         try:
             valor = float(dados[campo])
         except (TypeError, ValueError):
             return False, f"{campo} não é numérico: {dados[campo]!r}"
-
-        if not math.isfinite(valor):
-            return False, f"{campo} deve ser finito: {dados[campo]!r}"
 
         if not (minimo <= valor <= maximo):
             return False, (
@@ -194,33 +152,34 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────
 
 
-def _computar_payload_hash(dados: dict, *, incluir_id: bool = False) -> str:
-    """Hash canônico do conteúdo; o UUID interno de linha não é conteúdo lógico."""
-    conteudo = (
-        dados
-        if incluir_id
-        else {chave: valor for chave, valor in dados.items() if chave != "id"}
-    )
-    raw = json.dumps(conteudo, sort_keys=True, default=str).encode("utf-8")
+def _computar_payload_hash(dados: dict) -> str:
+    """
+    Computa SHA-256 do payload original (serializado) para rastreabilidade.
+    Não é usado como chave de idempotência — apenas como fingerprint.
+    """
+    canonical = dict(dados)
+    # ``id`` identifies the physical DB row for legacy callers. With an explicit
+    # message_id, a client may regenerate this incidental field on retry.
+    if canonical.get("message_id"):
+        canonical.pop("id", None)
+    raw = json.dumps(canonical, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
 def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
     """
-    Atualiza SyncCursor para o device_id com monotonicidade garantida.
-
-    Regra: last_acked_sequence = MAX(atual, novo_sequence).
-    O cursor nunca retrocede, mesmo que o evento chegue fora de ordem.
+    Avança apenas pela maior sequência contígua persistida para o dispositivo.
 
     Deve ser chamado dentro de uma transação atômica (garantido por registrar_leitura).
     """
-    cursor, criado = SyncCursor.objects.get_or_create(
-        device_id=device_id,
-        defaults={"last_acked_sequence": sequence_number},
-    )
-    if not criado and sequence_number > cursor.last_acked_sequence:
-        anterior = cursor.last_acked_sequence
-        nova_sequencia = sequence_number
+    cursor, criado = SyncCursor.objects.get_or_create(device_id=device_id, defaults={"last_acked_sequence": 0})
+    anterior = cursor.last_acked_sequence
+    presentes = set(LeituraTelemetria.objects.filter(device_id=device_id, sequence_number__gt=0)
+                    .values_list("sequence_number", flat=True))
+    nova_sequencia = anterior
+    while nova_sequencia + 1 in presentes:
+        nova_sequencia += 1
+    if nova_sequencia > anterior:
         cursor.last_acked_sequence = nova_sequencia
         cursor.save(update_fields=["last_acked_sequence", "atualizado_em"])
         logger.debug(
@@ -230,56 +189,7 @@ def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
             nova_sequencia,
         )
     elif criado:
-        logger.debug("SyncCursor criado: device=%s seq=%d", device_id, sequence_number)
-
-
-def _obter_ou_atualizar_ancora(
-    *, device_id: str, boot_id, uptime_ms: int, timestamp: datetime, time_source: str
-) -> tuple[DeviceClockAnchor, bool]:
-    anchor, created = DeviceClockAnchor.objects.get_or_create(
-        device_id=device_id,
-        boot_id=boot_id,
-        defaults={
-            "anchor_uptime_ms": uptime_ms,
-            "anchor_timestamp": timestamp,
-            "time_source": time_source,
-        },
-    )
-    if created:
-        return anchor, True
-    if uptime_ms < anchor.anchor_uptime_ms:
-        anchor.anchor_uptime_ms = uptime_ms
-        anchor.anchor_timestamp = timestamp
-        anchor.time_source = time_source
-        anchor.save(
-            update_fields=[
-                "anchor_uptime_ms",
-                "anchor_timestamp",
-                "time_source",
-                "atualizado_em",
-            ]
-        )
-        return anchor, True
-    return anchor, False
-
-
-def _reconstruir_leituras_do_boot(anchor: DeviceClockAnchor) -> None:
-    leituras = list(
-        LeituraTelemetria.objects.filter(
-            device_id=anchor.device_id,
-            boot_id=anchor.boot_id,
-            time_source="unsynced",
-            uptime_ms__isnull=False,
-        )
-    )
-    for leitura in leituras:
-        if leitura.uptime_ms is None:
-            continue
-        leitura.timestamp = anchor.anchor_timestamp + timedelta(
-            milliseconds=leitura.uptime_ms - anchor.anchor_uptime_ms
-        )
-    if leituras:
-        LeituraTelemetria.objects.bulk_update(leituras, ["timestamp"])
+        logger.debug("SyncCursor criado sem saltar lacunas: device=%s seq=%d", device_id, nova_sequencia)
 
 
 def registrar_leitura(dados: dict) -> tuple[str, str | None]:
@@ -313,9 +223,12 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     • Payload sem message_id → UUID por envio (NÃO idempotente — documentado)
     • Payload com id (UUID) explícito: usado como PK da linha, não como idempotência
     """
+    # Work on a copy: validation may add legacy defaults, but callers retain
+    # their original object for retries and deterministic hashing.
     dados = dict(dados)
+    # Fingerprint exactly the submitted payload before validation adds legacy
+    # defaults such as schema_version or vibracao_unit.
     payload_hash = _computar_payload_hash(dados)
-    legacy_payload_hash = _computar_payload_hash(dados, incluir_id=True)
     valido, motivo = validar_payload(dados)
     if not valido:
         _registrar_leitura_invalida(dados, motivo)
@@ -371,20 +284,9 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
         dados.get("source_protocol_simulado") or transport
     ).strip()[:80]
 
-    time_source = dados.get("time_source", "unsynced")
-    boot_id = uuid_lib.UUID(str(dados["boot_id"])) if dados.get("boot_id") else None
-    uptime_ms = int(dados["uptime_ms"]) if dados.get("uptime_ms") is not None else None
-    clock_skew_ms = (
-        int(dados["clock_skew_ms"]) if dados.get("clock_skew_ms") is not None else None
-    )
-    received_at = timezone.now()
-
     try:
-        timestamp = (
-            received_at
-            if time_source == "gateway" or dados.get("timestamp") is None
-            else _normalizar_timestamp(dados["timestamp"])
-        )
+        temporal = resolve_event_time(dados, ingested_at=now())
+        boot_id, uptime_ms, time_source, timestamp, event_time_confidence, clock_skew_ms, time_provenance = temporal
 
         # Resolução de Machine on-the-fly (S1-T2 — preservado)
         machine_obj, maq_criada = Machine.objects.get_or_create(
@@ -404,23 +306,13 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             foi_criada = leitura is None
 
             if not foi_criada:
-                if leitura.payload_hash not in {payload_hash, legacy_payload_hash}:
-                    motivo = "message_id reutilizado com payload_hash diferente"
+                if leitura.payload_hash != payload_hash:
                     registrar_falha_dlq(
                         contexto=DeadLetterEntry.Contexto.SYNC,
-                        payload_referencia={
-                            "device_id": device_id,
-                            "message_id": message_id,
-                            "sequence_number": sequence_number,
-                            "stored_payload_hash": leitura.payload_hash,
-                            "received_payload_hash": payload_hash,
-                        },
-                        motivo=motivo,
-                    )
-                    logger.warning(
-                        "Conflito de sincronização: device=%s msg=%s",
-                        device_id,
-                        message_id,
+                        payload_referencia={"device_id": device_id, "message_id": message_id,
+                                            "stored_payload_hash": leitura.payload_hash,
+                                            "received_payload_hash": payload_hash},
+                        motivo="conflito de payload_hash para identidade de mensagem existente",
                     )
                     return "conflito", str(leitura.id)
                 logger.info(
@@ -431,31 +323,10 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                 )
                 return "duplicata", str(leitura.id)
 
-            anchor = None
-            anchor_changed = False
-            if boot_id is not None and uptime_ms is not None:
-                if time_source != "unsynced":
-                    anchor, anchor_changed = _obter_ou_atualizar_ancora(
-                        device_id=device_id,
-                        boot_id=boot_id,
-                        uptime_ms=uptime_ms,
-                        timestamp=timestamp,
-                        time_source=time_source,
-                    )
-                else:
-                    anchor = DeviceClockAnchor.objects.filter(
-                        device_id=device_id,
-                        boot_id=boot_id,
-                    ).first()
-                    if anchor is not None:
-                        timestamp = anchor.anchor_timestamp + timedelta(
-                            milliseconds=uptime_ms - anchor.anchor_uptime_ms
-                        )
-
             if foi_criada:
                 historico_recente = list(
                     LeituraTelemetria.objects.filter(machine=machine_obj)
-                    .order_by("-timestamp")[:HISTORY_LIMIT]
+                    .filter(timestamp__isnull=False).order_by("-timestamp")[:HISTORY_LIMIT]
                 )
                 leitura = LeituraTelemetria(
                     id=uuid_recebido or uuid_lib.uuid4(),
@@ -465,7 +336,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     machine=machine_obj,
                     temperatura=float(dados["temperatura"]),
                     vibracao=float(dados["vibracao"]),
-                    vibracao_unit=dados.get("vibracao_unit", "indice_0_10"),
+                    vibracao_unit=dados["vibracao_unit"],
                     rpm=int(dados["rpm"]),
                     latitude=float(dados["latitude"])
                     if dados.get("latitude") is not None
@@ -478,6 +349,8 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     uptime_ms=uptime_ms,
                     time_source=time_source,
                     clock_skew_ms=clock_skew_ms,
+                    event_time_confidence=event_time_confidence,
+                    time_provenance=time_provenance,
                     sequence_number=sequence_number,
                     source=source,
                     transport=transport,
@@ -489,6 +362,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     historico_recente,
                 )
                 leitura.trust_score = trust_score
+                leitura.trust_factors = trust_motivos
                 anomaly_result = detect_anomaly(
                     machine_obj.external_code,
                     {
@@ -498,8 +372,6 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     },
                 )
                 leitura.save(force_insert=True)
-                if anchor_changed and anchor is not None:
-                    _reconstruir_leituras_do_boot(anchor)
                 for raw_parameter, raw_value, unit in (
                     ("temperatura", leitura.temperatura, "C"),
                     ("vibracao", leitura.vibracao, leitura.vibracao_unit),
@@ -524,15 +396,16 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                         },
                     )
                 )
-                atualizar_machine_data_health(
-                    machine=machine_obj,
-                    trust_score=leitura.trust_score,
-                    motivos=trust_motivos,
-                    timestamp=leitura.timestamp,
-                    anomalia_detectada=anomaly_result.is_anomaly,
-                )
-                avaliar_leitura(leitura)
-                if anomaly_result.is_anomaly and anomaly_result.anomaly_score >= 0.70:
+                if leitura.timestamp is not None:
+                    atualizar_machine_data_health(
+                        machine=machine_obj,
+                        trust_score=leitura.trust_score,
+                        motivos=trust_motivos,
+                        timestamp=leitura.timestamp,
+                        anomalia_detectada=anomaly_result.is_anomaly,
+                    )
+                    avaliar_leitura(leitura)
+                if leitura.timestamp is not None and anomaly_result.is_anomaly and anomaly_result.anomaly_score >= 0.70:
                     event = criar_evento_anomalia_estatistica(leitura, anomaly_result)
                     persistir_decision_da_anomalia(
                         machine_obj,
@@ -542,6 +415,8 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
             # Leitura nova: só atualizar o cursor quando a sequência veio no payload.
             if sequence_informada:
                 _atualizar_sync_cursor(device_id, sequence_number)
+            if boot_id is not None and time_source in {"rtc", "ntp", "gateway"}:
+                transaction.on_commit(lambda: reconstruct_boot(boot_id))
 
         logger.info(
             "Leitura registrada: id=%s | device=%s | msg=%s | seq=%d | temp=%.1f°C",
@@ -567,6 +442,15 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                 message_id,
                 existente.id,
             )
+            if existente.payload_hash != payload_hash:
+                registrar_falha_dlq(
+                    contexto=DeadLetterEntry.Contexto.SYNC,
+                    payload_referencia={"device_id": device_id, "message_id": message_id,
+                                        "stored_payload_hash": existente.payload_hash,
+                                        "received_payload_hash": payload_hash},
+                    motivo="conflito de payload_hash após corrida de idempotência",
+                )
+                return "conflito", str(existente.id)
             return "duplicata", str(existente.id)
         except LeituraTelemetria.DoesNotExist:
             registrar_falha_dlq(
@@ -646,7 +530,7 @@ def _registrar_leitura_invalida(dados: dict, motivo: str) -> None:
     """
     try:
         from api_tcc.models import TelemetriaInvalida
-
+        import json
         TelemetriaInvalida.objects.create(
             payload_raw=json.dumps(dados, default=str)[:2000],  # trunca se necessário
             motivo_rejeicao=motivo[:500],
@@ -664,9 +548,8 @@ def calcular_status_risco(temperatura: float, vibracao: float, rpm: int) -> dict
     """
     from api_tcc.contracts import classify
 
-    temp_status = classify("temperatura", temperatura)
-    vib_status = classify("vibracao", vibracao)
-    if "CRITICO" in (temp_status, vib_status):
+    severidades = (classify("temperatura", temperatura), classify("vibracao", vibracao))
+    if "CRITICO" in severidades:
         return {
             "nivelCor": "#FFFFFF",
             "nivelBg": "#FF5252",  # Vermelho
@@ -674,7 +557,7 @@ def calcular_status_risco(temperatura: float, vibracao: float, rpm: int) -> dict
         }
 
     # Thresholds de Alerta
-    elif "ATENCAO" in (temp_status, vib_status):
+    elif "ATENCAO" in severidades:
         return {
             "nivelCor": "#000000",
             "nivelBg": "#FFD740",  # Amarelo/Âmbar

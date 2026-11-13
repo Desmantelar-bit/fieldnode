@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { clearSession, verifyToken } from "@/services/authService";
+import { verifyToken } from '@/services/authService';
 
 /* ──────────────────────────────────────────────────────────────────────────
    SessionGate — fecha a porta depois do logout.
@@ -34,31 +34,18 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    const onWorkerMessage = (event: MessageEvent) => {
-      if (event.data?.type !== "AUTH_REQUIRED") return;
-      clearSession();
+    const check = () => verifyToken().then((user) => {
+      if (!active || user) return;
       setDenied(true);
-      router.replace("/login");
-    };
-    const check = () =>
-      verifyToken()
-        .then((user) => {
-          if (!active || user) return;
-          setDenied(true);
-          router.replace("/login");
-        })
-        .catch(() => {
-          /* Preserve offline access when the server cannot be reached. */
-        });
+      router.replace('/login');
+    }).catch(() => { /* Preserve offline access when the server cannot be reached. */ });
     check();
     const interval = window.setInterval(check, 60_000);
-    window.addEventListener("focus", check);
-    navigator.serviceWorker?.addEventListener("message", onWorkerMessage);
+    window.addEventListener('focus', check);
     return () => {
       active = false;
       window.clearInterval(interval);
-      window.removeEventListener("focus", check);
-      navigator.serviceWorker?.removeEventListener("message", onWorkerMessage);
+      window.removeEventListener('focus', check);
     };
   }, [router]);
 
@@ -66,9 +53,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   // as páginas normalmente (por isso o dashboard mantém as leituras iniciais no
   // HTML); esta troca só acontece no cliente, e só para quem não tem sessão.
   if (denied) {
-    return (
-      <div className="app-background h-screen w-screen" aria-hidden="true" />
-    );
+    return <div className="app-background h-screen w-screen" aria-hidden="true" />;
   }
 
   return <>{children}</>;

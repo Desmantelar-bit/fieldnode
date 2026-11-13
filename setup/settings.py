@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import json
 from pathlib import Path
 from decouple import config as env_config
 
@@ -31,6 +32,19 @@ if os.environ.get("DEBUG") == "release":
 
 DEBUG = env_config("DEBUG", default=False, cast=bool)
 FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY")
+_device_api_keys_raw = env_config("FIELDNODE_DEVICE_API_KEYS", default="{}")
+try:
+    FIELDNODE_DEVICE_API_KEYS = json.loads(_device_api_keys_raw)
+except json.JSONDecodeError as exc:
+    raise ValueError("FIELDNODE_DEVICE_API_KEYS precisa ser um objeto JSON") from exc
+if not isinstance(FIELDNODE_DEVICE_API_KEYS, dict) or any(
+    not isinstance(device_id, str) or not device_id.strip()
+    or not isinstance(device_key, str) or not device_key
+    for device_id, device_key in FIELDNODE_DEVICE_API_KEYS.items()
+):
+    raise ValueError("FIELDNODE_DEVICE_API_KEYS deve mapear device_id não vazio para chave não vazia")
+if len(set(FIELDNODE_DEVICE_API_KEYS.values())) != len(FIELDNODE_DEVICE_API_KEYS):
+    raise ValueError("FIELDNODE_DEVICE_API_KEYS não pode reutilizar a mesma chave em dispositivos diferentes")
 DEMO_MODE = env_config("DEMO_MODE", default=False, cast=bool)
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
@@ -216,6 +230,24 @@ REST_FRAMEWORK = {
         'ingestao': '120/minute',
     },
 }
+
+# LocMem is sufficient for single-process development. Production shares throttle
+# state through the primary database so separate web workers enforce one quota.
+if USE_SQLITE:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'fieldnode-development-cache',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'fieldnode_throttle_cache',
+            'TIMEOUT': 60,
+        }
+    }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1MB
 TOKEN_TTL_HOURS = env_config('TOKEN_TTL_HOURS', default=24, cast=int)

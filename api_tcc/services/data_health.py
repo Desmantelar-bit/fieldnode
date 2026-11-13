@@ -27,7 +27,6 @@ EXPECTED_GAP_SECONDS = 5 * 60
 MAX_GAP_SECONDS = 2 * 60 * 60
 GAP_PENALTY_MAX = 0.25
 OUT_OF_ORDER_PENALTY = 0.30
-UNSYNCED_TIME_PENALTY = 0.25
 
 STUCK_SENSOR_MIN_REPETITIONS = 3
 STUCK_SENSOR_STRONG_REPETITIONS = 5
@@ -51,7 +50,7 @@ ALERT_SIGNAL_KEYS = (
     "gap_temporal",
     "timestamp_fora_de_ordem",
     "timestamp_indisponivel",
-    "hora_dispositivo_nao_confiavel",
+    "hora_do_dispositivo_nao_confiavel",
     "valores_repetidos",
     "limite_fisico",
     "salto_abrupto",
@@ -73,8 +72,13 @@ def calcular_trust_score(leitura: Any, historico_recente: Iterable[Any]) -> tupl
     score = 1.0
     motivos: list[str] = []
 
+    confidence = _get(leitura, "event_time_confidence")
+    if confidence is not None and float(confidence) < 1.0:
+        score -= max(0.0, min(1.0, 1.0 - float(confidence)))
+        if _get(leitura, "time_source") == "unsynced":
+            motivos.append("hora_do_dispositivo_nao_confiavel")
+
     score += _penalidade_temporal(leitura, leitura_anterior, motivos)
-    score += _penalidade_hora_dispositivo(leitura, motivos)
     score += _penalidade_repeticao(leitura, historico, motivos)
     score += _penalidade_range(leitura, motivos)
     score += _continuidade(leitura, leitura_anterior, motivos)
@@ -161,13 +165,6 @@ def atualizar_machine_data_health(
             ]
         )
         return health
-
-
-def _penalidade_hora_dispositivo(leitura: Any, motivos: list[str]) -> float:
-    if _get(leitura, "time_source") != "unsynced":
-        return 0.0
-    motivos.append("hora do dispositivo nao confiavel (time_source=unsynced)")
-    return -UNSYNCED_TIME_PENALTY
 
 
 def _penalidade_temporal(leitura: Any, anterior: Any | None, motivos: list[str]) -> float:
@@ -305,7 +302,7 @@ def _sinais_de_alerta(motivos: list[str], trust_score: float) -> dict[str, bool]
         "gap_temporal": "gap temporal acima" in texto,
         "timestamp_fora_de_ordem": "fora de ordem" in texto,
         "timestamp_indisponivel": "timestamp indisponivel" in texto,
-        "hora_dispositivo_nao_confiavel": "hora do dispositivo nao confiavel" in texto,
+        "hora_do_dispositivo_nao_confiavel": "hora_do_dispositivo_nao_confiavel" in texto,
         "valores_repetidos": "repetidos consecutivamente" in texto,
         "limite_fisico": "limite fisico" in texto,
         "salto_abrupto": "salto abrupto" in texto,

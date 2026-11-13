@@ -131,6 +131,24 @@ class ContractBlockersAndRisksFixesTest(TestCase):
         self.assertEqual(resp_detail.json()["id"], str(event1.id))
         self.assertEqual(resp_detail.json()["machine_external_code"], "COLH-TEST-01")
 
+    def test_events_order_by_priority_and_expose_verification_badge(self):
+        low = Event.objects.create(
+            machine=self.machine, tipo=Event.Tipo.TEMP_ALTA,
+            severidade=Event.Severidade.CRITICO, priority_score=0.2,
+            evidence_quality="boa", needs_verification=False,
+        )
+        high = Event.objects.create(
+            machine=self.machine, tipo=Event.Tipo.TEMP_ALTA,
+            severidade=Event.Severidade.CRITICO, priority_score=0.9,
+            evidence_quality="insuficiente", needs_verification=True,
+        )
+        response = self.client.get("/api/events/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["results"]
+        self.assertEqual([row["id"] for row in results], [str(high.id), str(low.id)])
+        self.assertEqual(results[0]["evidence_quality"], "insuficiente")
+        self.assertTrue(results[0]["needs_verification"])
+
     # 2. 🔴 Bloqueador: GET /api/decisions/
     def test_decisions_list_and_filters(self):
         dec1 = Decision.objects.create(

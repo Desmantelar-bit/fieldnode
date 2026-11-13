@@ -1,69 +1,43 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+type QueueItem = { localId: string; state: string; last_error?: string | null };
+type QueueCounts = { pending: number; retrying: number; rejected: number; auth_blocked: number };
+const EMPTY_QUEUE: QueueCounts = { pending: 0, retrying: 0, rejected: 0, auth_blocked: 0 };
 
 export function ApiStatusIndicator() {
   const [isOnline, setIsOnline] = useState(true);
-  const [queue, setQueue] = useState({
-    pending: 0,
-    retrying: 0,
-    rejected: 0,
-    auth_blocked: 0,
-  });
+  const [queue, setQueue] = useState<QueueCounts | null>(null);
+  const [rejectedItems, setRejectedItems] = useState<QueueItem[]>([]);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [queueError, setQueueError] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    function onWorkerMessage(event: MessageEvent) {
-      const message = event.data;
-      if (
-        message?.type === "TELEMETRY_QUEUE_STATUS" ||
-        message?.type === "TELEMETRY_SYNC_RESULT"
-      ) {
-        setQueue({
-          pending: Number(message.pending) || 0,
-          retrying: Number(message.retrying) || 0,
-          rejected: Number(message.rejected) || 0,
-          auth_blocked: Number(message.auth_blocked) || 0,
-        });
-      }
-    }
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener("message", onWorkerMessage);
-      navigator.serviceWorker.ready.then((registration) => {
-        const worker =
-          navigator.serviceWorker.controller || registration.active;
-        if (!worker || !active) return;
-        const channel = new MessageChannel();
-        channel.port1.onmessage = onWorkerMessage;
-        worker.postMessage({ type: "GET_TELEMETRY_QUEUE_STATUS" }, [
-          channel.port2,
-        ]);
-      });
-    }
-
     async function check() {
       try {
-        const headers = new Headers({ Accept: "application/json" });
+        const headers = new Headers({ Accept: 'application/json' });
         const res = await fetch(`/api/health/`, {
           signal: AbortSignal.timeout(3000),
-          cache: "no-store",
+          cache: 'no-store',
           headers,
         });
 
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
-          if (active) setIsOnline(data.status === "ok" || res.status === 200);
+          if (active) setIsOnline(data.status === 'ok' || res.status === 200);
           return;
         }
 
         // Se o endpoint /health/ não existe (404), verifica a raiz de telemetria
         if (res.status === 404) {
           const fallbackRes = await fetch(`/api/colheitadeira/`, {
-            method: "HEAD",
+            method: 'HEAD',
             signal: AbortSignal.timeout(3000),
-            cache: "no-store",
+            cache: 'no-store',
             headers,
           }).catch(() => null);
 
@@ -82,20 +56,39 @@ export function ApiStatusIndicator() {
 
     check();
     const id = setInterval(check, 15000);
+    return () => { active = false; clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    const controller = navigator.serviceWorker?.controller;
+    const requestStatus = () => navigator.serviceWorker?.controller?.postMessage({ type: 'GET_TELEMETRY_STATUS' });
+    const onQueue = (event: Event) => {
+      const detail = (event as CustomEvent<{ counts?: QueueCounts; items?: QueueItem[] }>).detail;
+      if (detail?.counts) setQueue({ ...EMPTY_QUEUE, ...detail.counts });
+      if (detail?.items) setRejectedItems(detail.items.filter((item) => item.state === 'rejected'));
+      setQueueError(false);
+    };
+    const onAuth = () => setAuthRequired(true);
+    const onAuthRecovered = () => setAuthRequired(false);
+    const onQueueError = () => setQueueError(true);
+    window.addEventListener('fieldnode-queue-status', onQueue);
+    window.addEventListener('fieldnode-auth-required', onAuth);
+    window.addEventListener('fieldnode-auth-recovered', onAuthRecovered);
+    window.addEventListener('fieldnode-queue-error', onQueueError);
+    controller?.postMessage({ type: 'GET_TELEMETRY_STATUS' });
+    const refreshId = window.setInterval(requestStatus, 15000);
     return () => {
-      active = false;
-      clearInterval(id);
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
-      }
+      window.removeEventListener('fieldnode-queue-status', onQueue);
+      window.removeEventListener('fieldnode-auth-required', onAuth);
+      window.removeEventListener('fieldnode-auth-recovered', onAuthRecovered);
+      window.removeEventListener('fieldnode-queue-error', onQueueError);
+      window.clearInterval(refreshId);
     };
   }, []);
 
-  async function reprocessRejected() {
-    if (!("serviceWorker" in navigator)) return;
-    const registration = await navigator.serviceWorker.ready;
-    const worker = navigator.serviceWorker.controller || registration.active;
-    worker?.postMessage({ type: "REPROCESS_REJECTED_TELEMETRY" });
+  function reprocessRejected() {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'REPROCESS_REJECTED' });
+    window.setTimeout(() => navigator.serviceWorker?.controller?.postMessage({ type: 'GET_TELEMETRY_STATUS' }), 100);
   }
 
   return (
@@ -103,29 +96,36 @@ export function ApiStatusIndicator() {
       <span
         className={`h-1.5 w-1.5 rounded-full ${
           isOnline
-            ? "bg-[color:var(--status-normal)] shadow-[0_0_6px_var(--glow-normal-strong)]"
-            : "animate-pulse bg-[color:var(--status-critico)]"
+            ? 'bg-[color:var(--status-normal)] shadow-[0_0_6px_var(--glow-normal-strong)]'
+            : 'animate-pulse bg-[color:var(--status-critico)]'
         }`}
       />
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-3)]">
-        API {isOnline ? "online" : "offline"}
+        API {isOnline ? 'online' : 'offline'}
       </span>
-      {queue.pending + queue.retrying + queue.rejected + queue.auth_blocked >
-      0 ? (
-        <span aria-live="polite" className="text-[10px] text-[var(--text-2)]">
-          Fila: {queue.pending} pendente(s), {queue.retrying} em nova tentativa,{" "}
-          {queue.rejected} rejeitada(s), {queue.auth_blocked} aguardando login
+      {queue && (queue.pending + queue.retrying + queue.rejected + queue.auth_blocked > 0) && (
+        <div className="ml-2 border-l border-current/20 pl-2 text-[10px]" aria-live="polite">
+          <span>{queue.pending} pendentes · {queue.retrying} retentativas</span>
+          {queue.rejected > 0 && <span className="ml-1 text-[color:var(--status-critico)]">· {queue.rejected} rejeitadas</span>}
+          {queue.auth_blocked > 0 && <span className="ml-1 text-[color:var(--status-atencao)]">· {queue.auth_blocked} aguardam login</span>}
+        </div>
+      )}
+      {queue?.rejected ? (
+        <details className="ml-2 text-[10px]">
+          <summary className="cursor-pointer underline">Ver erros</summary>
+          <ul className="absolute z-50 max-h-40 overflow-auto rounded bg-[var(--panel)] p-2 shadow-lg">
+            {rejectedItems.map((item) => <li key={item.localId}>{item.localId.slice(0, 8)}: {item.last_error || 'Erro permanente'}</li>)}
+          </ul>
+        </details>
+      ) : null}
+      {queue?.rejected ? <button type="button" onClick={reprocessRejected} className="ml-2 text-[10px] underline">Reprocessar rejeitadas</button> : null}
+      {(authRequired || (queue?.auth_blocked ?? 0) > 0) && (
+        <span className="ml-2 text-[10px]" role="status">
+          Autenticação necessária. <Link href="/login" className="underline">Entrar</Link>
         </span>
-      ) : null}
-      {queue.rejected > 0 ? (
-        <button
-          type="button"
-          onClick={reprocessRejected}
-          className="text-[10px] font-semibold text-[var(--text-1)] underline underline-offset-2"
-        >
-          Reprocessar rejeitadas
-        </button>
-      ) : null}
+      )}
+      {queueError ? <span className="ml-2 text-[10px]" role="alert">Não foi possível ler a fila offline.</span> : null}
+      {queue === null && !queueError && <span className="sr-only" role="status">Estado da fila offline ainda não disponível</span>}
     </div>
   );
 }

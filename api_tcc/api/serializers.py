@@ -267,7 +267,6 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
     machine = serializers.PrimaryKeyRelatedField(read_only=True)
     # S1-T2 — UUID do objeto Machine canônico (read-only).
     machine_id = serializers.UUIDField(source="machine.id", read_only=True, allow_null=True)
-    event_time_confidence = serializers.CharField(read_only=True)
 
     # S1-T5 — Aliases semânticos para event_time / ingested_at.
     # Os campos internos continuam sendo timestamp e recebido_em para compatibilidade.
@@ -296,17 +295,19 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "latitude",
             "longitude",
             # Tempo: campos internos + aliases semânticos
-            "timestamp",  # campo interno (= event_time)
-            "event_time",  # alias read-only para timestamp
-            "event_time_confidence",
+            "timestamp",      # campo interno (= event_time)
+            "event_time",     # alias read-only para timestamp
             "boot_id",
             "uptime_ms",
             "time_source",
             "clock_skew_ms",
-            "recebido_em",  # campo interno (= ingested_at)
-            "ingested_at",  # alias read-only para recebido_em
+            "event_time_confidence",
+            "time_provenance",
+            "recebido_em",    # campo interno (= ingested_at)
+            "ingested_at",    # alias read-only para recebido_em
             # Qualidade do dado (S3-T1)
             "trust_score",
+            "trust_factors",
             # Metadados de origem/transporte (S1-T5)
             "source",
             "transport",
@@ -321,6 +322,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'sequence_number':{'read_only': True},
             'recebido_em':    {'read_only': True},
             'trust_score':    {'read_only': True},
+            'trust_factors':  {'read_only': True},
             'source':         {'read_only': True},
             'transport':      {'read_only': True},
             'sync_status':    {'read_only': True},
@@ -339,22 +341,19 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def validate_temperatura(self, value):
-        if value > 200:
-            raise serializers.ValidationError('Temperatura acima de 200°C é fisicamente inválida para operação normal.')
+        from api_tcc.contracts import metric_definition
+
+        minimum, maximum = metric_definition("temperatura")["range"]
+        if not minimum <= value <= maximum:
+            raise serializers.ValidationError(f'Temperatura deve estar entre {minimum} e {maximum} °C.')
         return value
 
     def validate_vibracao(self, value):
-        if value < 0 or value > 10:
-            raise serializers.ValidationError(
-                "Vibração deve estar entre 0 e 10 no contrato v1."
-            )
-        return value
+        from api_tcc.contracts import metric_definition
 
-    def validate_vibracao_unit(self, value):
-        if value != "indice_0_10":
-            raise serializers.ValidationError(
-                "A unidade da vibração deve ser 'indice_0_10'; não há conversão automática de g."
-            )
+        minimum, maximum = metric_definition("vibracao")["range"]
+        if not minimum <= value <= maximum:
+            raise serializers.ValidationError(f'Vibração deve estar entre {minimum} e {maximum} na escala indice_0_10.')
         return value
 
     def validate_rpm(self, value):
@@ -474,3 +473,4 @@ class EventSerializer(serializers.ModelSerializer):
             "dados_contexto",
         ]
         read_only_fields = fields
+

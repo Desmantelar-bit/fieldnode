@@ -11,7 +11,7 @@ def analisar_telemetria_e_gerar_prescricoes(maquina_id):
     """
     Analisa as últimas leituras de telemetria para sugerir ações de manutenção.
     """
-    leituras = LeituraTelemetria.objects.filter(maquina_id=maquina_id).order_by('-timestamp')[:10]
+    leituras = LeituraTelemetria.objects.filter(maquina_id=maquina_id, timestamp__isnull=False).order_by('-timestamp')[:10]
     if not leituras.exists():
         return
 

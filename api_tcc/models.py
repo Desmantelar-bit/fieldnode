@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator
 from django.db import models
 import uuid as uuid_lib
 
@@ -273,43 +274,29 @@ class LeituraTelemetria(models.Model):
 
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
-    vibracao_unit = models.CharField(
-        max_length=30,
-        default="indice_0_10",
-        verbose_name="Unidade da vibração",
-        help_text="Contrato v1: índice adimensional de 0 a 10.",
-    )
+    vibracao_unit = models.CharField(max_length=20, default='indice_0_10', verbose_name='Unidade/escala da vibração')
     rpm         = models.IntegerField(verbose_name='RPM')
     latitude    = models.FloatField(verbose_name="Latitude", null=True, blank=True)
     longitude   = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     # timestamp = event_time: momento em que o evento ocorreu na origem.
     # Mantido com este nome para compatibilidade com simuladores e dados históricos.
-    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True)
-    boot_id = models.UUIDField(null=True, blank=True, db_index=True)
-    uptime_ms = models.BigIntegerField(null=True, blank=True)
-    time_source = models.CharField(
-        max_length=12,
-        choices=[
-            ("rtc", "RTC"),
-            ("gateway", "Gateway"),
-            ("ntp", "NTP"),
-            ("unsynced", "Sem sincronização"),
-        ],
-        default="unsynced",
-    )
-    clock_skew_ms = models.BigIntegerField(null=True, blank=True)
+    timestamp   = models.DateTimeField(verbose_name='Timestamp do Sensor (event_time)', db_index=True, null=True, blank=True)
     # recebido_em = ingested_at: momento em que o backend recebeu/processou a leitura.
     recebido_em = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em (ingested_at)', db_index=True)
+    boot_id = models.UUIDField(null=True, blank=True, db_index=True)
+    uptime_ms = models.BigIntegerField(null=True, blank=True)
+    time_source = models.CharField(max_length=10, default='unsynced', choices=[(v, v) for v in ('rtc', 'gateway', 'ntp', 'unsynced')])
+    clock_skew_ms = models.BigIntegerField(null=True, blank=True)
+    event_time_confidence = models.FloatField(default=0.0)
+    time_provenance = models.JSONField(default=dict, blank=True)
     trust_score = models.FloatField(
         null=True,
         blank=True,
         verbose_name='Trust Score',
         help_text='Score heuristico 0..1 calculado na ingestao; null indica dado historico nao pontuado.',
     )
-
-    @property
-    def event_time_confidence(self) -> str:
-        return "low" if self.time_source == "unsynced" else "high"
+    trust_factors = models.JSONField(default=list, blank=True,
+        help_text="Fatores explicativos calculados para esta leitura.")
 
     class Meta:
         ordering = ['-timestamp']
@@ -329,11 +316,6 @@ class LeituraTelemetria(models.Model):
 
 class Event(models.Model):
     """Unidade persistida de algo relevante observado na telemetria."""
-
-    class EvidenceQuality(models.TextChoices):
-        BOA = "boa", "Boa"
-        SUSPEITA = "suspeita", "Suspeita"
-        INSUFICIENTE = "insuficiente", "Insuficiente"
 
     class Tipo(models.TextChoices):
         TEMP_ALTA = "TEMP_ALTA", "Temperatura alta"
@@ -385,11 +367,15 @@ class Event(models.Model):
         help_text="Trust Score copiado da leitura que originou o evento.",
     )
     evidence_quality = models.CharField(
-        max_length=20,
-        choices=EvidenceQuality.choices,
-        default=EvidenceQuality.INSUFICIENTE,
+        max_length=16,
+        choices=[("boa", "Boa"), ("suspeita", "Suspeita"), ("insuficiente", "Insuficiente")],
+        default="insuficiente",
+        help_text="Qualidade heurística da evidência herdada da leitura de origem.",
     )
-    needs_verification = models.BooleanField(default=True)
+    needs_verification = models.BooleanField(
+        default=True,
+        help_text="Sinaliza evidência que requer verificação; não altera severidade/prioridade.",
+    )
     priority_score = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -873,32 +859,15 @@ class MachineDataHealth(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# S1-T5 — Âncora temporal por boot e cursor de sincronização
+# S1-T5 — Cursor de Sincronização
 # ---------------------------------------------------------------------------
-
-class DeviceClockAnchor(models.Model):
-    device_id = models.CharField(max_length=100)
-    boot_id = models.UUIDField()
-    anchor_uptime_ms = models.BigIntegerField()
-    anchor_timestamp = models.DateTimeField()
-    time_source = models.CharField(max_length=12)
-    atualizado_em = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["device_id", "boot_id"],
-                name="uniq_clock_anchor_device_boot",
-            ),
-        ]
-
 
 class SyncCursor(models.Model):
     """
     Cursor de progresso de sincronização por dispositivo.
 
-    Registra o maior sequence_number confirmado para cada device_id.
-    A regra de monotonicidade é: last_acked_sequence nunca retrocede.
+    Registra a maior sequência contígua confirmada para cada device_id.
+    O cursor nunca retrocede nem salta sequências ausentes.
 
     Uso futuro (Semana 8):
     - Sincronização offline baseada em cursor: o dispositivo envia
@@ -908,7 +877,7 @@ class SyncCursor(models.Model):
 
     Invariantes:
     - device_id é UNIQUE: um dispositivo possui exatamente um cursor.
-    - last_acked_sequence somente avança (monotônico).
+    - last_acked_sequence somente avança por sequências contíguas persistidas.
     - Um replay de mensagem antiga não pode fazer o cursor retroceder.
     """
 
@@ -937,3 +906,58 @@ class SyncCursor(models.Model):
 
     def __str__(self):
         return f'SyncCursor({self.device_id}) → seq={self.last_acked_sequence}'
+
+
+class LeituraCANMotor(models.Model):
+    """Leitura CAN de motor; valores simulados permanecem identificados na origem."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    maquina_id = models.CharField(max_length=50, db_index=True)
+    timestamp = models.DateTimeField(db_index=True)
+    recebido_em = models.DateTimeField(auto_now_add=True)
+    rpm = models.FloatField(null=True, blank=True)
+    carga_pct = models.FloatField(null=True, blank=True)
+    horimetro_h = models.FloatField(null=True, blank=True)
+    oleo_pressao_kpa = models.FloatField(null=True, blank=True)
+    oleo_temp_c = models.FloatField(null=True, blank=True)
+    oleo_nivel_pct = models.FloatField(null=True, blank=True)
+    liquido_temp_c = models.FloatField(null=True, blank=True)
+    liquido_nivel_pct = models.FloatField(null=True, blank=True)
+    rail_pressao_kpa = models.FloatField(null=True, blank=True)
+    combustivel_temp_c = models.FloatField(null=True, blank=True)
+    consumo_lh = models.FloatField(null=True, blank=True)
+    turbo_pressao_kpa = models.FloatField(null=True, blank=True)
+    escape_temp_c = models.FloatField(null=True, blank=True)
+    bateria_v = models.FloatField(null=True, blank=True)
+    simulado = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["timestamp", "id"]
+        indexes = [models.Index(fields=["maquina_id", "timestamp"], name="canm_maquina_time_idx")]
+        constraints = [
+            models.UniqueConstraint(fields=["maquina_id", "timestamp"], name="uniq_canm_timestamp_machine"),
+        ]
+        verbose_name = "Leitura CAN do motor"
+        verbose_name_plural = "Leituras CAN do motor"
+
+
+class DTCMotor(models.Model):
+    """Código de diagnóstico observado no barramento, não um diagnóstico confirmado."""
+
+    maquina_id = models.CharField(max_length=50, db_index=True)
+    spn = models.PositiveIntegerField()
+    fmi = models.PositiveSmallIntegerField(validators=[MaxValueValidator(31)])
+    ocorrencias = models.PositiveIntegerField(default=1)
+    ativo = models.BooleanField(default=True, db_index=True)
+    simulado = models.BooleanField(default=True)
+    primeira_vez = models.DateTimeField()
+    ultima_vez = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-ultima_vez"]
+        constraints = [
+            models.UniqueConstraint(fields=["maquina_id", "spn", "fmi"], name="uniq_dtc_motor_code_machine"),
+            models.CheckConstraint(condition=models.Q(fmi__lte=31), name="dtc_fmi_lte_31"),
+        ]
+        verbose_name = "DTC do motor"
+        verbose_name_plural = "DTCs do motor"

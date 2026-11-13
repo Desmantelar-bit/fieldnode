@@ -1,0 +1,39 @@
+name: Contract parity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend-and-edge:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: contract-test-secret
+      FIELDNODE_API_KEY: contract-test-device-key
+      DEBUG: "True"
+      USE_SQLITE: "True"
+      DEMO_MODE: "False"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python scripts/generate_classification_fixtures.py --check
+      - run: python -m pytest api_tcc/tests/test_telemetria.py api_tcc/tests/test_contract_parity.py api_tcc/tests/test_contract_generator.py api_tcc/tests/test_severity_contract.py simulators/test_edge_client.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-next/package-lock.json
+      - run: npm ci
+        working-directory: frontend-next
+      - run: npm run test:contracts
+        working-directory: frontend-next
