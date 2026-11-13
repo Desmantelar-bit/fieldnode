@@ -8,6 +8,7 @@ from api_tcc.models import (
 )
 from django.utils import timezone
 import random
+import uuid
 
 
 class Command(BaseCommand):
@@ -125,17 +126,26 @@ class Command(BaseCommand):
             estado_de_movimento=em2
         )
 
-        # Leituras de Telemetria (20 registros simulados)
+        # Leituras de Telemetria (20 registros simulados, idempotentes via message_id único)
         maquinas = list(Colheitadeira.objects.all())
+        created_count = 0
         for i in range(20):
-            maq = random.choice(maquinas) if maquinas else None
-            LeituraTelemetria.objects.create(
-                maquina_id=f'MAQ-{random.randint(100, 999)}',
-                temperatura=round(random.uniform(60.0, 120.0), 1),
-                vibracao=round(random.uniform(0.1, 5.0), 2),
-                rpm=random.randint(800, 2500),
-                timestamp=timezone.now(),
-                data_origin='simulado',
+            device_id = f'MAQ-{random.randint(100, 999)}'
+            message_id = str(uuid.uuid4())
+            _, created = LeituraTelemetria.objects.get_or_create(
+                device_id=device_id,
+                message_id=message_id,
+                defaults=dict(
+                    maquina_id=device_id,
+                    temperatura=round(random.uniform(60.0, 120.0), 1),
+                    vibracao=round(random.uniform(0.1, 5.0), 2),
+                    rpm=random.randint(800, 2500),
+                    timestamp=timezone.now(),
+                    data_origin='simulado',
+                )
             )
+            if created:
+                created_count += 1
+        self.stdout.write(f'  Leituras de telemetria criadas: {created_count}')
 
         self.stdout.write(self.style.SUCCESS('Banco de dados populado com sucesso!'))
