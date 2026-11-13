@@ -353,8 +353,9 @@ class IngestaoLoteView(APIView):
     Cada item precisa ter seu próprio UUID. Duplicatas são ignoradas individualmente:
     uma leitura ruim no meio do lote não derruba o resto.
 
-    Nota Técnica (TCC): o processamento ocorre item a item (não bulk_create) para
-    privilegiar o relatório detalhado de debug em campo sobre performance bruta.
+    S1-T6: retorna ACK individual por mensagem, permitindo que o cliente
+    distinga exatamente quais itens foram confirmados, rejeitados ou conflitaram.
+    Uma falha em um item não apaga confirmações dos itens anteriores.
     """
     throttle_classes = [IngestaoThrottle]
 
@@ -377,7 +378,8 @@ class IngestaoLoteView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'erros': []}
+        # Contadores de resumo
+        resultado = {'salvas': 0, 'duplicadas': 0, 'invalidas': 0, 'conflitos': 0, 'erros': [], 'acks': []}
 
         for item in leituras:
             if not isinstance(item, dict):
@@ -386,23 +388,80 @@ class IngestaoLoteView(APIView):
                 continue
 
             status_item, detalhe = registrar_leitura(item)
+
             if status_item == "criado":
                 resultado['salvas'] += 1
+                ack = self._ack_payload(detalhe, "acked",
+                                        payload_hash_original=_computar_payload_hash(item))
+                resultado['acks'].append(ack)
             elif status_item == "duplicata":
                 resultado['duplicadas'] += 1
+                ack = self._ack_payload(detalhe, "duplicate",
+                                        payload_hash_override=_computar_payload_hash(item))
+                resultado['acks'].append(ack)
+            elif status_item == "conflito":
+                resultado['conflitos'] += 1
+                ack = {
+                    "status": "conflict",
+                    "message_id": item.get("message_id"),
+                    "device_id": item.get("device_id") or str(item.get("maquina_id", "")).strip().upper(),
+                    "sequence_number": item.get("sequence_number"),
+                    "payload_hash": _computar_payload_hash(item),
+                }
+                resultado['acks'].append(ack)
             elif status_item == "invalido":
                 resultado['invalidas'] += 1
                 resultado['erros'].append({
                     'id': item.get('id'),
                     'detalhe': detalhe,
                 })
+                resultado['acks'].append({
+                    "status": "rejected",
+                    "message_id": item.get("message_id"),
+                    "device_id": item.get("device_id") or str(item.get("maquina_id", "")).strip().upper(),
+                    "sequence_number": item.get("sequence_number"),
+                    "payload_hash": _computar_payload_hash(item),
+                    "motivo": detalhe,
+                })
             else:
                 resultado['erros'].append({
                     'id': item.get('id'),
                     'detalhe': 'falha interna ao persistir a leitura',
                 })
+                resultado['acks'].append({
+                    "status": "rejected",
+                    "message_id": item.get("message_id"),
+                    "device_id": item.get("device_id") or str(item.get("maquina_id", "")).strip().upper(),
+                    "sequence_number": item.get("sequence_number"),
+                    "payload_hash": _computar_payload_hash(item),
+                    "motivo": "falha interna",
+                })
 
         return Response(resultado, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _ack_payload(
+        leitura_id: str | None,
+        ack_status: str,
+        *,
+        payload_hash_override: str | None = None,
+        payload_hash_original: str | None = None,
+    ) -> dict:
+        if not leitura_id:
+            return {"status": ack_status}
+        try:
+            leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        except (LeituraTelemetria.DoesNotExist, ValueError, TypeError):
+            return {"status": ack_status}
+        cursor = SyncCursor.objects.filter(device_id=leitura.device_id).first()
+        return {
+            "status": ack_status,
+            "message_id": leitura.message_id,
+            "device_id": leitura.device_id,
+            "sequence_number": leitura.sequence_number,
+            "payload_hash": payload_hash_override or leitura.payload_hash,
+            "last_acked_sequence": cursor.last_acked_sequence if cursor else 0,
+        }
 
 
 class UltimaLeituraView(APIView):

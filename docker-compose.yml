@@ -67,10 +67,11 @@ services:
       - |
         : "$${MQTT_USERNAME:?MQTT_USERNAME is required}"
         : "$${MQTT_PASSWORD:?MQTT_PASSWORD is required}"
-        mosquitto_passwd -b -c /mosquitto/data/passwordfile "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
+        touch /mosquitto/data/passwordfile
+        mosquitto_passwd -b /mosquitto/data/passwordfile "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
         exec mosquitto -c /mosquitto/config/mosquitto.conf
     ports:
-      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:${MQTT_HOST_PORT:-1883}:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data/

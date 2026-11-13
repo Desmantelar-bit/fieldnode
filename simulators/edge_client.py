@@ -30,6 +30,7 @@ STATUS_PENDING = "PENDENTE"
 STATUS_SENDING = "ENVIANDO"
 STATUS_SYNCED = "SINCRONIZADA"
 STATUS_ERROR = "ERRO"
+STATUS_BLOCKED = "BLOQUEADA"  # conflict de hash: requer investigação manual
 PRIORITIES = ("A", "B", "C")
 
 
@@ -113,9 +114,23 @@ class EdgeBuffer:
         self.connection.commit()
 
     def _recover_in_flight(self) -> None:
+        """Restaura mensagens que estavam ENVIANDO para PENDENTE após reinicialização."""
         self.connection.execute(
             "UPDATE outbox SET status = ? WHERE device_id = ? AND status = ?",
             (STATUS_PENDING, self.device_id, STATUS_SENDING),
+        )
+        self.connection.commit()
+
+    def mark_blocked(self, row_id: int, reason: str) -> None:
+        """Bloqueia item com status conflict: requer investigação manual.
+
+        Um item BLOQUEADA não é retryable automaticamente, não avança o cursor
+        contíguo e não pode ser removido da outbox sem intervenção explícita.
+        O payload original é preservado para auditoria.
+        """
+        self.connection.execute(
+            "UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
+            (STATUS_BLOCKED, reason[:1000], row_id),
         )
         self.connection.commit()
 
@@ -266,6 +281,24 @@ class EdgeClient:
             return False
         if response.status_code == 429 or response.status_code >= 500:
             return self._retryable_failure(row, f"HTTP {response.status_code}")
+        # HTTP 409 = conflict: mesmo (device_id, message_id) com hash diferente
+        if response.status_code == 409:
+            try:
+                body_409 = response.json()
+                ack_409 = body_409.get("ack", {})
+            except (ValueError, json.JSONDecodeError):
+                ack_409 = {}
+            reason = (
+                f"conflict HTTP 409: mesmo message_id com payload diferente "
+                f"(hash_enviado={payload_hash(payload)[:16]}...)"
+            )
+            self.buffer.mark_blocked(row_id, reason)
+            LOGGER.warning(
+                "Conflito de hash (HTTP 409): device=%s msg=%s — item bloqueado para investigação",
+                row["device_id"],
+                row["message_id"],
+            )
+            return False
         if response.status_code < 200 or response.status_code >= 300:
             self.buffer.mark_error(row_id, f"permanent HTTP {response.status_code}")
             return False
@@ -276,6 +309,19 @@ class EdgeClient:
             return False
         ack = body.get("ack")
         if not isinstance(ack, dict) or ack.get("status") not in {"acked", "duplicate"}:
+            # Verificar se é um conflito de hash explícito do servidor
+            if isinstance(ack, dict) and ack.get("status") == "conflict":
+                reason = (
+                    f"conflict: mesmo message_id com payload diferente no servidor "
+                    f"(hash_enviado={payload_hash(payload)[:16]}...)"
+                )
+                self.buffer.mark_blocked(row_id, reason)
+                LOGGER.warning(
+                    "Conflito de hash: device=%s msg=%s — item bloqueado para investigação",
+                    row["device_id"],
+                    row["message_id"],
+                )
+                return False
             self.buffer.mark_error(row_id, "ACK ausente ou status inválido")
             return False
         if ack.get("payload_hash") != payload_hash(payload):
@@ -312,14 +358,29 @@ class EdgeClient:
         return False
 
 
-def generate_payload(device_id: str, sequence_number: int, index: int, *, source: str = "simulador") -> dict[str, Any]:
+def generate_payload(
+    device_id: str,
+    sequence_number: int,
+    index: int,
+    *,
+    source: str = "simulador",
+    boot_id: str | None = None,
+    uptime_ms: int | None = None,
+    time_source: str = "ntp",
+) -> dict[str, Any]:
+    """Gera um payload de telemetria com proveniência temporal explícita.
+
+    boot_id + uptime_ms permitem reconstrução temporal offline.
+    time_source declara a origem da referência de tempo.
+    """
     if index % 10 == 0:
         temperature, vibration = 86.0, 2.0
     elif index % 3 == 0:
         temperature, vibration = 80.0, 1.0
     else:
         temperature, vibration = 70.0, 0.5
-    return {
+
+    payload: dict[str, Any] = {
         "id": str(uuid.uuid4()),
         "device_id": device_id,
         "message_id": str(uuid.uuid4()),
@@ -333,7 +394,96 @@ def generate_payload(device_id: str, sequence_number: int, index: int, *, source
         "source": source,
         "transport": "http",
         "schema_version": "1.1",
+        "time_source": time_source,
     }
+    if boot_id is not None and uptime_ms is not None:
+        payload["boot_id"] = boot_id
+        payload["uptime_ms"] = uptime_ms
+    return payload
+
+
+class OfflineSimulator:
+    """Simula um ESP32 offline: coleta dados com boot_id e uptime monotônico.
+
+    Permite:
+    - Inicialização com novo boot_id por reinicialização simulada.
+    - Contagem monotônica de uptime (independente do relógio civil).
+    - Operação com time_source=unsynced durante período offline.
+    - Sincronização posterior (NTP/gateway) que estabelece âncora temporal.
+    - Envio de lotes atrasados e fora de ordem.
+    """
+
+    def __init__(
+        self,
+        device_id: str,
+        *,
+        uptime_start_ms: int = 0,
+        time_source: str = "unsynced",
+    ) -> None:
+        self.device_id = device_id
+        self.boot_id: str = str(uuid.uuid4())
+        self._uptime_ms: int = uptime_start_ms
+        self.time_source: str = time_source
+        self._readings: list[dict[str, Any]] = []
+
+    def reboot(self) -> None:
+        """Simula reinicialização: gera novo boot_id e zera uptime."""
+        self.boot_id = str(uuid.uuid4())
+        self._uptime_ms = 0
+        self._readings = []
+
+    def tick(self, ms: int = 5000) -> None:
+        """Avança o contador monotônico de uptime."""
+        self._uptime_ms += ms
+
+    def sync_ntp(self) -> None:
+        """Simula sincronização NTP: muda time_source para ntp."""
+        self.time_source = "ntp"
+
+    def sync_gateway(self) -> None:
+        """Simula referência fornecida pelo gateway."""
+        self.time_source = "gateway"
+
+    def go_offline(self) -> None:
+        """Volta ao estado não sincronizado."""
+        self.time_source = "unsynced"
+
+    @property
+    def uptime_ms(self) -> int:
+        return self._uptime_ms
+
+    def generate_reading(
+        self,
+        sequence_number: int,
+        *,
+        temperatura: float = 72.0,
+        vibracao: float = 0.35,
+        rpm: int = 1800,
+        source: str = "simulador",
+    ) -> dict[str, Any]:
+        """Gera uma leitura com os campos temporais do contrato v1."""
+        payload: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "device_id": self.device_id,
+            "maquina_id": self.device_id,
+            "message_id": str(uuid.uuid4()),
+            "sequence_number": sequence_number,
+            "boot_id": self.boot_id,
+            "uptime_ms": self._uptime_ms,
+            "time_source": self.time_source,
+            "temperatura": temperatura,
+            "vibracao": vibracao,
+            "vibracao_unit": "indice_0_10",
+            "rpm": rpm,
+            "source": source,
+            "transport": "http",
+            "schema_version": "1.1",
+        }
+        # Leitura unsynced: omite timestamp para forçar ingestão via âncora+uptime.
+        # Leitura com referência: inclui timestamp para ancorar a reconstrução.
+        if self.time_source != "unsynced":
+            payload["timestamp"] = utc_now()
+        return payload
 
 
 def build_parser() -> argparse.ArgumentParser:
