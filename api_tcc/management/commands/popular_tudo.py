@@ -175,6 +175,7 @@ class Command(BaseCommand):
                         'longitude': lng,
                         'machine': machine,
                         'timestamp': ts,
+                        'data_origin': 'simulado',
                     },
                 )
                 if created:

@@ -1,0 +1,17 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/api/[...path]/route": "app/api/[...path]/route.js",
+  "/colheitadeiras/page": "app/colheitadeiras/page.js",
+  "/mapa/page": "app/mapa/page.js",
+  "/login/page": "app/login/page.js",
+  "/motor/[maquinaId]/page": "app/motor/[maquinaId]/page.js",
+  "/detalhes/page": "app/detalhes/page.js",
+  "/page": "app/page.js",
+  "/operarios/page": "app/operarios/page.js",
+  "/register/page": "app/register/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/maquinas/[id]/prescricao/page": "app/maquinas/[id]/prescricao/page.js",
+  "/maquinas/page": "app/maquinas/page.js",
+  "/relatorios/page": "app/relatorios/page.js"
+}

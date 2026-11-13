@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/relatorios/layout,_N_T_/relatorios/page,_N_T_/relatorios"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/20645e8bf897c5ba786facbf15a1ce903125c2d8b5467e2b8a23c2c4aef63bf6/$/relatorios",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/relatorios/page"
+    },
+    "isFallback": false
+  }
+}

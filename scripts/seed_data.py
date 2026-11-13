@@ -272,6 +272,7 @@ def scenario_simples():
                 latitude=round(leitura_lat, 6),
                 longitude=round(leitura_lng, 6),
                 timestamp=ts,
+                data_origin="simulado",
             ))
 
     LeituraTelemetria.objects.bulk_create(leituras)
@@ -543,6 +544,7 @@ def scenario_completo():
                     "latitude":    lat,
                     "longitude":   lng,
                     "timestamp":   ts,
+                    "data_origin": "simulado",
                 },
             )
             if created:
@@ -713,6 +715,7 @@ def scenario_stress():
                 latitude=round(-15.79 + i * 0.001, 6),
                 longitude=round(-47.88 + j * 0.0005, 6),
                 timestamp=ts,
+                data_origin="simulado",
             ))
 
     LeituraTelemetria.objects.bulk_create(leituras)

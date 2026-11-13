@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/operarios/layout,_N_T_/operarios/page,_N_T_/operarios"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/56b2dccddd07002d484669e529f7df56ccb6e49d1d8c0b15ab281226cfb96e06/$/operarios",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/operarios/page"
+    },
+    "isFallback": false
+  }
+}

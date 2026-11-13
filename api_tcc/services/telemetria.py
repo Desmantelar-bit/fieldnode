@@ -192,7 +192,11 @@ def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
         logger.debug("SyncCursor criado sem saltar lacunas: device=%s seq=%d", device_id, nova_sequencia)
 
 
-def registrar_leitura(dados: dict) -> tuple[str, str | None]:
+def registrar_leitura(
+    dados: dict,
+    *,
+    authenticated_device_id: str | None = None,
+) -> tuple[str, str | None]:
     """
     Persiste uma leitura de telemetria com idempotência composta por (device_id, message_id).
 
@@ -283,6 +287,19 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
     source_protocol_simulado = str(
         dados.get("source_protocol_simulado") or transport
     ).strip()[:80]
+    # A origem é decidida no servidor. Identificadores de simulador legados
+    # indicam simulação; origem física só é marcada quando a credencial HTTP
+    # individual validada pelo permission class corresponde ao dispositivo.
+    simulator_markers = {"sim", "simulador", "simulated", "simulator"}
+    if (
+        source.lower() in simulator_markers
+        or str(dados.get("manufacturer") or "").strip()[:100] == "fieldnode_simulator_v1"
+    ):
+        data_origin = "simulado"
+    elif authenticated_device_id and authenticated_device_id.upper() == device_id.upper():
+        data_origin = "medido"
+    else:
+        data_origin = None
 
     try:
         temporal = resolve_event_time(dados, ingested_at=now())
@@ -353,6 +370,7 @@ def registrar_leitura(dados: dict) -> tuple[str, str | None]:
                     time_provenance=time_provenance,
                     sequence_number=sequence_number,
                     source=source,
+                    data_origin=data_origin,
                     transport=transport,
                     payload_hash=payload_hash,
                     sync_status="sincronizado",

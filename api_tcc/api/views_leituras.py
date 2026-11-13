@@ -97,7 +97,7 @@ class UltimaLeituraView(APIView):
             if maquina:
                 cursor.execute("""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
-                           t1.timestamp, t2.total_leituras,
+                           t1.timestamp, t1.data_origin, t2.total_leituras,
                            t1.machine_id, m_health.external_code,
                            h.trust_score_medio, h.ultima_atualizacao,
                            h.leituras_analisadas, h.sinais_de_alerta
@@ -124,7 +124,7 @@ class UltimaLeituraView(APIView):
             else:
                 cursor.execute("""
                     SELECT t1.maquina_id, t1.temperatura, t1.vibracao, t1.rpm,
-                           t1.timestamp, t3.total_leituras,
+                           t1.timestamp, t1.data_origin, t3.total_leituras,
                            t1.machine_id, m_health.external_code,
                            h.trust_score_medio, h.ultima_atualizacao,
                            h.leituras_analisadas, h.sinais_de_alerta
@@ -192,6 +192,7 @@ class UltimaLeituraView(APIView):
                 vib,
                 rpm,
                 ts,
+                data_origin,
                 total,
                 machine_id,
                 external_code,
@@ -218,6 +219,7 @@ class UltimaLeituraView(APIView):
                 'vibracao':      vib,
                 'rpm':           rpm,
                 'timestamp':     ts,
+                'data_origin':   data_origin,
                 'status_risco':  status_dict,
                 'nivel_risco':   nivel,
                 'total_leituras': total,

@@ -47,7 +47,10 @@ class IngestaoTelemetriaView(APIView):
         return []
 
     def post(self, request):
-        resultado, detalhe = registrar_leitura(request.data)
+        resultado, detalhe = registrar_leitura(
+            request.data,
+            authenticated_device_id=getattr(request, "authenticated_ingestion_device_id", None),
+        )
 
         if resultado == "criado":
             analise = analisar_maquina(request.data.get("maquina_id"))

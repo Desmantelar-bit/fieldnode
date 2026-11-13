@@ -25,3 +25,6 @@ export {
   RelatorioResumoSchema,
   type RelatorioResumo,
 } from './relatorios';
+export { EventoSchema, EventoPageSchema, type Evento, type EventoPage } from './eventos';
+export { DecisaoSchema, DecisaoPageSchema, type Decisao, type DecisaoPage } from './decisoes';
+export { SaudeMaquinaSchema, type SaudeMaquina } from './saude';

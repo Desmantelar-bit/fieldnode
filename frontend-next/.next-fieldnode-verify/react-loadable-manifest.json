@@ -1,0 +1,36 @@
+{
+  "..\\node_modules\\next\\dist\\client\\index.js -> ../pages/_app": {
+    "id": 45139,
+    "files": [
+      "static/chunks/5139.e4ff9cc3669129ed.js"
+    ]
+  },
+  "..\\node_modules\\next\\dist\\client\\index.js -> ../pages/_error": {
+    "id": 31646,
+    "files": [
+      "static/chunks/1646.a93085a0445ba909.js"
+    ]
+  },
+  "app\\mapa\\page.tsx -> @/components/MapaFrota": {
+    "id": 46488,
+    "files": [
+      "static/css/1de76be520b4de19.css",
+      "static/chunks/4879-ec82af2a1974b8f6.js",
+      "static/chunks/6423-adc342ac7e125db1.js",
+      "static/chunks/6488.74489b8d361c3d97.js"
+    ]
+  },
+  "components\\FleetMap.tsx -> @/components/MapClient": {
+    "id": 10492,
+    "files": [
+      "static/css/1de76be520b4de19.css",
+      "static/chunks/492.c7ec1a76511a90e0.js"
+    ]
+  },
+  "components\\MapClient.tsx -> leaflet": {
+    "id": 55027,
+    "files": [
+      "static/chunks/d0deef33.59194872e4111dca.js"
+    ]
+  }
+}

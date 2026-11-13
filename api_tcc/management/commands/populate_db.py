@@ -123,7 +123,8 @@ class Command(BaseCommand):
                 temperatura=round(random.uniform(60.0, 120.0), 1),
                 vibracao=round(random.uniform(0.1, 5.0), 2),
                 rpm=random.randint(800, 2500),
-                timestamp=timezone.now()
+                timestamp=timezone.now(),
+                data_origin='simulado',
             )
 
         self.stdout.write(self.style.SUCCESS('Banco de dados populado com sucesso!'))

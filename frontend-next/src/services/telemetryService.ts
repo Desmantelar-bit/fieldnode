@@ -21,6 +21,7 @@ import {
 import type { z } from 'zod';
 import { CanMotorSchema, type CanMotorResponse } from '@/schemas/canMotor';
 import { EventListSchema, type OperationalEvent } from '@/schemas/events';
+import { getValidated } from '@/services/apiRead';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -161,19 +162,12 @@ export const telemetryService = {
     return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getLatestReadings");
   },
 
-  async getMachineReadings(machineId: string): Promise<Telemetry[]> {
-    const response = await withTimeout((signal) =>
-      fetch(
-        `${resolveApiUrl()}/telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
-        {
-          cache: "no-store",
-          headers: buildRequestHeaders(),
-          signal,
-        },
-      ),
+  async getMachineReadings(machineId: string, signal?: AbortSignal): Promise<Telemetry[]> {
+    return getValidated(
+      `telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
+      ListaLeiturasTelemetriaSchema,
+      signal,
     );
-    const data = await handleResponse(response, "getMachineReadings:");
-    return validateApiContract(ListaLeiturasTelemetriaSchema, data, "getMachineReadings");
   },
 
   async getMotorCAN(machineId: string): Promise<CanMotorResponse> {

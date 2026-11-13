@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/colheitadeiras/layout,_N_T_/colheitadeiras/page,_N_T_/colheitadeiras"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/93a6e6d4dd1f87b14ad698049517ea5a4b3b2bd0f3146cc3f5567e29d4d9a635/$/colheitadeiras",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/colheitadeiras/page"
+    },
+    "isFallback": false
+  }
+}

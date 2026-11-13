@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/maquinas/layout,_N_T_/maquinas/page,_N_T_/maquinas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/4ae0b9971495aa323f2859b43158a306b76a638af2de44f799ae64f5f217ed1f/$/maquinas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/maquinas/page"
+    },
+    "isFallback": false
+  }
+}

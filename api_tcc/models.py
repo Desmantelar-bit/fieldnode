@@ -251,6 +251,13 @@ class LeituraTelemetria(models.Model):
         verbose_name='Fonte',
         help_text='Origem da telemetria: api, simulador, mqtt, gateway.',
     )
+    data_origin = models.CharField(
+        max_length=12,
+        choices=[(value, value) for value in ("medido", "simulado", "calculado", "estimado")],
+        null=True,
+        blank=True,
+        help_text="Proveniência conhecida pela API; nulo indica histórico ou origem ainda não comprovada.",
+    )
     transport = models.CharField(
         max_length=50,
         default='http',

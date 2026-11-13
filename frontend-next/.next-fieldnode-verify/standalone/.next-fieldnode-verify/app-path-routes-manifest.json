@@ -1,0 +1,17 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/favicon.ico/route": "/favicon.ico",
+  "/api/[...path]/route": "/api/[...path]",
+  "/colheitadeiras/page": "/colheitadeiras",
+  "/mapa/page": "/mapa",
+  "/login/page": "/login",
+  "/motor/[maquinaId]/page": "/motor/[maquinaId]",
+  "/detalhes/page": "/detalhes",
+  "/page": "/",
+  "/operarios/page": "/operarios",
+  "/register/page": "/register",
+  "/dashboard/page": "/dashboard",
+  "/maquinas/[id]/prescricao/page": "/maquinas/[id]/prescricao",
+  "/maquinas/page": "/maquinas",
+  "/relatorios/page": "/relatorios"
+}

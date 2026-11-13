@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/mapa/layout,_N_T_/mapa/page,_N_T_/mapa"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/f6ae95dd0a4e769219951403465afe72d04474ae9e19763bed268cb7e11307e1/$/mapa",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/mapa/page"
+    },
+    "isFallback": false
+  }
+}

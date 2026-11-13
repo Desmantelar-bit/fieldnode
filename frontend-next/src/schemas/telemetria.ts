@@ -60,6 +60,11 @@ export const LeituraTelemetriaSchema = z.preprocess(
   },
   LeituraTelemetriaInputSchema.extend({
     id: z.string().optional(),
+    timestamp: z.string().datetime({ offset: true }).nullable(),
+    event_time: z.string().nullable().optional(),
+    ingested_at: z.string().optional(),
+    data_origin: z.enum(['medido', 'simulado', 'calculado', 'estimado']).nullable().optional(),
+    source: z.string().optional(),
     status_risco: StatusRiscoSchema.optional(),
     nivel_risco: z.string().optional(),
     total_leituras: z.coerce.number().optional(),

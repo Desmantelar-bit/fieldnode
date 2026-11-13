@@ -27,7 +27,13 @@ export function HistoryChart({
   tone: ChartTone;
 }) {
   const points = readings.map((r) => Number(r[field])).reverse();
-  const pointLabels = readings.map((reading) => new Date(reading.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).reverse();
+  const pointLabels = readings.map((reading) => {
+    if (!reading.timestamp) return 'hora do evento indisponível';
+    const eventTime = new Date(reading.timestamp);
+    return Number.isNaN(eventTime.getTime())
+      ? 'hora do evento inválida'
+      : eventTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }).reverse();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   // O SVG é desenhado 1:1 em pixels: assim rótulos, pontos e linhas ficam no

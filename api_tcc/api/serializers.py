@@ -310,6 +310,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "trust_factors",
             # Metadados de origem/transporte (S1-T5)
             "source",
+            "data_origin",
             "transport",
             "sync_status",
             # Risco calculado
@@ -324,6 +325,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'trust_score':    {'read_only': True},
             'trust_factors':  {'read_only': True},
             'source':         {'read_only': True},
+            'data_origin':    {'read_only': True},
             'transport':      {'read_only': True},
             'sync_status':    {'read_only': True},
         }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, LoaderCircle } from 'lucide-react';
 import {
   Area,
@@ -14,6 +14,10 @@ import {
 import { MetricTrendChart } from '@/components/MetricTrendChart';
 import { SparklineCard } from '@/components/SparklineCard';
 import { telemetryService } from '@/services/telemetryService';
+import { DataStateBoundary, type DataState } from '@/components/DataStateBoundary';
+import { SimulatedBadge } from '@/components/SimulatedBadge';
+import { usePolling } from '@/lib/usePolling';
+import { ApiReadError } from '@/services/apiRead';
 import {
   METRIC_META,
   METRIC_ORDER,
@@ -23,7 +27,6 @@ import {
   type MetricStatus,
 } from '@/lib/metrics';
 import type { Machine, Telemetry } from '@/types/telemetry';
-import { mockRpmSeries, mockTemperaturaSeries, mockVibracaoSeries } from '@/data/mockData';
 
 /* ──────────────────────────────────────────────────────────────────────────
    DashboardMachineData — o bloco de telemetria do dashboard.
@@ -35,12 +38,6 @@ import { mockRpmSeries, mockTemperaturaSeries, mockVibracaoSeries } from '@/data
    aqui: veio de `@/lib/metrics`, para os três gráficos do app usarem a mesma
    classificação e não existirem duas verdades sobre "o que é uma leitura boa".
    ────────────────────────────────────────────────────────────────────────── */
-
-const DEMO_SERIES: Record<string, { valor: number; label: string }[]> = {
-  rpm: mockRpmSeries,
-  temperatura: mockTemperaturaSeries,
-  vibracao: mockVibracaoSeries,
-};
 
 /** Constrói série temporal de "score operacional" para o AreaChart.
  *  Cada ponto = uma leitura. O valor é 0 (crítico), 50 (atenção) ou 100 (normal),
@@ -301,60 +298,35 @@ export function DashboardMachineData({
 }) {
   const options = machines.filter((machine) => Boolean(machine.maquina_id));
   const [selectedMachineId, setSelectedMachineId] = useState(options[0]?.maquina_id ?? '');
-  const [readings, setReadings] = useState(() =>
-    initialReadings.filter((reading) => reading.maquina_id === options[0]?.maquina_id),
+  const fetchReadings = useCallback(
+    (signal: AbortSignal) => telemetryService.getMachineReadings(selectedMachineId, signal),
+    [selectedMachineId],
   );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedMachineId) {
-      setReadings([]);
-      return;
-    }
-
-    // A leitura mais recente já chega pronta do servidor e entra como estado
-    // imediato, para o número aparecer sem espera. A JANELA COMPLETA vem em
-    // seguida porque o gráfico de tendência precisa da série inteira — com uma
-    // leitura só ele viraria um ponto solto num eixo vazio.
-    const initial = initialReadings.filter((reading) => reading.maquina_id === selectedMachineId);
-    setReadings(initial);
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    const refreshReadings = () => {
-      telemetryService
-        .getMachineReadings(selectedMachineId)
-        .then((data) => {
-          if (!cancelled) {
-            setReadings(data);
-            setError(null);
-          }
-        })
-        .catch((err: unknown) => {
-          // Mantém a última série visível durante uma falha temporária da API.
-          if (!cancelled && initial.length === 0) {
-            setError(err instanceof Error ? err.message : 'Falha ao carregar a máquina.');
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    };
-
-    refreshReadings();
-    const interval = window.setInterval(refreshReadings, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [initialReadings, selectedMachineId]);
+  const polling = usePolling(fetchReadings, 5000, Boolean(selectedMachineId));
+  const initial = initialReadings.filter((reading) => reading.maquina_id === selectedMachineId);
+  const readings = polling.data ?? initial;
+  const error = polling.error;
+  const offline = error instanceof ApiReadError && error.kind === 'network'
+    && typeof navigator !== 'undefined' && !navigator.onLine;
 
   const machine = options.find((item) => item.maquina_id === selectedMachineId);
   const hasReadings = readings.length > 0;
+  const isSimulated = readings.some((reading) => reading.data_origin === 'simulado');
+  const originCounts = useMemo(() => {
+    const counts = { medido: 0, simulado: 0, calculado: 0, estimado: 0, nao_verificado: 0 };
+    for (const reading of readings) {
+      const origin = reading.data_origin;
+      if (origin) counts[origin] += 1;
+      else counts.nao_verificado += 1;
+    }
+    return counts;
+  }, [readings]);
+  const dataState: DataState = polling.loading && !hasReadings ? 'loading'
+    : offline && !hasReadings ? 'offline'
+    : error instanceof ApiReadError && error.kind === 'invalido' && !hasReadings ? 'invalido'
+    : error && !hasReadings ? 'erro'
+    : hasReadings ? 'ok'
+    : 'sem_historico';
 
   /** Um KPI por métrica, já com série ordenada, média e status resolvidos. */
   const kpis = useMemo(
@@ -363,14 +335,13 @@ export function DashboardMachineData({
         const points = buildPoints(readings, metric);
         const summary = summarize(points);
         const meta = METRIC_META[metric];
-        const demo = !hasReadings;
-        const dados = demo ? DEMO_SERIES[metric] : points.map((point) => ({ valor: point.valor, label: point.label }));
-        const valor = demo ? summary.avg : summary.avg;
+        const dados = points.map((point) => ({ valor: point.valor, label: point.label }));
+        const valor = summary.avg;
         const status: MetricStatus = statusOf(valor, metric);
 
-        return { metric, meta, dados, valor, status, demo };
+        return { metric, meta, dados, valor, status };
       }),
-    [readings, hasReadings],
+    [readings],
   );
 
   return (
@@ -384,7 +355,7 @@ export function DashboardMachineData({
               {machine?.maquina_id ?? 'Nenhuma máquina disponível'}
             </p>
           </div>
-          {loading ? (
+          {polling.loading ? (
             <LoaderCircle
               size={15}
               className="animate-spin text-[color:var(--ui-accent)]"
@@ -413,12 +384,9 @@ export function DashboardMachineData({
         </label>
       </div>
 
-      {error ? (
-        <p className="rounded-xl border border-[color:var(--status-critico)]/30 bg-[color:var(--status-critico)]/10 p-3 text-xs text-[var(--text-2)]">
-          {error}
-        </p>
-      ) : null}
+      {error && hasReadings ? <p role="status" className="text-xs text-[var(--text-3)]">A atualização falhou. Exibindo o último dado conhecido; o intervalo esperado desta máquina não está disponível para classificar a idade automaticamente.</p> : null}
 
+      <DataStateBoundary state={dataState} simulated={isSimulated} onRetry={polling.refresh}>
       {/* Gráfico principal de telemetria */}
       <MetricTrendChart key={`trend-${selectedMachineId}`} readings={readings} initialMetric="rpm" />
 
@@ -433,20 +401,27 @@ export function DashboardMachineData({
             <p className="kpi-group__sub">
               {hasReadings
                 ? `Média de ${readings.length} leituras de ${machine?.maquina_id ?? '—'}`
-                : 'Sem leitura registrada — série demonstrativa'}
+                : 'Sem leitura registrada'}
             </p>
+            {hasReadings && (
+              <p className="mt-1 text-[10px] text-[var(--text-3)]" aria-label="Origem das leituras usadas nos gráficos">
+                Origem no período: {([
+                  ['medido', 'medido'], ['simulado', 'simulado'], ['calculado', 'calculado'],
+                  ['estimado', 'estimado'], ['nao_verificado', 'não verificado'],
+                ] as const).filter(([key]) => originCounts[key] > 0)
+                  .map(([key, label]) => `${label}: ${originCounts[key]}`).join(' · ')}
+              </p>
+            )}
           </div>
-          {kpis.some((kpi) => kpi.demo) ? (
-            <span className="kpi-group__badge">demonstrativo</span>
-          ) : null}
+          {isSimulated ? <SimulatedBadge /> : null}
         </div>
 
         <div className="kpi-group__grid">
-          {kpis.map(({ metric, meta, dados, valor, status, demo }) => (
+          {kpis.map(({ metric, meta, dados, valor, status }) => (
             <SparklineCard
               key={`${selectedMachineId}-${metric}`}
               titulo={meta.label}
-              valor={demo ? valor : (meta.digits === 0 ? Math.round(valor) : valor.toFixed(meta.digits))}
+              valor={hasReadings ? (meta.digits === 0 ? Math.round(valor) : valor.toFixed(meta.digits)) : '—'}
               unidade={meta.unit}
               dados={dados}
               status={status}
@@ -462,6 +437,7 @@ export function DashboardMachineData({
         <OperationalHealthChart readings={readings} />
         <OperationTimeCard />
       </div>
+      </DataStateBoundary>
     </section>
   );
 }
