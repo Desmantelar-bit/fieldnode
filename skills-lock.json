@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "work-with-kombai": {
+      "source": "kombai-io/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/work-with-kombai/SKILL.md",
+      "computedHash": "2d22cc85606772a6a24bc6962f8a819993634554b2be74cd56853bdd8f2b0e73"
+    }
+  }
+}
