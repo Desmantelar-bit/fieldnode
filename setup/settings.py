@@ -47,7 +47,13 @@ if len(set(FIELDNODE_DEVICE_API_KEYS.values())) != len(FIELDNODE_DEVICE_API_KEYS
     raise ValueError("FIELDNODE_DEVICE_API_KEYS não pode reutilizar a mesma chave em dispositivos diferentes")
 DEMO_MODE = env_config("DEMO_MODE", default=False, cast=bool)
 REGISTRATION_ENABLED = env_config("REGISTRATION_ENABLED", default=False, cast=bool)
-SWAGGER_ENABLED = bool(DEBUG and env_config("SWAGGER_ENABLED", default=True, cast=bool))
+# False protege a documentação com IsAdminUser; fora de DEBUG a proteção é
+# obrigatória mesmo que a variável seja explicitamente True.
+SWAGGER_ENABLED = env_config("SWAGGER_ENABLED", default=DEBUG, cast=bool)
+FIELDNODE_FRONTEND_URL = env_config(
+    "FIELDNODE_FRONTEND_URL",
+    default="http://localhost:3000" if DEBUG else "/api/health/",
+)
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
 
@@ -262,6 +268,9 @@ LOGGING = {
         'correlation': {
             '()': 'api_tcc.correlation.CorrelationFilter',
         },
+        'redact_secrets': {
+            '()': 'api_tcc.middleware.RedactSecretsFilter',
+        },
     },
     'formatters': {
         # S7-T3: JSON estruturado — uma linha por evento, UTF-8 legível
@@ -283,14 +292,14 @@ LOGGING = {
             'filename': BASE_DIR / 'fieldnode.log',
             # S7-T3: JSON estruturado no arquivo de log
             'formatter': 'json',
-            'filters': ['correlation'],
+            'filters': ['correlation', 'redact_secrets'],
         },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             # S7-T3: JSON estruturado no stdout (compatível com Docker)
             'formatter': 'json',
-            'filters': ['correlation'],
+            'filters': ['correlation', 'redact_secrets'],
         },
     },
     'loggers': {

@@ -85,6 +85,7 @@ class AgenticDecisionCommandTest(TestCase):
         post.assert_called_once()
         self.assertEqual(post.call_args.args[0], agentic.GEMINI_URL)
         self.assertEqual(post.call_args.kwargs["headers"]["x-goog-api-key"], "test-key")
+        self.assertEqual(post.call_args.kwargs["timeout"], 2.0)
         self.assertNotIn("key=", post.call_args.args[0])
 
     @override_settings(GEMINI_API_KEY="test-key")

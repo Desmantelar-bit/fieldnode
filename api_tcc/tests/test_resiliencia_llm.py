@@ -8,7 +8,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
 import requests
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.core.cache import cache
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 
@@ -33,6 +34,7 @@ class _RespostaLentaHandler(BaseHTTPRequestHandler):
         pass
 
 
+@override_settings(GEMINI_API_KEY="test-gemini-key")
 class ResilienciaLLMTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="llm-teste")
@@ -49,6 +51,8 @@ class ResilienciaLLMTestCase(TestCase):
         # O breaker é global em memória; cada cenário deve começar isolado.
         explicacao_llm._falhas_consecutivas = 0
         explicacao_llm._ultima_falha_ts = 0
+        explicacao_llm._tentativa_half_open = False
+        cache.clear()
         self.resultado_teste = ResultadoAnalise(
             maquina_id="maquina-teste-01",
             status="CRITICO",
@@ -87,6 +91,23 @@ class ResilienciaLLMTestCase(TestCase):
         self.assertEqual(mock_post.call_count, chamadas_antes)
         self.assertTrue(explicacao_llm._circuito_aberto())
         self.assertEqual(explicacao_llm.JANELA_DEGRADADA_SEGUNDOS, 120)
+
+    @patch("api_tcc.ia.explicacao_llm.requests.post")
+    def test_half_open_permite_uma_tentativa_e_fecha_apos_sucesso(self, mock_post):
+        mock_response = type("Response", (), {
+            "raise_for_status": lambda self: None,
+            "json": lambda self: {"candidates": [{"content": {"parts": [{"text": "Recuperado."}]}}]},
+        })()
+        mock_post.return_value = mock_response
+        explicacao_llm._falhas_consecutivas = explicacao_llm.LIMITE_FALHAS
+        explicacao_llm._ultima_falha_ts = time.time() - explicacao_llm.JANELA_DEGRADADA_SEGUNDOS - 1
+
+        resposta = explicacao_llm.gerar_explicacao_natural(self.resultado_teste)
+
+        self.assertEqual(resposta["fonte"], "ia_generativa")
+        mock_post.assert_called_once()
+        self.assertEqual(explicacao_llm._falhas_consecutivas, 0)
+        self.assertFalse(explicacao_llm._tentativa_half_open)
 
     def test_resposta_lenta_e_interrompida_pelo_timeout(self):
         """Um servidor local que responde em 5 s é abandonado pelo timeout de 2 s."""
@@ -127,6 +148,39 @@ class ResilienciaLLMTestCase(TestCase):
         self.assertEqual(resposta["fonte"], "determinístico")
         self.assertIn("parâmetros esperados", resposta["texto"])
         mock_post.assert_not_called()
+
+    @patch("api_tcc.ia.explicacao_llm.requests.post")
+    def test_chave_em_header_url_limpa_e_cache_por_decision(self, mock_post):
+        mock_response = type("Response", (), {
+            "raise_for_status": lambda self: None,
+            "json": lambda self: {"candidates": [{"content": {"parts": [{"text": "Explicação segura."}]}}]},
+        })()
+        mock_post.return_value = mock_response
+
+        first = explicacao_llm.gerar_explicacao_natural(self.resultado_teste, decision_id="decision-1")
+        second = explicacao_llm.gerar_explicacao_natural(self.resultado_teste, decision_id="decision-1")
+        other = explicacao_llm.gerar_explicacao_natural(self.resultado_teste, decision_id="decision-2")
+
+        self.assertEqual(first, second)
+        self.assertEqual(other["texto"], "Explicação segura.")
+        self.assertEqual(mock_post.call_count, 2)
+        self.assertNotIn("key=", mock_post.call_args.args[0])
+        self.assertEqual(mock_post.call_args.kwargs["headers"]["x-goog-api-key"], "test-gemini-key")
+        self.assertEqual(mock_post.call_args.kwargs["timeout"], 2.0)
+
+    def test_filtro_redige_msg_args_e_excecao(self):
+        import logging
+        from api_tcc.middleware import RedactSecretsFilter
+
+        record = logging.LogRecord(
+            "test", logging.ERROR, __file__, 1,
+            "request %s", ("https://host/path?key=gemini-secret-test",),
+            (RuntimeError("x-goog-api-key: gemini-secret-test"), None, None),
+        )
+        RedactSecretsFilter().filter(record)
+        rendered = record.getMessage() + " " + str(record.exc_text)
+        self.assertNotIn("gemini-secret-test", rendered)
+        self.assertIn("[REDACTED]", rendered)
 
     @patch("api_tcc.api.views_prescricao.gerar_explicacao_natural")
     @patch("api_tcc.api.views_prescricao.analisar_maquina")

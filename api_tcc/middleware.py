@@ -25,6 +25,7 @@ Uso:
 """
 
 import logging
+import re
 
 from api_tcc.correlation import (
     _sanitize_external_id,
@@ -37,6 +38,48 @@ logger = logging.getLogger(__name__)
 
 _HEADER_IN = "HTTP_X_CORRELATION_ID"   # Django transforma X-Correlation-ID → HTTP_X_CORRELATION_ID
 _HEADER_OUT = "X-Correlation-ID"
+
+_SECRET_PATTERNS = (
+    re.compile(r"(?i)(x-goog-api-key\s*[:=]\s*)([^\s,;]+)"),
+    re.compile(r"(?i)([?&]key=)([^&#\s]+)"),
+    re.compile(r"(?i)(\bkey=)([^&#\s]+)"),
+)
+
+
+def _redact(value):
+    if isinstance(value, str):
+        for pattern in _SECRET_PATTERNS:
+            value = pattern.sub(r"\1[REDACTED]", value)
+        return value
+    if isinstance(value, tuple):
+        return tuple(_redact(item) for item in value)
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    if isinstance(value, dict):
+        return {_redact(key): _redact(item) for key, item in value.items()}
+    return value
+
+
+class RedactSecretsFilter(logging.Filter):
+    """Redige chaves Gemini e parâmetros key= dos registros antes dos handlers."""
+
+    def filter(self, record):
+        try:
+            record.msg = _redact(record.getMessage())
+            record.args = ()
+        except Exception:
+            # Falha fechada: não renderizar argumentos potencialmente sensíveis.
+            record.msg = "[REDACTED: log message formatting failed]"
+            record.args = ()
+        if record.exc_info:
+            try:
+                record.exc_text = _redact(logging.Formatter().formatException(record.exc_info))
+            except Exception:
+                record.exc_text = "[REDACTED: exception formatting failed]"
+            record.exc_info = None
+        elif record.exc_text:
+            record.exc_text = _redact(record.exc_text)
+        return True
 
 
 class CorrelationIDMiddleware:

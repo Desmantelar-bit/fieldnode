@@ -120,7 +120,7 @@ class PrescricaoView(APIView):
                 metodologia = "agentic_llm_poc"
                 recomendacao = decision.texto
             else:
-                explicacao = gerar_explicacao_natural(resultado)
+                explicacao = gerar_explicacao_natural(resultado, decision_id=decision_id)
                 metodologia = resultado.metodologia
                 recomendacao = resultado.recomendacao
         else:

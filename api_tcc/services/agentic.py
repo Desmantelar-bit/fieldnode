@@ -94,14 +94,14 @@ def chamar_gemini(prompt: str) -> dict[str, Any]:
     try:
         response = requests.post(
             GEMINI_URL,
-            headers={"x-goog-api-key": api_key},
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
             json={"contents": [{"parts": [{"text": prompt}]}]},
-            timeout=10.0,
+            timeout=2.0,
         )
         response.raise_for_status()
         return validar_saida(extrair_texto_gemini(response.json()))
     except requests.RequestException as exc:
-        raise AgenticOutputError(f"falha na chamada Gemini: {type(exc).__name__}") from exc
+        raise AgenticOutputError(f"falha na chamada Gemini: {type(exc).__name__}") from None
 
 
 def candidatos_agenticos(*, horas: int = 24, limite_eventos: int = 5, machine_id: str | None = None):
