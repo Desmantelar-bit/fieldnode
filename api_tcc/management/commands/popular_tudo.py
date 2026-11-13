@@ -71,18 +71,28 @@ class Command(BaseCommand):
         status_ativos = []
         for i in range(NUM_MAQUINAS):
             ativo = i < 7
-            status_ativos.append(StatusdeOperacao.objects.get_or_create(
-                em_operacao=ativo,
-                tempo_de_operacao=round(random.uniform(120, 1800), 1) if ativo else round(random.uniform(0, 120), 1),
-            )[0])
+            # Usa filter+first para evitar MultipleObjectsReturned com duplicatas.
+            existing_status = StatusdeOperacao.objects.filter(em_operacao=ativo).first()
+            if existing_status is None:
+                existing_status = StatusdeOperacao.objects.create(
+                    em_operacao=ativo,
+                    tempo_de_operacao=round(random.uniform(120, 1800), 1) if ativo else round(random.uniform(0, 120), 1),
+                )
+            status_ativos.append(existing_status)
 
         movimentos = []
         for i in range(NUM_MAQUINAS):
             mov = i < 5
-            movimentos.append(EstadodeMovimento.objects.get_or_create(
-                em_movimento=mov,
-                velocidade=round(random.uniform(4.5, 8.2), 1) if mov else 0.0,
-            )[0])
+            # Usa filter+first para evitar MultipleObjectsReturned quando há
+            # registros duplicados (velocidades distintas) com mesmo em_movimento.
+            # Se não existir nenhum, cria um novo.
+            existing = EstadodeMovimento.objects.filter(em_movimento=mov).first()
+            if existing is None:
+                existing = EstadodeMovimento.objects.create(
+                    em_movimento=mov,
+                    velocidade=round(random.uniform(4.5, 8.2), 1) if mov else 0.0,
+                )
+            movimentos.append(existing)
 
         nomes_operarios = [
             'Carlos Silva', 'Ana Santos', 'Bruno Costa', 'Mariana Oliveira',
