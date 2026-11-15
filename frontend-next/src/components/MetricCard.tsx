@@ -17,11 +17,13 @@ export function MetricCard({
   value,
   helper,
   tone = 'slate',
+  tooltip,
 }: {
   label: string;
   value: ReactNode;
   helper?: string;
   tone?: keyof typeof toneValueClass;
+  tooltip?: string;
 }) {
   return (
     /* Conteúdo CENTRADO e altura mínima comum: numa linha de três ou quatro
@@ -34,9 +36,7 @@ export function MetricCard({
       aria-label={label}
       className={`metric-card metric-card--${tone} flex min-h-[8.75rem] flex-col items-center justify-center text-center`}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">
-        {label}
-      </p>
+      <div className="flex items-center gap-1.5"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-3)]">{label}</p>{tooltip ? <span tabIndex={0} title={tooltip} aria-label={tooltip} className="cursor-help text-[var(--text-3)]">?</span> : null}</div>
       <div className={`stat-value mt-3 text-3xl font-bold sm:text-4xl ${toneValueClass[tone]}`}>
         {value}
       </div>

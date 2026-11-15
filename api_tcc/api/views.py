@@ -2,9 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from api_tcc.models import Prescricao
 from api_tcc.services.relatorios import gerar_relatorio_csv, gerar_relatorio_completo, preparar_dados_relatorio
-from api_tcc.services.prescricao import analisar_telemetria_e_gerar_prescricoes
 from datetime import datetime
 import logging
 

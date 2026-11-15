@@ -1,4 +1,4 @@
-import contract from '../../../contracts/attention.v1.json';
+import contract from '../contracts/attention.v1.json';
 
 export type PriorityBand = 'P1' | 'P2' | 'P3';
 

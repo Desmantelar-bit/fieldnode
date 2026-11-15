@@ -57,9 +57,9 @@ export default function HarvestersPage() {
       ) : (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <MetricCard label="Monitoradas" value={readings.length} helper="com leitura recente" />
-            <MetricCard label="Alertas" value={critical + warning} helper={`${critical} criticos, ${warning} em atencao`} tone={critical ? 'red' : warning ? 'amber' : 'emerald'} />
-            <MetricCard label="Temp media" value={`${averageTemp.toFixed(1)}C`} helper="entre leituras recentes" tone="amber" />
+            <MetricCard label="Monitoradas" value={readings.length} helper="com leitura recente" tooltip="Quantidade de máquinas com leitura retornada pela API nesta consulta." />
+            <MetricCard label="Alertas" value={critical + warning} helper={`${critical} criticos, ${warning} em atencao`} tone={critical ? 'red' : warning ? 'amber' : 'emerald'} tooltip="Leituras classificadas como atenção ou crítico pelas regras oficiais de telemetria." />
+            <MetricCard label="Temp media" value={`${averageTemp.toFixed(1)}C`} helper="entre leituras recentes" tone="amber" tooltip="Média das temperaturas retornadas. Atenção a partir de 75 °C e crítico a partir de 85 °C; limiares heurísticos de bancada." />
           </section>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

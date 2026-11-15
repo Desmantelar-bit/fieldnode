@@ -6,6 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "contracts" / "severity.v1.json"
 TARGET = ROOT / "frontend-next/src/lib/metricThresholds.ts"
+ATTENTION_SOURCE = ROOT / "contracts" / "attention.v1.json"
+ATTENTION_TARGET = ROOT / "frontend-next" / "src" / "contracts" / "attention.v1.json"
 
 
 def load_contract():
@@ -63,9 +65,14 @@ def main():
     if args.check:
         if not TARGET.exists() or TARGET.read_text(encoding="utf-8") != expected:
             raise SystemExit(f"artefato desatualizado: {TARGET.relative_to(ROOT)}")
+        if ATTENTION_SOURCE.exists() and (not ATTENTION_TARGET.exists() or ATTENTION_TARGET.read_text(encoding="utf-8") != ATTENTION_SOURCE.read_text(encoding="utf-8")):
+            raise SystemExit(f"artefato desatualizado: {ATTENTION_TARGET.relative_to(ROOT)}")
         print(f"verificado: {TARGET.relative_to(ROOT)}")
     else:
         TARGET.write_text(expected, encoding="utf-8")
+        if ATTENTION_SOURCE.exists():
+            ATTENTION_TARGET.parent.mkdir(parents=True, exist_ok=True)
+            ATTENTION_TARGET.write_text(ATTENTION_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
         print(f"gerado: {TARGET.relative_to(ROOT)}")
 
 

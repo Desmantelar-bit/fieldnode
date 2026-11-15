@@ -1,0 +1,17 @@
+.global-search-trigger { border-color: var(--line); background: var(--panel-glass-mid); color: var(--text-2); }
+.global-search-trigger:hover { background: var(--panel-glass-strong); color: var(--text-1); }
+.global-search-dialog { background: var(--surface-card-solid); border-color: var(--border-highlight); color: var(--text-1); }
+.global-search-dialog kbd { border-color: var(--line); color: var(--text-3); }
+.heat-grid-panel { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-card); padding: 1.25rem; }
+.heat-grid { display: grid; gap: 4px; min-width: max-content; }
+.heat-grid-corner, .heat-grid-hour, .heat-grid-machine { padding: 0.55rem 0.65rem; font-size: 0.68rem; font-weight: 700; color: var(--text-3); }
+.heat-grid-hour { text-align: center; writing-mode: vertical-rl; transform: rotate(180deg); min-height: 4.6rem; }
+.heat-grid-machine { display: flex; align-items: center; border-right: 1px solid var(--line); color: var(--text-1); }
+.heat-cell { min-height: 3rem; min-width: 3.2rem; border-radius: 0.55rem; border: 1px solid color-mix(in srgb, var(--text-1) 12%, transparent); display: flex; align-items: center; justify-content: center; color: var(--brand-on-accent); }
+.heat-cell--normal { background: color-mix(in srgb, var(--status-normal) 64%, var(--surface-card)); }
+.heat-cell--attention { background: color-mix(in srgb, var(--status-atencao) 78%, var(--surface-card)); }
+.heat-cell--critical { background: color-mix(in srgb, var(--status-critico) 78%, var(--surface-card)); }
+.heat-cell--empty { background: var(--panel-glass-mid); border-style: dashed; color: var(--text-3); }
+.heat-cell--quality { outline: 2px dotted var(--text-1); outline-offset: -4px; }
+.heat-legend { display: inline-block; width: 0.75rem; height: 0.75rem; margin-right: 0.3rem; border-radius: 0.2rem; vertical-align: -0.1rem; }
+@media (max-width: 640px) { .heat-grid-panel { padding: 1rem; } .heat-grid-hour { min-height: 3.8rem; } }

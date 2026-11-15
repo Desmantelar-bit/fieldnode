@@ -32,7 +32,7 @@ from api_tcc.models import (
     Operario,
     StatusdeOperacao,
     EstadodeMovimento,
-    Prescricao,
+    Decision,
     Machine,
     Membership,
     Organization,
@@ -325,11 +325,15 @@ class EndpointIngestaoTest(TestCase):
     def test_lista_prescricoes_retorna_historico(self):
         maquina_id = "COLH-TEST-01"
         colheitadeira = _criar_maquina_teste(maquina_id)
-        Prescricao.objects.create(
-            colheitadeira=colheitadeira,
-            titulo="Teste histórico",
-            descricao="Descrição de teste",
-            status="pendente",
+        machine, _ = Machine.objects.get_or_create(
+            external_code=maquina_id,
+            defaults={"colheitadeira": colheitadeira},
+        )
+        Decision.objects.create(
+            machine=machine,
+            texto="Descrição de teste",
+            acao_recomendada="Teste histórico",
+            severidade="ATENCAO",
         )
 
         response = self.client.get(f"/api/prescricoes/lista/?maquina_id={maquina_id}")

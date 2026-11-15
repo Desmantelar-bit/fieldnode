@@ -12,6 +12,7 @@ import { DashboardMachineData } from "@/components/DashboardMachineData";
 import { FieldNodeLogo } from "@/components/FieldNodeLogo";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { AttentionStrip } from "@/components/AttentionStrip";
+import { HeatGrid } from "@/components/HeatGrid";
 
 type FleetStatus = Awaited<ReturnType<typeof telemetryService.getFleetStatus>>;
 type TelemetryReadings = Awaited<ReturnType<typeof telemetryService.getLatestReadings>>;
@@ -109,6 +110,7 @@ export default function DashboardPage() {
     >
       <div className="space-y-6">
         <AttentionStrip />
+        <HeatGrid />
         <DashboardMachineData machines={machines} initialReadings={readings} />
 
         <section aria-label="Resumo da frota">

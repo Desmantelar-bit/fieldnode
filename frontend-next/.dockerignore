@@ -1,4 +1,5 @@
 node_modules/
 .next/
+.next-fieldnode-verify/
 .git/
 .env*.local

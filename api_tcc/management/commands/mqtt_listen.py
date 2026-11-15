@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # sem hardcoding de localhost. Valores padrão preservam comportamento local.
 BROKER_HOST = os.environ.get('MQTT_BROKER', 'localhost')
 BROKER_PORT = int(os.environ.get('MQTT_PORT', '1883'))
-TOPICOS = (('fieldnode/+/telemetria', 1), ('fieldnode/+/status', 1))
+TOPICOS = [('fieldnode/+/telemetria', 1), ('fieldnode/+/status', 1)]
 DEVICE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 
 

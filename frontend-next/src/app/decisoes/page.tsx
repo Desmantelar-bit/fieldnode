@@ -28,7 +28,10 @@ export default function DecisoesPage() {
     try {
       const result = await decisionService.list({ page_size: 100 });
       setItems(result.results);
-      setSelected((current) => current ? result.results.find((d) => d.id === current.id) ?? null : null);
+      const requestedId = new URLSearchParams(window.location.search).get('decision');
+      const requested = requestedId ? result.results.find((d) => d.id === requestedId) : undefined;
+      setSelected((current) => requested ?? (current ? result.results.find((d) => d.id === current.id) ?? null : null));
+      if (requested) setOutcome(requested.outcome_texto ?? '');
       setError('');
     } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao carregar decisões.'); }
     finally { setLoading(false); }
@@ -76,17 +79,17 @@ export default function DecisoesPage() {
             <span className="mt-1 block line-clamp-2 text-sm text-[var(--text-2)]">{decision.texto}</span>
           </button>)}
         </section>
-        <section aria-label="Detalhe da decisão" className="liquid-glass min-w-0 p-5">
+        <section data-testid="decision-detail" aria-label="Detalhe da decisão" className="liquid-glass min-w-0 p-5">
           {!selected ? <p className="py-12 text-center text-sm text-[var(--text-3)]">Selecione uma recomendação para consultar evidências e ações.</p> : <>
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="section-heading">{selected.machine_external_code} · {selected.severidade}</p><h2 className="mt-1 text-lg font-semibold text-[var(--text-1)]">{selected.texto}</h2></div><span className="status-pill px-3 py-1.5 text-xs">{statusLabel[selected.status]}</span></div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="section-heading">{selected.machine_external_code} · {selected.severidade}</p><h2 className="mt-1 text-lg font-semibold text-[var(--text-1)]">{selected.texto}</h2></div><span data-testid="decision-status" className="status-pill px-3 py-1.5 text-xs">{statusLabel[selected.status]}</span></div>
             <p className="mt-4 text-sm leading-relaxed text-[var(--text-2)]"><strong className="text-[var(--text-1)]">Ação recomendada:</strong> {selected.acao_recomendada}</p>
             <div className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-2)]">Evidência observada</h3>
               {selected.evidencia?.leitura ? <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[var(--text-3)]">Temperatura</dt><dd>{selected.evidencia.leitura.temperatura} °C</dd></div><div><dt className="text-xs text-[var(--text-3)]">Vibração</dt><dd>{selected.evidencia.leitura.vibracao}</dd></div><div><dt className="text-xs text-[var(--text-3)]">RPM</dt><dd>{selected.evidencia.leitura.rpm}</dd></div><div><dt className="text-xs text-[var(--text-3)]">Qualidade</dt><dd>{selected.evidencia.evento.evidence_quality}{selected.evidencia.evento.needs_verification ? ' · requer verificação' : ''}</dd></div><div className="col-span-2"><dt className="text-xs text-[var(--text-3)]">Event time / origem</dt><dd>{selected.evidencia.leitura.event_time ? new Date(selected.evidencia.leitura.event_time).toLocaleString('pt-BR') : 'Horário indisponível'} · {selected.evidencia.leitura.time_source}</dd></div></dl> : <p className="mt-2 text-sm text-[var(--text-3)]">Evidência de leitura não vinculada a esta recomendação.</p>}
             </div>
-            <label className="mt-4 block text-xs font-semibold text-[var(--text-2)]">Resultado informado pelo operador<textarea value={outcome} onChange={(e) => setOutcome(e.target.value)} maxLength={5000} rows={3} className="mt-2 w-full rounded-xl border border-[var(--line)] bg-[var(--panel-glass-mid)] p-3 text-sm text-[var(--text-1)]" placeholder="Descreva o resultado observado após a ação." /></label>
+            <label className="mt-4 block text-xs font-semibold text-[var(--text-2)]">Resultado informado pelo operador<textarea data-testid="decision-outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} maxLength={5000} rows={3} className="mt-2 w-full rounded-xl border border-[var(--line)] bg-[var(--panel-glass-mid)] p-3 text-sm text-[var(--text-1)]" placeholder="Descreva o resultado observado após a ação." /></label>
             {error && <p role="alert" className="mt-3 text-sm text-[color:var(--status-critico)]">{error}</p>}
-            <div className="mt-4 flex flex-wrap gap-2">{selected.transicoes_permitidas.map((status) => <button key={status} type="button" disabled={saving} onClick={() => void changeStatus(status)} className="btn-brand min-h-10 rounded-xl px-4 text-xs font-bold disabled:opacity-50">{saving ? 'Salvando...' : actionLabel[status] ?? statusLabel[status]}</button>)}</div>
-            <section className="mt-6 border-t border-[var(--line)] pt-4"><h3 className="section-heading">Linha do tempo</h3>{selected.historico?.length ? <ol className="mt-3 space-y-3">{selected.historico.map((item, index) => <li key={`${item.quando}-${index}`} className="border-l-2 border-[color:var(--ui-accent)]/40 pl-3 text-sm"><p className="font-semibold text-[var(--text-1)]">{{'decision.approve':'Aprovada','decision.reject':'Rejeitada','decision.execute':'Execução registrada','decision.expirada':'Expirada'}[item.action] ?? item.action}</p><p className="text-xs text-[var(--text-3)]">{item.ator ?? 'Sistema'} · {new Date(item.quando).toLocaleString('pt-BR')}</p></li>)}</ol> : <p className="mt-2 text-sm text-[var(--text-3)]">Nenhuma movimentação registrada.</p>}</section>
+            <div className="mt-4 flex flex-wrap gap-2">{selected.transicoes_permitidas.map((status) => <button data-testid={`decision-action-${status}`} key={status} type="button" disabled={saving} onClick={() => void changeStatus(status)} className="btn-brand min-h-10 rounded-xl px-4 text-xs font-bold disabled:opacity-50">{saving ? 'Salvando...' : actionLabel[status] ?? statusLabel[status]}</button>)}</div>
+            <section data-testid="decision-audit" className="mt-6 border-t border-[var(--line)] pt-4"><h3 className="section-heading">Linha do tempo</h3>{selected.historico?.length ? <ol className="mt-3 space-y-3">{selected.historico.map((item, index) => <li key={`${item.quando}-${index}`} className="border-l-2 border-[color:var(--ui-accent)]/40 pl-3 text-sm"><p className="font-semibold text-[var(--text-1)]">{{'decision.approve':'Aprovada','decision.reject':'Rejeitada','decision.execute':'Execução registrada','decision.expirada':'Expirada'}[item.action] ?? item.action}</p><p className="text-xs text-[var(--text-3)]">{item.ator ?? 'Sistema'} · {new Date(item.quando).toLocaleString('pt-BR')}</p></li>)}</ol> : <p className="mt-2 text-sm text-[var(--text-3)]">Nenhuma movimentação registrada.</p>}</section>
           </>}
         </section>
       </div>}

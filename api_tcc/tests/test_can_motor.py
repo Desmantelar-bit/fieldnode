@@ -86,7 +86,7 @@ class QualidadeCANMotorTest(TestCase):
             )
 
 
-class PrescricaoCANMotorTest(TestCase):
+class DecisionCANMotorTest(TestCase):
     def test_pressao_baixa_e_temperatura_alta_geram_criticidade(self):
         registro = leitura(
             oleo_pressao_kpa=90,

@@ -45,7 +45,7 @@ def _valor_json_seguro(valor):
     return valor
 
 
-class PrescricaoView(APIView):
+class LegacyMachineDecisionView(APIView):
     """
     Ponto crítico de honestidade técnica (TCC):
     O campo status retorna NORMAL / ATENCAO / CRITICO com base em comportamento anômalo.
@@ -131,7 +131,7 @@ class PrescricaoView(APIView):
             metodologia = resultado.metodologia
             recomendacao = resultado.recomendacao
 
-        return Response(
+        response = Response(
             {
                 "maquina_id": resultado.maquina_id,
                 "status": resultado.status,
@@ -148,6 +148,8 @@ class PrescricaoView(APIView):
                 "gerado_em": timezone.now().isoformat(),
             }
         )
+        response["Deprecation"] = "true"
+        return response
 
     def get(self, request, maquina_id):
         return self._processar(request, maquina_id, forcar_persistencia=False)

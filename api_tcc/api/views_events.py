@@ -5,8 +5,14 @@ Endpoints de listagem e detalhe para o modelo Event.
 Permite consultar eventos gerados pela telemetria e anomalias.
 """
 import logging
+from datetime import timedelta
+
+from django.db.models import Case, Count, IntegerField, Max, Q, Value, When
+from django.db.models.functions import TruncHour
 from django.core.paginator import InvalidPage, Paginator
 from django.db.models import F
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -23,6 +29,75 @@ logger = logging.getLogger(__name__)
 
 PAGE_SIZE_DEFAULT = 20
 PAGE_SIZE_MAX = 100
+
+
+def _parse_boundary(value, fallback):
+    parsed = parse_datetime(value) if value else None
+    if parsed is None:
+        return fallback
+    return timezone.make_aware(parsed) if timezone.is_naive(parsed) else parsed
+
+
+class EventHeatmapView(APIView):
+    """GET /api/events/heatmap/ — pior severidade por máquina e hora."""
+
+    permission_classes = [IsAuthenticatedOrPublicDemo]
+
+    def get(self, request):
+        now = timezone.now()
+        start = _parse_boundary(request.query_params.get("start"), now - timedelta(days=7))
+        end = _parse_boundary(request.query_params.get("end"), now)
+        if start >= end:
+            return Response({"status": "erro", "detalhe": "O início deve ser anterior ao fim."}, status=status.HTTP_400_BAD_REQUEST)
+
+        machines = get_machines_for_request(request)
+        machine_id = request.query_params.get("maquina_id")
+        if machine_id:
+            machine = get_machine_for_request(request, machine_id)
+            if machine is None:
+                return Response({"status": "erro", "detalhe": "máquina não disponível para este usuário"}, status=status.HTTP_404_NOT_FOUND)
+            machines = machines.filter(pk=machine.pk)
+
+        qs = Event.objects.filter(
+            machine__in=machines,
+            leitura_origem__timestamp__gte=start,
+            leitura_origem__timestamp__lt=end,
+        )
+        hour = TruncHour("leitura_origem__timestamp", tzinfo=timezone.get_current_timezone())
+        rows = (
+            qs.annotate(hour_bucket=hour)
+            .values("machine_id", "machine__external_code", "hour_bucket")
+            .annotate(
+                event_count=Count("id"),
+                severity_rank=Max(Case(
+                    When(severidade="CRITICO", then=Value(3)),
+                    When(severidade="ATENCAO", then=Value(2)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )),
+                quality_issue=Max(Case(
+                    When(Q(evidence_quality__in=["suspeita", "insuficiente"]) | Q(needs_verification=True), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )),
+            )
+            .order_by("machine__external_code", "hour_bucket")
+        )
+        severity = {1: "NORMAL", 2: "ATENCAO", 3: "CRITICO"}
+        results = [{
+            "machine_id": str(row["machine_id"]),
+            "machine_external_code": row["machine__external_code"],
+            "hour": row["hour_bucket"].isoformat(),
+            "worst_severity": severity[row["severity_rank"]],
+            "event_count": row["event_count"],
+            "quality_issue": bool(row["quality_issue"]),
+        } for row in rows]
+        return Response({
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "timezone": timezone.get_current_timezone_name(),
+            "results": results,
+        })
 
 
 class EventListView(APIView):

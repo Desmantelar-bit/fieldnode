@@ -11,7 +11,9 @@
     "test:can-ui": "node --test tests/can_motor_ui.test.mjs",
     "test:s3-schemas": "node --test tests/s3_schemas.test.mjs tests/s3_api_read.test.mjs",
     "test:s3-ui": "node --test tests/s3_data_state.test.mjs",
-    "test:contracts": "node --experimental-strip-types --test tests/contract.test.ts"
+    "test:contracts": "node --experimental-strip-types --test tests/contract.test.ts",
+    "test:axe-s3": "node axe-s3.mjs",
+    "test:e2e": "playwright test && node scripts/copy-central-video.mjs"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",
@@ -30,6 +32,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^18",

@@ -9,14 +9,15 @@ from api_tcc.api.views_leituras import UltimaLeituraView, MachineDataHealthView
 from api_tcc.api.views_metricas import MetricasView
 from api_tcc.api.views_status import AnomaliaView, ManutencaoView, StatusMQTTView
 from api_tcc.api.views_relatorio_operacional import RelatorioView
-from api_tcc.api.views_prescricoes_legadas import PrescricaoView, PrescricaoListView, PrescricaoTesteView
+from api_tcc.api.views_prescricoes_legadas import LegacyDecisionView, LegacyDecisionListView, LegacyDecisionTestView
 from api_tcc.api.views_decision_action import DecisionActionView
 from api_tcc.api.views_health import HealthView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
-from api_tcc.api.views_events import EventListView, EventDetailView
+from api_tcc.api.views_events import EventListView, EventDetailView, EventHeatmapView
 from api_tcc.api.views_decisions import DecisionListView
+from api_tcc.api.views_search import GlobalSearchView
 from api_tcc.api.views_attention import AttentionSummaryView
-from api_tcc.api.views_prescricao import PrescricaoView as PrescricaoMaquinaView
+from api_tcc.api.views_prescricao import LegacyMachineDecisionView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
 
@@ -54,14 +55,16 @@ urlpatterns = [
     path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("events/", EventListView.as_view(), name="events-list"),
+    path("events/heatmap/", EventHeatmapView.as_view(), name="events-heatmap"),
     path("attention/summary/", AttentionSummaryView.as_view(), name="attention-summary"),
     path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),
+    path("search/", GlobalSearchView.as_view(), name="global-search"),
     path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),
-    path("prescricoes/", PrescricaoView.as_view(), name="prescricao"),
-    path("prescricoes/teste/", PrescricaoTesteView.as_view(), name="prescricao-teste"),
-    path("prescricoes/lista/", PrescricaoListView.as_view(), name="prescricao-lista"),
-    path("prescricoes/<str:maquina_id>/", PrescricaoMaquinaView.as_view(), name="prescricao-maquina"),
+    path("prescricoes/", LegacyDecisionView.as_view(), name="prescricao"),
+    path("prescricoes/teste/", LegacyDecisionTestView.as_view(), name="prescricao-teste"),
+    path("prescricoes/lista/", LegacyDecisionListView.as_view(), name="prescricao-lista"),
+    path("prescricoes/<str:maquina_id>/", LegacyMachineDecisionView.as_view(), name="prescricao-maquina"),
     path("relatorio/", RelatorioView.as_view(), name="relatorio"),
     path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),

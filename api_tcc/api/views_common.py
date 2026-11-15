@@ -80,19 +80,6 @@ def _serializar_data_health(
     }
 
 
-def _serializar_prescricao(p) -> dict:
-    if isinstance(p, dict):
-        return p
-    return {
-        'id': p.id,
-        'maquina_id': p.colheitadeira.maquina_id,
-        'titulo': p.titulo,
-        'descricao': p.descricao,
-        'status': p.status,
-        'data_geracao': p.data_geracao,
-    }
-
-
 class HasValidIngestionAPIKey(BasePermission):
     """Permission gate shared by machine-to-machine ingestion endpoints."""
     message = 'API key inválida ou ausente.'

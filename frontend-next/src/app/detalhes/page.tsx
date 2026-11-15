@@ -165,9 +165,9 @@ function DetailsPageContent() {
       >
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Temperatura" value={`${latest.temperatura}°C`} tone={tempTone} helper="última leitura" />
-            <MetricCard label="Vibração"    value={`${latest.vibracao}g`}     tone={vibTone}  helper="última leitura" />
-            <MetricCard label="RPM"         value={latest.rpm}                tone={rpmTone}  helper="rotação atual" />
+            <MetricCard label="Temperatura" value={`${latest.temperatura}°C`} tone={tempTone} helper="última leitura" tooltip="Temperatura da última leitura. Atenção a partir de 75 °C e crítico a partir de 85 °C; limiares heurísticos de bancada." />
+            <MetricCard label="Vibração"    value={`${latest.vibracao}g`}     tone={vibTone}  helper="última leitura" tooltip="Índice de vibração da última leitura. Atenção a partir de 5 e crítico a partir de 8; limiares heurísticos de bancada." />
+            <MetricCard label="RPM"         value={latest.rpm}                tone={rpmTone}  helper="rotação atual" tooltip="Rotação do motor na última leitura. O contrato atual não define limiar de severidade para RPM." />
             {/* Mesmo miolo centrado e mesma altura mínima das MetricCard ao
                 lado: este card é escrito à mão (carrega um selo, não um número),
                 mas precisa alinhar na mesma linha de base dos outros três. */}

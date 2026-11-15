@@ -368,23 +368,6 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
         return calcular_status_risco(obj.temperatura, obj.vibracao, obj.rpm)
 
 
-class PrescricaoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.Prescricao
-        fields = [
-            "id",
-            "colheitadeira",
-            "titulo",
-            "descricao",
-            "data_geracao",
-            "status",
-        ]
-        extra_kwargs = {
-            'id': {'read_only': True},
-            'data_geracao': {'read_only': True},
-        }
-
-
 class StrictSerializer(serializers.Serializer):
     def to_internal_value(self, data):
         if not isinstance(data, dict):

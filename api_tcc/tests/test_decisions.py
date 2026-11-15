@@ -28,7 +28,7 @@ def _payload(maquina_id: str, temperatura: float, vibracao: float, rpm: int, min
     }
 
 
-class DecisionPrescricaoIntegrationTest(TestCase):
+class DecisionLegacyIntegrationTest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(

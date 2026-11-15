@@ -2,18 +2,19 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk, Snippet, Staatliches } from "next/font/google";
 import { ServiceWorkerBridge } from "@/components/ServiceWorkerBridge";
 import "./globals.css";
+import "./heat-grid.css";
 
 // Display: Space Grotesk (geométrica, neon-friendly) — usada em títulos e KPIs.
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 const inter = Inter({
   variable: "--font-body",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 // Marca FieldNode: FIELD usa Snippet (geométrica, com os terminais curvos do
@@ -22,6 +23,7 @@ const snippet = Snippet({
   variable: "--font-brand-field",
   subsets: ["latin"],
   weight: "400",
+  display: "swap",
 });
 
 // Marca FieldNode: NODE usa Staatliches (monumental, ampla, com textura aplicada via CSS).
@@ -29,6 +31,7 @@ const staatliches = Staatliches({
   variable: "--font-brand-node",
   subsets: ["latin"],
   weight: "400",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
