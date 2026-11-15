@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api_tcc.models import AuditLog, Decision, Event, Machine, Membership, Organization, RegistroAnalise
+from api_tcc.models import AuditLog, Decision, Event, Machine, MaintenanceContact, Membership, Organization, RegistroAnalise
 from api_tcc.services.decisions import (
     DECISION_DEDUP_WINDOW,
     validar_transicao_decision,
@@ -174,6 +174,14 @@ class DecisionActionViewTest(TestCase):
             organization=self.organization,
             role="member",
         )
+        self.contact = MaintenanceContact.objects.create(
+            organization=self.organization,
+            nome="João Silva",
+            funcao="Técnico de Manutenção",
+            email="joao@empresa.com",
+            telefone_profissional="11999999999",
+            ativo=True,
+        )
         self.machine = Machine.objects.create(
             external_code="COLH-ACTION-01",
             organization=self.organization,
@@ -217,9 +225,16 @@ class DecisionActionViewTest(TestCase):
         decision = self._decision()
         self._auth_as(self.token_a)
 
+        prazo = (timezone.now() + timedelta(hours=2)).isoformat()
+
         response = self.client.patch(
             f"/api/decisions/{decision.id}/",
-            {"status": Decision.Status.APROVADA},
+            {
+                "status": Decision.Status.APROVADA,
+                "responsavel_tipo": "contact",
+                "responsavel_id": str(self.contact.id),
+                "prazo": prazo,
+            },
             format="json",
             HTTP_X_CORRELATION_ID="audit-test-001",
             HTTP_USER_AGENT="test-client",
@@ -267,10 +282,16 @@ class DecisionActionViewTest(TestCase):
         decision = self._decision()
         self._auth_as(self.token_a)
         self.client.raise_request_exception = False
-        with patch("api_tcc.api.views_decision_action.audit_record", side_effect=RuntimeError("audit unavailable")):
+        prazo = (timezone.now() + timedelta(hours=2)).isoformat()
+        with patch("api_tcc.services.workorders.audit_record", side_effect=RuntimeError("audit unavailable")):
             response = self.client.patch(
                 f"/api/decisions/{decision.id}/",
-                {"status": Decision.Status.APROVADA},
+                {
+                    "status": Decision.Status.APROVADA,
+                    "responsavel_tipo": "contact",
+                    "responsavel_id": str(self.contact.id),
+                    "prazo": prazo,
+                },
                 format="json",
             )
         decision.refresh_from_db()

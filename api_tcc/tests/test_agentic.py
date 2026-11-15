@@ -1,12 +1,14 @@
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from api_tcc.models import DeadLetterEntry, Decision, Event, Machine
+from api_tcc.models import DeadLetterEntry, Decision, Event, LeituraTelemetria, Machine
 from api_tcc.services import agentic
 
 
@@ -14,8 +16,18 @@ class AgenticDecisionCommandTest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.machine = Machine.objects.create(external_code="AGENTIC-DEMO-01")
+        self.leitura = LeituraTelemetria.objects.create(
+            machine=self.machine,
+            device_id="AGENTIC-DEMO-01",
+            message_id="test-msg-1",
+            temperatura=91.2,
+            vibracao=0.5,
+            rpm=1500,
+            timestamp=timezone.now(),
+        )
         self.event = Event.objects.create(
             machine=self.machine,
+            leitura_origem=self.leitura,
             tipo=Event.Tipo.TEMP_ALTA,
             severidade=Event.Severidade.CRITICO,
             priority_score=0.93,

@@ -36,6 +36,11 @@ mantêm `event=null`, porque fabricar uma ocorrência seria falsificar o histór
 
 ## Limites atuais
 
-WorkOrder, agenda, exportadores, reavaliação automática e feedback de limiar não
-fazem parte desta consolidação. O resultado informado pelo operador continua
-sendo relato, não prova de eficácia física.
+Feedback de limiar e integrações nativas com agendas externas continuam fora
+do escopo. O resultado informado pelo operador continua sendo relato, não prova
+de eficácia física.
+## S4-T4 e S4-T5
+
+`WorkOrder` é criada pela aprovação humana da `Decision`. A OS pode sair em `.ics`, JSON ou mensagem pronta; o WhatsApp só recebe um link gerado para revisão humana. Webhook é explícito, assinado com HMAC e limitado a três tentativas; falha persistente vai para `DeadLetterEntry(contexto=WEBHOOK)`.
+
+Ao registrar a execução, a OS recebe `concluida_em`. O comando `reavaliar_decisoes` compara leituras válidas dentro da política explícita de `OrganizationPolicy.reevaluation_policy` e registra `Reevaluation`. Sem regra, janela ou qualidade temporal suficientes, o resultado é `DADOS_INSUFICIENTES`. `outcome_texto` permanece relato informado e não é promovido a prova de eficácia física.

@@ -4,10 +4,38 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api_tcc.api.serializers import DecisionActionSerializer, DecisionSerializer
-from api_tcc.models import AuditLog, Decision
+from api_tcc.models import AuditLog, Decision, Reevaluation, WorkOrder
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, request_can_access_machine, user_can_access_machine
 from api_tcc.services.decisions import aplicar_acao_decision
 from api_tcc.services.audit import record as audit_record
+from api_tcc.services.workorders import approve as approve_decision
+
+
+def _work_order_payload(decision):
+    try:
+        order = decision.work_order
+    except WorkOrder.DoesNotExist:
+        order = None
+    if order is None:
+        return None
+    try:
+        reevaluation = order.reevaluation
+    except Reevaluation.DoesNotExist:
+        reevaluation = None
+    return {
+        "id": str(order.id), "status": order.status, "titulo": order.titulo,
+        "descricao": order.descricao, "prioridade": order.prioridade,
+        "prazo": order.prazo, "concluida_em": order.concluida_em,
+        "reevaluation": None if reevaluation is None else {
+            "resultado": reevaluation.resultado,
+            "motivo_insuficiencia": reevaluation.motivo_insuficiencia,
+            "leituras_antes": reevaluation.leituras_antes,
+            "leituras_depois": reevaluation.leituras_depois,
+            "metricas": reevaluation.metricas,
+            "regra": reevaluation.regra,
+            "executada_em": reevaluation.executada_em,
+        },
+    }
 
 
 
@@ -41,6 +69,7 @@ class DecisionActionView(APIView):
             )
 
         payload = DecisionSerializer(decision, context={"request": request}).data
+        payload["work_order"] = _work_order_payload(decision)
         payload["historico"] = list(
             AuditLog.objects.filter(
                 object_type="api_tcc.decision", object_id=str(decision.id),
@@ -62,6 +91,7 @@ class DecisionActionView(APIView):
         novo_status = serializer.validated_data["status"]
         outcome_fornecido = "outcome_texto" in serializer.validated_data
         outcome_texto = serializer.validated_data.get("outcome_texto")
+        motivo_rejeicao = serializer.validated_data.get("motivo_rejeicao")
 
         try:
             with transaction.atomic():
@@ -82,24 +112,39 @@ class DecisionActionView(APIView):
                     "decidido_em": decision.decidido_em,
                     "outcome_texto": decision.outcome_texto,
                 }
-                aplicar_acao_decision(
-                    decision,
-                    usuario=request.user,
-                    novo_status=novo_status,
-                    outcome_texto_fornecido=outcome_fornecido,
-                    outcome_texto=outcome_texto,
-                )
+                if novo_status == Decision.Status.APROVADA:
+                    work_order = approve_decision(
+                        decision,
+                        request.user,
+                        responsavel_tipo=serializer.validated_data.get("responsavel_tipo"),
+                        responsavel_id=serializer.validated_data.get("responsavel_id"),
+                        prazo=serializer.validated_data.get("prazo"),
+                        request=request,
+                    )
+                    # Refresh decision to get updated decidido_por, decidido_em
+                    decision.refresh_from_db()
+                else:
+                    aplicar_acao_decision(
+                        decision,
+                        usuario=request.user,
+                        novo_status=novo_status,
+                        outcome_texto_fornecido=outcome_fornecido,
+                        outcome_texto=outcome_texto,
+                        motivo_rejeicao=motivo_rejeicao,
+                    )
                 decision_action = {
                     Decision.Status.APROVADA: "decision.approve",
                     Decision.Status.REJEITADA: "decision.reject",
                     Decision.Status.EXECUTADA: "decision.execute",
                 }.get(novo_status, f"decision.{novo_status.lower()}")
-                audit_record(
-                    decision_action, decision, request,
-                    before=before_state,
-                    after={"status": decision.status, "decidido_por_id": decision.decidido_por_id,
-                           "decidido_em": decision.decidido_em, "outcome_texto": decision.outcome_texto},
-                )
+                if novo_status != Decision.Status.APROVADA:
+                    audit_record(
+                        decision_action, decision, request,
+                        before=before_state,
+                        after={"status": decision.status, "decidido_por_id": decision.decidido_por_id,
+                               "decidido_em": decision.decidido_em, "outcome_texto": decision.outcome_texto,
+                               "motivo_rejeicao": decision.motivo_rejeicao},
+                    )
         except Decision.DoesNotExist:
             return Response(
                 {"status": "erro", "detalhe": "Decision nao encontrada"},
@@ -110,5 +155,13 @@ class DecisionActionView(APIView):
                 {"status": "erro", "detalhe": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except PermissionError as exc:
+            return Response({"status": "erro", "detalhe": str(exc)}, status=status.HTTP_403_FORBIDDEN)
 
-        return Response(DecisionSerializer(decision, context={"request": request}).data, status=status.HTTP_200_OK)
+        payload = DecisionSerializer(decision, context={"request": request}).data
+        if novo_status == Decision.Status.APROVADA:
+            payload["work_order_id"] = str(work_order.id)
+            payload["work_order"] = _work_order_payload(work_order.decision)
+        else:
+            payload["work_order"] = _work_order_payload(decision)
+        return Response(payload, status=status.HTTP_200_OK)

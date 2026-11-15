@@ -18,6 +18,7 @@ from api_tcc.api.views_decisions import DecisionListView
 from api_tcc.api.views_search import GlobalSearchView
 from api_tcc.api.views_attention import AttentionSummaryView
 from api_tcc.api.views_prescricao import LegacyMachineDecisionView
+from api_tcc.api.views_workorders import WorkOrderDetailView, WorkOrderExportView, WorkOrderListView, ThresholdOverrideView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
 
@@ -61,6 +62,10 @@ urlpatterns = [
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),
     path("search/", GlobalSearchView.as_view(), name="global-search"),
     path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),
+    path("decisions/<uuid:decision_id>/threshold-override/", ThresholdOverrideView.as_view(), name="threshold-override"),
+    path("workorders/", WorkOrderListView.as_view(), name="workorders-list"),
+    path("workorders/<uuid:work_order_id>/", WorkOrderDetailView.as_view(), name="workorder-detail"),
+    path("workorders/<uuid:work_order_id>/export.<str:export_type>", WorkOrderExportView.as_view(), name="workorder-export"),
     path("prescricoes/", LegacyDecisionView.as_view(), name="prescricao"),
     path("prescricoes/teste/", LegacyDecisionTestView.as_view(), name="prescricao-teste"),
     path("prescricoes/lista/", LegacyDecisionListView.as_view(), name="prescricao-lista"),

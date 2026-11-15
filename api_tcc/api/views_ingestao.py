@@ -54,24 +54,29 @@ class IngestaoTelemetriaView(APIView):
 
         if resultado == "criado":
             analise = analisar_maquina(request.data.get("maquina_id"))
+            ack_data = self._ack_payload(detalhe, "acked")
+            ack_data.pop("status", None)  # Don't overwrite main status
             return Response({
                 'status': 'ok',
                 'id': detalhe,
-                **self._ack_payload(detalhe, "acked"),
+                **ack_data,
                 'ia': _serializar_analise(analise),
             }, status=status.HTTP_201_CREATED)
 
         if resultado == "duplicata":
+            ack_data = self._ack_payload(detalhe, "duplicate")
+            ack_data.pop("status", None)  # Don't overwrite main status
             return Response({
                 'status': 'duplicata ignorada',
                 'id': detalhe,
-                **self._ack_payload(detalhe, "duplicate"),
-            },
-                            status=status.HTTP_200_OK)
+                **ack_data,
+            }, status=status.HTTP_200_OK)
 
         if resultado == "conflito":
+            ack_data = self._ack_payload(detalhe, "conflict")
+            ack_data.pop("status", None)  # Don't overwrite main status
             return Response({"status": "conflict", "id": detalhe,
-                             **self._ack_payload(detalhe, "conflict"),
+                             **ack_data,
                              "payload_hash": _computar_payload_hash(request.data)}, status=status.HTTP_409_CONFLICT)
 
         if resultado == "invalido":

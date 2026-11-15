@@ -22,6 +22,10 @@ VERIFICADO: `docker compose exec -T web python manage.py check`.
 
 VERIFICADO: `python manage.py makemigrations --check --dry-run` sem mudanças.
 
+VERIFICADO: dump lógico criado antes da auditoria final em
+`docs/evidence/s4/fieldnode-s4-backup.sql` (1.520.680 bytes, 46 tabelas,
+SHA-256 `2F21363E0128763A132BB468BF91413C8F99F9B50605DA65A69DA253EC8D76E3`).
+
 VERIFICADO: migration `0041` aplicada no MySQL do Compose, sem apagar volume.
 
 VERIFICADO: 6 registros legados foram convertidos para `Decision`; a inspeção
@@ -44,3 +48,8 @@ de prescrição e permanecem pendentes para a tarefa de contrato de ingestão.
 É necessário atualizar os testes de contrato de ingestão e executar a suíte
 completa após essa correção. A integração CI da S3-T11 permanece não verificada
 porque não havia workflow específico no checkout.
+
+Limitação de auditoria: o dump disponível foi criado após a aplicação da
+`0041`; portanto, o critério estrito de backup capturado antes do `DROP TABLE`
+não pode ser declarado verificado nesta execução. O dump atual é preservado
+como ponto de restauração do estado consolidado.

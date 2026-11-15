@@ -10,6 +10,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from api_tcc.models import Decision, Event, Machine
+from api_tcc.services.decisions import criar_decision
 
 METHODOLOGY = "agentic_llm_poc"
 PROMPT_VERSION = "agentic_decision_v1"
@@ -120,7 +121,10 @@ def decisao_agentica_existente(machine: Machine, *, desde) -> bool:
 
 
 def persistir_decisao_agentica(machine: Machine, events: list[Event], saida: dict[str, Any]) -> Decision:
-    return Decision.objects.create(
+    evidence_events = [event for event in events if event.leitura_origem_id]
+    if not evidence_events:
+        raise ValueError("Decision rejeitada: eventos agenticos sem leitura de evidencia.")
+    return criar_decision(
         machine=machine,
         event=events[0],
         texto=saida["texto"],
@@ -129,6 +133,14 @@ def persistir_decisao_agentica(machine: Machine, events: list[Event], saida: dic
         confianca=saida["confianca"],
         status=Decision.Status.PENDENTE,
         detalhes={
+            "schema": "decision.v1",
+            "observado": saida["texto"],
+            "evidencias": [{"leitura_id": str(event.leitura_origem_id), "campo": "event", "valor": None, "limiar": None, "event_time": event.criado_em.isoformat()} for event in evidence_events],
+            "janela_analisada": {"inicio": events[-1].criado_em.isoformat(), "fim": events[0].criado_em.isoformat(), "n_leituras": len(evidence_events)},
+            "qualidade_dado": {"evidence_quality": events[0].evidence_quality, "fatores": []},
+            "regra": {"id": "AGENTIC_LLM", "versao": PROMPT_VERSION},
+            "modelo": {"id": "gemini-2.5-flash", "score": saida["confianca"], "contribuinte": None},
+            "dados_faltantes": [], "horizonte_minutos": None, "alternativas": [],
             "metodologia": METHODOLOGY,
             "prompt_version": PROMPT_VERSION,
             "event_ids": [str(event.id) for event in events],

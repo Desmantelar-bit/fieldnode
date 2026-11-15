@@ -9,11 +9,11 @@ export const decisionService = {
     const suffix = query.size ? `?${query.toString()}` : '';
     return getValidated(`decisions/${suffix}`, DecisaoPageSchema, signal);
   },
-  async update(id: string, status: string, outcome_texto?: string): Promise<Decisao> {
+  async update(id: string, status: string, outcome_texto?: string, motivo_rejeicao?: string): Promise<Decisao> {
     const response = await fetch(`/api/decisions/${id}/`, {
       method: 'PATCH',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-FieldNode-CSRF': '1' },
-      body: JSON.stringify({ status, ...(outcome_texto !== undefined ? { outcome_texto } : {}) }),
+      body: JSON.stringify({ status, ...(outcome_texto !== undefined ? { outcome_texto } : {}), ...(motivo_rejeicao !== undefined ? { motivo_rejeicao } : {}) }),
     });
     if (!response.ok) {
       let detail = `HTTP ${response.status}`;

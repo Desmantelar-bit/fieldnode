@@ -10,7 +10,8 @@ from api_tcc.services.dlq import registrar_falha_dlq
 logger = logging.getLogger(__name__)
 
 
-from api_tcc.contracts import classify, metric_definition
+from api_tcc.contracts import metric_definition
+from api_tcc.services.thresholds import classify_machine_metric
 SUPPRESSAO_EVENTO_MINUTOS = 15
 PRIORITY_URGENCY_DECAY_HOURS = 24.0
 
@@ -45,7 +46,10 @@ def avaliar_leitura(leitura: LeituraTelemetria) -> list[Event]:
     if leitura.machine is None:
         return eventos
 
-    if classify("temperatura", leitura.temperatura) == "CRITICO":
+    thresholds = None
+    if classify_machine_metric(leitura.machine, "temperatura", leitura.temperatura) == "CRITICO":
+        from api_tcc.services.thresholds import effective_thresholds
+        thresholds = effective_thresholds(leitura.machine, "temperatura")
         try:
             evento = _criar_evento_se_nao_suprimido(
                 leitura=leitura,
@@ -53,7 +57,7 @@ def avaliar_leitura(leitura: LeituraTelemetria) -> list[Event]:
                 severidade=Event.Severidade.CRITICO,
                 dados_contexto={
                     "temperatura": leitura.temperatura,
-                    "limite_critico": metric_definition("temperatura")["critico"],
+                    "limite_critico": thresholds["critico"],
                     "unidade": "C",
                 },
             )

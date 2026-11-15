@@ -4,10 +4,11 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
-from api_tcc.models import DeadLetterEntry, TelemetriaInvalida
+from api_tcc.models import DeadLetterEntry, LeituraTelemetria, Machine, TelemetriaInvalida
 from api_tcc.services.decisions import persistir_decision_da_analise
 from api_tcc.services.eventos import avaliar_leitura
 from api_tcc.services.telemetria import registrar_leitura
@@ -72,6 +73,16 @@ class DeadLetterEntryTest(TestCase):
         self.assertEqual(DeadLetterEntry.objects.count(), 1)
 
     def test_decisao_registra_dlq_e_repropaga_falha(self):
+        machine = Machine.objects.create(external_code="COLH-DLQ-DEC-01")
+        LeituraTelemetria.objects.create(
+            machine=machine,
+            device_id="COLH-DLQ-DEC-01",
+            message_id=str(uuid.uuid4()),
+            temperatura=86.0,
+            vibracao=0.35,
+            rpm=1800,
+            timestamp=timezone.now(),
+        )
         analise = SimpleNamespace(
             maquina_id="COLH-DLQ-DEC-01",
             status="CRITICO",

@@ -21,6 +21,7 @@ def _payload(**overrides):
         "vibracao": 0.35,
         "rpm": 1800,
         "timestamp": "2026-06-01T10:00:00Z",
+        "time_source": "ntp",
     }
     base.update(overrides)
     return base

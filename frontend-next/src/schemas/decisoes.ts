@@ -15,6 +15,12 @@ export const DecisaoSchema = z.object({
   decidido_por_username: z.string().nullable().optional(),
   decidido_em: z.string().datetime({ offset: true }).nullable(),
   outcome_texto: z.string().nullable(),
+  motivo_rejeicao: z.string().optional(),
+  work_order: z.object({
+    id: z.string().uuid(), status: z.string(), titulo: z.string(), descricao: z.string(), prioridade: z.string(),
+    prazo: z.string().datetime({ offset: true }), concluida_em: z.string().datetime({ offset: true }).nullable(),
+    reevaluation: z.object({ resultado: z.string(), motivo_insuficiencia: z.string(), leituras_antes: z.number(), leituras_depois: z.number(), metricas: z.record(z.string(), z.unknown()), regra: z.record(z.string(), z.unknown()), executada_em: z.string().datetime({ offset: true }) }).nullable(),
+  }).nullable().optional(),
   metodologia: z.string().nullable(),
   transicoes_permitidas: z.array(z.enum(['PENDENTE', 'APROVADA', 'REJEITADA', 'EXECUTADA', 'EXPIRADA'])).default([]),
   evidencia: z.object({

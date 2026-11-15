@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 from pathlib import Path
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from simulators.edge_client import EdgeBuffer, generate_payload
 from simulators.transbordo_mule_client import MuleBuffer, MuleClient, collect_from_harvester
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import DeviceCredential, LeituraTelemetria
 
 
 class _DjangoResponse:
@@ -29,13 +31,24 @@ class _DjangoSession:
             url,
             json,
             format="json",
-            HTTP_X_API_KEY=headers["X-API-Key"],
+            HTTP_X_DEVICE_ID=headers["X-Device-Id"],
+            HTTP_X_DEVICE_KEY=headers["X-Device-Key"],
         )
         return _DjangoResponse(response)
 
 
-@override_settings(FIELDNODE_API_KEY="data-mule-test-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="data-mule-test-key")
 class DataMuleEndpointIntegrationTest(TestCase):
+    def setUp(self):
+        # Create DeviceCredential for the test device
+        key = "data-mule-test-key"
+        key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        DeviceCredential.objects.create(
+            device_id="COLH-DATA-MULE-01",
+            http_key_hash=key_hash,
+            http_revoked_at=None,
+        )
+
     def test_20_leituras_chegam_no_endpoint_com_identidade_da_colhedora(self):
         with tempfile.TemporaryDirectory() as directory:
             edge_path = Path(directory) / "colhedora.db"

@@ -387,6 +387,10 @@ class DecisionActionSerializer(StrictSerializer):
         allow_blank=True,
         allow_null=True,
     )
+    responsavel_tipo = serializers.ChoiceField(choices=("user", "contact"), required=False)
+    responsavel_id = serializers.CharField(required=False)
+    prazo = serializers.DateTimeField(required=False)
+    motivo_rejeicao = serializers.CharField(required=False, allow_blank=True, max_length=40)
 
 
 class DecisionSerializer(serializers.ModelSerializer):
@@ -397,6 +401,7 @@ class DecisionSerializer(serializers.ModelSerializer):
     machine_external_code = serializers.CharField(
         source="machine.external_code", read_only=True
     )
+    motivo_rejeicao = serializers.CharField(read_only=True)
     event = serializers.UUIDField(source="event.id", read_only=True, allow_null=True)
     decidido_por = serializers.IntegerField(
         source="decidido_por.id", read_only=True, allow_null=True
@@ -422,9 +427,11 @@ class DecisionSerializer(serializers.ModelSerializer):
             "decidido_por_username",
             "decidido_em",
             "outcome_texto",
+            "motivo_rejeicao",
             "metodologia",
             "transicoes_permitidas",
             "evidencia",
+            "detalhes",
         ]
         read_only_fields = fields
 

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "decision.v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "observado",
+    "evidencias",
+    "janela_analisada",
+    "qualidade_dado",
+    "regra",
+    "modelo",
+    "dados_faltantes",
+    "horizonte_minutos",
+    "alternativas"
+  ],
+  "properties": {
+    "schema": {"const": "decision.v1"},
+    "observado": {"type": "string", "minLength": 1},
+    "evidencias": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["leitura_id", "campo", "valor", "limiar", "event_time"],
+        "properties": {
+          "leitura_id": {"type": "string", "minLength": 1},
+          "campo": {"type": "string", "minLength": 1},
+          "valor": {"type": ["number", "null"]},
+          "limiar": {"type": ["number", "null"]},
+          "event_time": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "janela_analisada": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inicio", "fim", "n_leituras"],
+      "properties": {
+        "inicio": {"type": "string", "format": "date-time"},
+        "fim": {"type": "string", "format": "date-time"},
+        "n_leituras": {"type": "integer", "minimum": 1}
+      }
+    },
+    "qualidade_dado": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_quality", "fatores"],
+      "properties": {
+        "evidence_quality": {"enum": ["boa", "suspeita", "insuficiente"]},
+        "fatores": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "regra": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "versao"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "versao": {"type": "string", "minLength": 1}
+      }
+    },
+    "modelo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "score", "contribuinte"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "contribuinte": {"type": ["string", "null"]}
+      }
+    },
+    "dados_faltantes": {"type": "array", "items": {"type": "string"}},
+    "horizonte_minutos": {"type": ["integer", "null"], "minimum": 0},
+    "alternativas": {"type": "array", "items": {"type": "string"}}
+  }
+}

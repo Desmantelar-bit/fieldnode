@@ -14,7 +14,7 @@ Para rodar:
     python manage.py test api_tcc.tests
 """
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 from django.conf import settings
 from unittest.mock import patch
@@ -242,6 +242,7 @@ class DeduplicacaoUUIDTest(TestCase):
 # ──────────────────────────────────────────────────────────────
 # 3. TESTES DE INTEGRAÇÃO VIA HTTP (endpoint real)
 # ──────────────────────────────────────────────────────────────
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True)
 class EndpointIngestaoTest(TestCase):
     """
     Testa o endpoint /api/telemetria/ end-to-end via HTTP.

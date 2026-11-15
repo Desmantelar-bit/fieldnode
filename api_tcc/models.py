@@ -410,6 +410,26 @@ class Event(models.Model):
         return f"{self.machine.external_code} {self.tipo} {self.severidade}"
 
 
+class ThresholdOverride(models.Model):
+    """Ajuste temporário de limiar por máquina, sempre limitado pelo contrato."""
+
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="threshold_overrides")
+    metric = models.CharField(max_length=40)
+    atencao = models.FloatField()
+    critico = models.FloatField()
+    motivo = models.TextField()
+    criado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name="threshold_overrides_created")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    expira_em = models.DateTimeField(db_index=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        indexes = [models.Index(fields=["machine", "metric", "expira_em"])]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(atencao__lte=models.F("critico")), name="threshold_override_atencao_lte_critico"),
+        ]
+
+
 class Decision(models.Model):
     """Memoria persistente de uma recomendacao operacional gerada pelo sistema."""
 
@@ -466,6 +486,7 @@ class Decision(models.Model):
     )
     decidido_em = models.DateTimeField(null=True, blank=True)
     outcome_texto = models.TextField(null=True, blank=True)
+    motivo_rejeicao = models.CharField(max_length=40, blank=True)
     detalhes = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -488,6 +509,70 @@ class Decision(models.Model):
 
     def __str__(self):
         return f"{self.machine.external_code} {self.severidade} {self.status}"
+
+
+class WorkOrder(models.Model):
+    class Status(models.TextChoices):
+        ABERTA = "ABERTA", "Aberta"
+        AGENDADA = "AGENDADA", "Agendada"
+        EM_EXECUCAO = "EM_EXECUCAO", "Em execucao"
+        CONCLUIDA = "CONCLUIDA", "Concluida"
+        CANCELADA = "CANCELADA", "Cancelada"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    decision = models.OneToOneField(Decision, on_delete=models.PROTECT, related_name="work_order")
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="work_orders")
+    titulo = models.CharField(max_length=255)
+    descricao = models.TextField()
+    prioridade = models.CharField(max_length=20, choices=Event.Severidade.choices)
+    responsavel_usuario = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name="assigned_work_orders")
+    responsavel_contato = models.ForeignKey("MaintenanceContact", null=True, blank=True, on_delete=models.PROTECT, related_name="assigned_work_orders")
+    prazo = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ABERTA, db_index=True)
+    checklist = models.JSONField(default=list, blank=True)
+    pecas_sugeridas = models.JSONField(null=True, blank=True)
+    criado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name="created_work_orders")
+    historico = models.JSONField(default=list, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    concluida_em = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ["prazo", "-criado_em"]
+        constraints = [models.CheckConstraint(condition=(models.Q(responsavel_usuario__isnull=False, responsavel_contato__isnull=True) | models.Q(responsavel_usuario__isnull=True, responsavel_contato__isnull=False)), name="workorder_exactly_one_responsavel")]
+
+
+class Reevaluation(models.Model):
+    class Resultado(models.TextChoices):
+        SINTOMA_CESSOU = "SINTOMA_CESSOU", "Sintoma cessou"
+        SINTOMA_PERSISTE = "SINTOMA_PERSISTE", "Sintoma persiste"
+        DADOS_INSUFICIENTES = "DADOS_INSUFICIENTES", "Dados insuficientes"
+
+    work_order = models.OneToOneField("WorkOrder", on_delete=models.PROTECT, related_name="reevaluation")
+    decision = models.ForeignKey("Decision", on_delete=models.PROTECT, related_name="reevaluations")
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="reevaluations")
+    regra = models.JSONField(default=dict)
+    regra_versao = models.CharField(max_length=50)
+    referencia_conclusao = models.DateTimeField(null=True, blank=True)
+    janela_antes_inicio = models.DateTimeField(null=True, blank=True)
+    janela_antes_fim = models.DateTimeField(null=True, blank=True)
+    janela_depois_inicio = models.DateTimeField(null=True, blank=True)
+    janela_depois_fim = models.DateTimeField(null=True, blank=True)
+    leituras_antes = models.PositiveIntegerField(default=0)
+    leituras_depois = models.PositiveIntegerField(default=0)
+    leitura_ids_antes = models.JSONField(default=list, blank=True)
+    leitura_ids_depois = models.JSONField(default=list, blank=True)
+    metricas = models.JSONField(default=dict, blank=True)
+    resultado = models.CharField(max_length=24, choices=Resultado.choices)
+    motivo_insuficiencia = models.TextField(blank=True)
+    origem_dados = models.CharField(max_length=30, blank=True)
+    algoritmo_versao = models.CharField(max_length=50, default="reevaluation-v1")
+    executada_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["work_order", "regra_versao"], name="uniq_reeval_workorder_rule_version"),
+        ]
+        ordering = ["-executada_em"]
 
 
 class RegistroAnalise(models.Model):
@@ -555,6 +640,7 @@ class DeadLetterEntry(models.Model):
         AGENTIC_LLM = "AGENTIC_LLM", "Agentic LLM"
         SYNC = "SYNC", "Sincronização"
         MQTT_SPOOF = "MQTT_SPOOF", "Tentativa de spoof MQTT"
+        WEBHOOK = "WEBHOOK", "Webhook"
 
     id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
     contexto = models.CharField(max_length=20, choices=Contexto.choices, db_index=True)
@@ -688,6 +774,23 @@ class Organization(models.Model):
 
     def __str__(self):
         return self.nome
+
+
+class MaintenanceContact(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="maintenance_contacts")
+    nome = models.CharField(max_length=255)
+    funcao = models.CharField(max_length=120)
+    email = models.EmailField()
+    telefone_profissional = models.CharField(max_length=40, blank=True)
+    ativo = models.BooleanField(default=True)
+
+
+class OrganizationPolicy(models.Model):
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name="policy")
+    prazo_por_severidade = models.JSONField(default=dict, blank=True)
+    webhook_url = models.URLField(blank=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
+    reevaluation_policy = models.JSONField(default=dict, blank=True)
 
 
 class Membership(models.Model):

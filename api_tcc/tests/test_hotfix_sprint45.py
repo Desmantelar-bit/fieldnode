@@ -1,4 +1,6 @@
 import uuid
+from datetime import timedelta
+from django.utils import timezone
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
@@ -51,9 +53,16 @@ class Sprint45AuthorizationTest(TestCase):
         )
         self.client.force_authenticate(self.viewer)
 
+        prazo = (timezone.now() + timedelta(hours=2)).isoformat()
+
         response = self.client.patch(
             f"/api/decisions/{decision.id}/",
-            {"status": Decision.Status.APROVADA},
+            {
+                "status": Decision.Status.APROVADA,
+                "responsavel_tipo": "user",
+                "responsavel_id": str(self.admin.id),
+                "prazo": prazo,
+            },
             format="json",
         )
 
@@ -70,18 +79,32 @@ class Sprint45AuthorizationTest(TestCase):
         )
         self.client.force_authenticate(self.foreign)
 
+        prazo = (timezone.now() + timedelta(hours=2)).isoformat()
+
         response = self.client.patch(
             f"/api/decisions/{decision.id}/",
-            {"status": Decision.Status.APROVADA},
+            {
+                "status": Decision.Status.APROVADA,
+                "responsavel_tipo": "user",
+                "responsavel_id": str(self.foreign.id),
+                "prazo": prazo,
+            },
             format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
 
 class Sprint45BatchIngestionTest(TestCase):
-    @override_settings(FIELDNODE_API_KEY="test-key")
+    def setUp(self):
+        self.org = Organization.objects.create(nome="Org Batch")
+        self.user = User.objects.create_user(username="batch-user")
+        Membership.objects.create(user=self.user, organization=self.org, role="admin")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
     def test_batch_uses_composite_identity_and_domain_pipeline(self):
+        Machine.objects.create(external_code="HOTFIX-BATCH", organization=self.org)
         payload = {
             "device_id": "HOTFIX-DEVICE",
             "message_id": "message-001",
@@ -92,13 +115,11 @@ class Sprint45BatchIngestionTest(TestCase):
             "rpm": 1800,
             "timestamp": "2026-09-24T10:00:00Z",
         }
-        client = APIClient()
 
-        response = client.post(
+        response = self.client.post(
             "/api/telemetria/lote/",
             {"leituras": [payload, {**payload, "id": str(uuid.uuid4())}]},
             format="json",
-            HTTP_X_API_KEY="test-key",
         )
 
         self.assertEqual(response.status_code, 200)
