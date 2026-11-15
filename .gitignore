@@ -74,6 +74,8 @@ local_settings.py
 
 # Artefatos de sessão e outputs temporários de agentes
 artifacts/
+# Dumps de banco gerados em evidências (não versionar)
+docs/evidence/**/*.sql
 .peridot/memory.db
 .peridot/mem/
 .peridot/sessions/
