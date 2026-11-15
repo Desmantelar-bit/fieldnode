@@ -15,10 +15,11 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {
-    baseURL: process.env.FIELDNODE_FRONTEND_URL || 'http://localhost:3000',
+    baseURL: process.env.FIELDNODE_FRONTEND_URL?.split(',')[1] || 'http://127.0.0.1:3000',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'on',
+    serviceWorkers: 'block',
     ...desktopChrome,
   },
 });

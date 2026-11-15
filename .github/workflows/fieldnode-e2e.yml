@@ -1,0 +1,82 @@
+name: FieldNode E2E
+
+on:
+  push:
+    paths:
+      - 'api_tcc/**'
+      - 'frontend-next/**'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - '.github/workflows/fieldnode-e2e.yml'
+  pull_request:
+    paths:
+      - 'api_tcc/**'
+      - 'frontend-next/**'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - '.github/workflows/fieldnode-e2e.yml'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: '1'
+      FIELDNODE_FRONTEND_URL: 'http://127.0.0.1:3000'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-next/package-lock.json
+
+      - name: Install frontend dependencies and browser
+        working-directory: frontend-next
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Create isolated Compose environment
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'SECRET_KEY=ci-only-fieldnode-secret' \
+            'DB_NAME=fieldnode_db' \
+            'DB_USER=fieldnode_user' \
+            'DB_PASSWORD=ci-db-password' \
+            'DB_ROOT_PASSWORD=ci-root-password' \
+            'MQTT_USERNAME=ci-mqtt-user' \
+            'MQTT_PASSWORD=ci-mqtt-password' \
+            'DEBUG=False' \
+            'DEMO_MODE=False' > .env
+
+      - name: Start Compose services
+        run: docker compose up -d --build
+
+      - name: Wait for backend and migrate
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8000/api/health/ > /dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail http://127.0.0.1:8000/api/health/
+          docker compose exec -T web python manage.py migrate --noinput
+
+      - name: Run central E2E
+        working-directory: frontend-next
+        run: npm run test:e2e
+
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fieldnode-e2e-evidence
+          if-no-files-found: warn
+          path: |
+            docs/evidence/s3/fluxo-central.webm
+            frontend-next/playwright-report/
+            frontend-next/test-results/

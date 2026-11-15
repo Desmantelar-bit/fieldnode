@@ -30,8 +30,18 @@ export default function DecisoesPage() {
       setItems(result.results);
       const requestedId = new URLSearchParams(window.location.search).get('decision');
       const requested = requestedId ? result.results.find((d) => d.id === requestedId) : undefined;
-      setSelected((current) => requested ?? (current ? result.results.find((d) => d.id === current.id) ?? null : null));
-      if (requested) setOutcome(requested.outcome_texto ?? '');
+      const selectedFromList = requested;
+      const selectedId = selectedFromList?.id ?? requestedId;
+      setSelected(selectedFromList ?? null);
+      if (selectedId) {
+        setOutcome(selectedFromList?.outcome_texto ?? '');
+        const detailResponse = await fetch(`/api/decisions/${selectedId}/`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (detailResponse.ok) {
+          const detail = DecisaoSchema.parse(await detailResponse.json());
+          setSelected(detail);
+          setOutcome(detail.outcome_texto ?? '');
+        }
+      }
       setError('');
     } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao carregar decisões.'); }
     finally { setLoading(false); }

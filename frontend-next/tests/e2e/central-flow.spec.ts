@@ -37,7 +37,7 @@ test('fluxo central: leitura crítica, P1, decisão, aprovação, desfecho e aud
   expect(event.severidade).toBe('CRITICO');
 
   await page.context().addCookies([{
-    name: 'fieldnode_session', value: flow.token, domain: 'localhost', path: '/',
+    name: 'fieldnode_session', value: flow.token, domain: '127.0.0.1', path: '/',
   }]);
   await page.goto(`/decisoes?decision=${flow.decision_id}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
 
@@ -70,6 +70,8 @@ test('fluxo central: leitura crítica, P1, decisão, aprovação, desfecho e aud
   }).toBe('EXECUTADA');
   await page.reload();
 
+  await expect(page.getByTestId('decision-status')).toHaveText('Executada');
+  await page.getByRole('button', { name: new RegExp(flow.machine_code) }).click();
   await expect(page.getByTestId('decision-status')).toHaveText('Executada');
   await expect(selected).toContainText(outcome);
   await expect(page.getByTestId('decision-audit')).toContainText('Aprovada');

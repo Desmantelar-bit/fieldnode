@@ -30,10 +30,22 @@ Decision PENDENTE no MySQL do Compose.
 VERIFICADO: a API de decisão persistiu as transições e a auditoria nos testes
 backend existentes.
 
-NÃO VERIFICADO nesta execução: três execuções Playwright verdes, vídeo final e
-integração CI. A instalação de `playwright`/dependências npm no host ficou
-bloqueada no registry, e o rebuild do frontend não concluiu a instalação.
+VERIFICADO: três execuções consecutivas no Compose, sequenciais, sem retry:
 
-Portanto, S3-T11 não deve ser marcado como concluído até essa execução externa
-ser possível. O código e a infraestrutura de teste estão preparados para a
-rodada final.
+| Execução | Resultado | Duração aproximada | Retry |
+| --- | --- | --- | --- |
+| 1 | verde | 49,8 s | não |
+| 2 | verde | 38,7 s | não |
+| 3 | verde | 40,2 s | não |
+
+VERIFICADO: `docs/evidence/s3/fluxo-central.webm` foi gerado pelo Playwright e
+copiado pelo script de pós-execução.
+
+O fluxo também corrigiu a restauração do detalhe após recarga e bloqueou
+Service Worker durante E2E para impedir cache privado stale de mascarar o estado
+real da API.
+
+CI: configurado em `.github/workflows/fieldnode-e2e.yml`, com ambiente Compose
+isolado, migrations, Chromium, execução de `npm run test:e2e` e upload de
+relatórios/trace/vídeo. A execução no provedor GitHub não foi disparada neste
+checkout, portanto permanece não verificada em ambiente remoto.

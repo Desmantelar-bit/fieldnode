@@ -24,13 +24,23 @@ VERIFICADO: `python manage.py makemigrations --check --dry-run` sem mudanças.
 
 VERIFICADO: migration `0041` aplicada no MySQL do Compose, sem apagar volume.
 
-EXECUTADO COM FALHAS DE CONTRATO FORA DO ESCOPO: 38 testes focados de Decision
-e integração; três falharam nos contratos antigos de ingestão (`ok` versus
-`acked`, `duplicata ignorada` versus `duplicate`, e autorização 403 versus 400).
+VERIFICADO: 6 registros legados foram convertidos para `Decision`; a inspeção
+do schema retornou `legacy_tables=[]`, e os identificadores históricos ficaram
+em `Decision.detalhes`.
+
+VERIFICADO: 17 testes focados de Decision, compatibilidade e integração
+passaram, incluindo o teste novo das rotas legadas.
+
+VERIFICADO: `npm run type-check`, `npm run lint` e o build Next.js da imagem
+frontend passaram.
+
+REGISTRADO: a execução mais ampla de 38 testes também expôs três falhas de
+contrato antigas de ingestão (`ok` versus `acked`, `duplicata ignorada` versus
+`duplicate`, e autorização 403 versus 400). Elas não pertencem à consolidação
+de prescrição e permanecem pendentes para a tarefa de contrato de ingestão.
 
 ## Pendências
 
 É necessário atualizar os testes de contrato de ingestão e executar a suíte
-completa após essa correção. A validação visual Playwright da S3-T11 depende de
-instalar as dependências npm no host; a instalação ficou bloqueada no registry
-durante esta execução.
+completa após essa correção. A integração CI da S3-T11 permanece não verificada
+porque não havia workflow específico no checkout.
