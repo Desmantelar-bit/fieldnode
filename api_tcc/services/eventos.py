@@ -232,6 +232,7 @@ def _persistir_evento_com_priority(
         trust_score_herdado=leitura_origem.trust_score,
         evidence_quality=qualidade,
         needs_verification=qualidade != "boa",
+        atrasado=bool(getattr(leitura_origem, "atrasado", False)),
         dados_contexto=dados_contexto,
     )
     event.priority_score = calcular_priority_score(
@@ -249,6 +250,14 @@ def _criar_evento_se_nao_suprimido(
     severidade: str,
     dados_contexto: dict,
 ) -> Event | None:
+    # Reconstrucao nao reabre nem duplica um evento ja encerrado para o mesmo
+    # instante factual. O horario de criacao continua sendo o da descoberta.
+    if leitura.timestamp is not None and Event.objects.filter(
+        machine=leitura.machine,
+        tipo=tipo,
+        leitura_origem__timestamp=leitura.timestamp,
+    ).exists():
+        return None
     janela_inicio = timezone.now() - timedelta(minutes=SUPPRESSAO_EVENTO_MINUTOS)
 
     evento_recente_aberto = Event.objects.filter(

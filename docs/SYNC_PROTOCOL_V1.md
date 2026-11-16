@@ -1,64 +1,85 @@
-# FieldNode Sync Protocol v1 (inicial)
+# FieldNode Sync Protocol v1
 
-## Identidade e hash
+## Escopo e garantia
 
-Uma mensagem é identificada por `(device_id, message_id)`; `sequence_number`
-ordena mensagens do dispositivo. O cliente conserva a identidade e o payload
-original nas tentativas. `payload_hash` é SHA-256 do JSON canonicalizado por
-chaves ordenadas, calculado sobre o payload recebido. Mesmo identificador e
-hash iguais são replay legítimo; hash divergente é conflito e não substitui o
-registro já persistido.
+Este é o contrato de store-and-forward entre edge, transportador e ingestor.
+Ele é independente do transporte HTTP, MQTT ou Data Mule. A entrega é pelo
+menos uma vez; o servidor deduplica atomicamente por `(device_id, message_id)`.
+Não há promessa de entrega exatamente uma vez, zero perda ou disponibilidade
+quando o armazenamento local está fisicamente cheio.
 
-Quando `message_id` está presente, o campo auxiliar legado `id` é excluído do
-hash: ele identifica a linha física local e pode mudar sem alterar o conteúdo
-lógico da mensagem.
+## Envelope
 
-## Resposta e confirmação
+O schema compartilhado está em `contracts/sync.v1.json`. O cliente de borda e
+o serviço Django validam os campos do envelope versionado. Para compatibilidade
+com o contrato S1 existente, o payload continua plano no wire e aceita
+`timestamp` como alias de `event_time`.
 
-POST unitário retorna `status` canônico `acked`, `duplicate`, `rejected` ou
-`conflict`, mais `message_id`, `device_id`, `sequence_number`, `payload_hash` e
-`last_acked_sequence`. HTTP 201 corresponde a `acked`, 200 a `duplicate`, 400 a
-`rejected` e 409 a `conflict`. `acked` só é construído após
-`registrar_leitura()` retornar da transação que salvou a leitura. Falha de
-persistência retorna erro HTTP e não é ACK.
+Campos centrais:
 
-`duplicate` significa que identidade e hash coincidem. `conflict` registra
-evidência na DLQ com contexto `SYNC`; a linha original não é alterada. Em lote,
-`items` contém confirmação por mensagem e o hash do payload processado. Erros
-de validação e conflitos permanecem individualizados; itens persistidos antes
-de falha posterior não são desfeitos.
+| Campo | Regra |
+|---|---|
+| `device_id` | identidade persistente do produtor |
+| `message_id` | identificador idempotente do evento |
+| `sequence_number` | inteiro positivo, monotônico por dispositivo |
+| `boot_id` | identifica o boot do edge quando disponível |
+| `time_source` | `rtc`, `gateway`, `ntp` ou `unsynced` |
+| `priority_class` | `A`, `B` ou `C`; A é crítica |
+| `schema_version` | versão explícita do contrato |
+| `ttl_s` | retenção pretendida, ainda dependente da política aprovada |
+| `payload_hash` | SHA-256 do JSON canônico, com chaves ordenadas |
+| `encoding` | `json` ou `gzip+base64` |
 
-Se a persistência de um item do lote falhar, a API retorna HTTP 500 contendo os
-ACKs já confirmados em `items`, o item que falhou em `failure` e identificadores
-posteriores em `pending_message_ids`. A resposta não rotula falha interna como
-`rejected` nem confirma item pendente.
+O `id` legado não entra no hash quando `message_id` existe. Assim, a linha
+física local pode mudar sem transformar o mesmo evento em outro evento.
 
-## Outbox do cliente
+## ACK e cursor
 
-O cliente remove a mensagem da outbox somente após validar status de sucesso,
-identidade/dispositivo/sequência e hash. `rejected` fica preservado em estado
-de erro; `conflict` permanece em `BLOCKED`; HTTP 5xx, falha de rede ou resposta
-incompleta não avança cursor. A confirmação é gravada em `edge_acknowledgement`,
-o cursor contíguo é atualizado e a linha removida na mesma transação SQLite.
-Após reinício, uma mensagem cujo POST chegou ao servidor, mas cujo ACK não foi
-persistido localmente, continua na outbox; o reenvio retorna `duplicate`.
+O ACK contém `status`, `message_id`, `device_id`, `sequence_number`,
+`payload_hash` e `last_acked_sequence`. Os status são:
 
-`last_acked_sequence` no servidor e no cliente avança apenas pela sequência
-contígua persistida/confirmada começando em 1; não salta lacunas. O servidor
-deriva isso das leituras persistidas por dispositivo dentro da transação. O
-cliente mantém seu próprio ledger local porque o banco local e o servidor não
-compartilham uma transação distribuída.
+| Status | HTTP | Comportamento |
+|---|---:|---|
+| `acked` | 201 | leitura nova persistida na transação |
+| `duplicate` | 200 | mesma identidade e mesmo hash já persistidos |
+| `rejected` | 400 | contrato ou dado inválido; permanece em erro local |
+| `conflict` | 409 | mesma identidade com hash divergente; permanece bloqueada |
 
-## Garantia e limites
+O cursor só avança por sequências contíguas começando em 1. Uma lacuna não é
+pulada. O edge grava o ledger local, confirma o ACK e remove a outbox na mesma
+transação SQLite. Se a resposta se perder, o reenvio legítimo retorna
+`duplicate`.
 
-A entrega do cliente é pelo menos uma vez. O servidor deduplica atomicamente a
-identidade composta no banco; o efeito é único para as tentativas documentadas
-com mesmo dispositivo, identificador e payload/hash, sujeito à disponibilidade
-do banco e à persistência local do cliente. Isso não é uma promessa de entrega
-exatamente uma vez sob qualquer falha, nem zero perda em qualquer circunstância.
+## Reenvio e falhas
 
-No fluxo atual, o EdgeClient sincroniza mensagens individualmente; o endpoint
-de lote responde por item, mas o cliente de borda não faz uma requisição em
-lote. Falha HTTP parcial de lote e recuperação integrada com DLQ/blocked ainda
-precisam de teste de integração dedicado. O fechamento completo seguirá em
-S6-T1.
+- falha de rede, HTTP 429 ou HTTP 5xx mantém a mensagem pendente;
+- ACK incompleto ou com identidade/hash divergente não remove a mensagem;
+- falha de persistência não gera ACK;
+- conflito não substitui a mensagem original e deve ser investigado;
+- reinicialização recupera mensagens que estavam em `ENVIANDO`.
+
+## Prioridade, TTL e compressão
+
+A classe de transmissão é determinada pelas regras de severidade existentes.
+A e B não são descartadas automaticamente. As hipóteses de TTL são A sem
+expiração automática, B 72 horas e C 14 dias, ainda sujeitas a aprovação de
+produto. TTL, compressão, agregação, descarte por falta de espaço e rejeição
+por falha de persistência são eventos diferentes.
+
+Compressão só é aplicada à classe C quando a política de armazenamento entra
+no estágio configurado. A codificação fica registrada no SQLite e é revertida
+antes do envio, preservando o payload lógico e o hash.
+
+## Versionamento e erros
+
+Mudanças incompatíveis exigem nova versão do schema. Campos adicionais podem
+ser ignorados por consumidores compatíveis, mas não se deve alterar o sentido
+de um campo existente silenciosamente. A origem, o hash, a sequência e o
+dispositivo devem permanecer auditáveis em todo reenvio.
+
+## Testes e evidência
+
+O contrato é exercitado por `api_tcc/tests/test_sync_contract.py` e pelos
+testes do edge. A política de capacidade fica em `scripts/capacity_calc.py`,
+com medição real em `scripts/measure_storage.py`. Resultados publicados devem
+ser produzidos por comandos executados e não por valores ilustrativos.

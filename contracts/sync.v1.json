@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fieldnode.local/contracts/sync.v1.json",
+  "title": "FieldNode Sync Protocol v1 envelope",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "device_id", "message_id", "sequence_number", "payload_hash",
+    "priority_class", "schema_version", "payload"
+  ],
+  "properties": {
+    "device_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "message_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "sequence_number": {"type": "integer", "minimum": 1},
+    "event_time": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "minLength": 1},
+    "boot_id": {"type": "string", "minLength": 1},
+    "time_source": {"type": "string", "enum": ["rtc", "gateway", "ntp", "unsynced"]},
+    "priority_class": {"type": "string", "enum": ["A", "B", "C"]},
+    "priority": {"type": "string", "enum": ["A", "B", "C"]},
+    "schema_version": {"type": "string", "minLength": 1},
+    "ttl_s": {"type": "integer", "minimum": 0},
+    "payload_hash": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "encoding": {"type": "string", "enum": ["json", "gzip+base64"]},
+    "payload": {"type": "object"}
+  }
+}

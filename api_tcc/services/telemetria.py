@@ -22,7 +22,7 @@ from datetime import datetime
 from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware, now
 
-from api_tcc.models import DeadLetterEntry, LeituraTelemetria, Colheitadeira, Machine, SyncCursor
+from api_tcc.models import DeadLetterEntry, LeituraTelemetria, TelemetryAggregate, Colheitadeira, Machine, SyncCursor
 from api_tcc.services.data_health import (
     HISTORY_LIMIT,
     atualizar_machine_data_health,
@@ -37,7 +37,9 @@ from api_tcc.services.sensor_limits import LIMITES
 from api_tcc.services.normalizacao import registrar_e_normalizar
 from api_tcc.services.regime import inferir_regime
 from api_tcc.services.event_time import resolve_event_time, reconstruct_boot
+from api_tcc.services.reconstrucao import identificar_atraso, reconstruir_para_leitura
 from api_tcc.contracts import severity_contract
+from api_tcc.sync_contract import validate_sync_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,16 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
             "Assumindo '1.0'. Maquina ID: %s",
             dados.get("maquina_id", "Desconhecida"),
         )
+
+    # S6-T1: payloads que optam explicitamente pelo envelope versionado passam
+    # pelo mesmo contrato compartilhado usado pelo edge client. Fallbacks
+    # legados sem priority_class seguem a compatibilidade S1 existente.
+    if "priority_class" in dados and "message_id" in dados and "sequence_number" in dados:
+        envelope = dict(dados)
+        envelope["payload_hash"] = _computar_payload_hash(dados)
+        valido_sync, motivo_sync = validate_sync_envelope(envelope)
+        if not valido_sync:
+            return False, motivo_sync
 
     campos_obrigatorios = ["maquina_id", "temperatura", "vibracao", "rpm"]
     for campo in campos_obrigatorios:
@@ -163,7 +175,7 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
 
 def _computar_payload_hash(dados: dict) -> str:
     """
-    Computa SHA-256 do payload original (serializado) para rastreabilidade.
+    Computa SHA-256 do corpo logico canonico, antes de qualquer compressao.
     Não é usado como chave de idempotência — apenas como fingerprint.
     """
     canonical = dict(dados)
@@ -173,6 +185,49 @@ def _computar_payload_hash(dados: dict) -> str:
         canonical.pop("id", None)
     raw = json.dumps(canonical, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def registrar_agregado(dados: dict) -> tuple[str, str | None]:
+    """Persiste um agregado C sem fingir que ele e uma leitura instantanea."""
+    from django.utils.dateparse import parse_datetime
+
+    if str(dados.get("priority_class", "C")) != "C":
+        return "invalido", "agregados sao permitidos apenas para classe C"
+    agregado = dados.get("aggregate")
+    if not isinstance(agregado, dict):
+        return "invalido", "campo aggregate ausente"
+    try:
+        inicio = parse_datetime(str(agregado["window_start"]))
+        fim = parse_datetime(str(agregado["window_end"]))
+        sample_count = int(agregado["sample_count"])
+        valid_count = int(agregado["valid_count"])
+    except (KeyError, TypeError, ValueError):
+        return "invalido", "janela ou contagem do agregado invalida"
+    if inicio is None or fim is None or fim <= inicio or sample_count < 1 or not isinstance(agregado.get("statistics"), dict):
+        return "invalido", "agregado sem janela/estatisticas validas"
+    aggregate_hash = _computar_payload_hash({"device_id": dados.get("device_id"), "aggregate": agregado})
+    existente = TelemetryAggregate.objects.filter(aggregate_hash=aggregate_hash).first()
+    if existente:
+        return "duplicata", str(existente.id)
+    machine, _ = Machine.objects.get_or_create(external_code=str(dados.get("maquina_id", dados.get("device_id", ""))).strip().upper())
+    try:
+        obj = TelemetryAggregate.objects.create(
+            machine=machine,
+            device_id=str(dados.get("device_id", "")).strip(),
+            boot_id=dados.get("boot_id"),
+            window_start=inicio,
+            window_end=fim,
+            sample_count=sample_count,
+            valid_count=valid_count,
+            missing_count=int(agregado.get("missing_count", 0)),
+            statistics=agregado["statistics"],
+            source_message_ids=list(agregado.get("source_message_ids", [])),
+            aggregate_hash=aggregate_hash,
+        )
+    except IntegrityError:
+        existente = TelemetryAggregate.objects.get(aggregate_hash=aggregate_hash)
+        return "duplicata", str(existente.id)
+    return "criado", str(obj.id)
 
 
 def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
@@ -311,7 +366,8 @@ def registrar_leitura(
         data_origin = None
 
     try:
-        temporal = resolve_event_time(dados, ingested_at=now())
+        received_at = now()
+        temporal = resolve_event_time(dados, ingested_at=received_at)
         boot_id, uptime_ms, time_source, timestamp, event_time_confidence, clock_skew_ms, time_provenance = temporal
 
         # Resolução de Machine on-the-fly (S1-T2 — preservado)
@@ -383,6 +439,12 @@ def registrar_leitura(
                     clock_skew_ms=clock_skew_ms,
                     event_time_confidence=event_time_confidence,
                     time_provenance=time_provenance,
+                    atrasado=identificar_atraso(
+                        event_time=timestamp,
+                        received_at=received_at,
+                        time_source=time_source,
+                        clock_skew_ms=clock_skew_ms,
+                    ),
                     sequence_number=sequence_number,
                     source=source,
                     data_origin=data_origin,
@@ -409,6 +471,11 @@ def registrar_leitura(
                     },
                 )
                 leitura.save(force_insert=True)
+                # A leitura tardia entra na posicao do event_time e recalcula
+                # apenas sua vizinhanca. recebido_em permanece auto_now_add.
+                if leitura.atrasado:
+                    reconstruir_para_leitura(leitura)
+                    leitura.refresh_from_db()
                 for raw_parameter, raw_value, unit in (
                     ("temperatura", leitura.temperatura, "C"),
                     ("vibracao", leitura.vibracao, leitura.vibracao_unit),

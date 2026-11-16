@@ -8,7 +8,7 @@ from api_tcc.api.throttles import IngestaoThrottle
 from api_tcc.api.parsers import BoundedTelemetryJSONParser
 from api_tcc.api.views_common import HasIngestionCredential
 from api_tcc.models import LeituraTelemetria, SyncCursor
-from api_tcc.services.telemetria import _computar_payload_hash, registrar_leitura
+from api_tcc.services.telemetria import _computar_payload_hash, registrar_agregado, registrar_leitura
 
 
 
@@ -53,7 +53,10 @@ class IngestaoLoteView(APIView):
                 resultado['erros'].append({'id': None, 'detalhe': 'item precisa ser um objeto JSON'})
                 continue
 
-            status_item, detalhe = registrar_leitura(item)
+            if item.get("aggregate") is not None:
+                status_item, detalhe = registrar_agregado(item)
+            else:
+                status_item, detalhe = registrar_leitura(item)
             if status_item == "erro":
                 return Response({
                     **resultado,
@@ -70,7 +73,7 @@ class IngestaoLoteView(APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             ack_status = {"criado": "acked", "duplicata": "duplicate", "conflito": "conflict",
                           "invalido": "rejected"}.get(status_item, "rejected")
-            entry = LeituraTelemetria.objects.filter(id=detalhe).first() if status_item in {"criado", "duplicata", "conflito"} else None
+            entry = LeituraTelemetria.objects.filter(id=detalhe).first() if status_item in {"criado", "duplicata", "conflito"} and item.get("aggregate") is None else None
             item_device_id = entry.device_id if entry else item.get("device_id", item.get("maquina_id"))
             cursor_value = SyncCursor.objects.filter(device_id=item_device_id).values_list(
                 "last_acked_sequence", flat=True

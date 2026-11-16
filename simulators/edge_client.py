@@ -9,6 +9,8 @@ Django e depende apenas da biblioteca padrão e de requests.
 from __future__ import annotations
 
 import argparse
+import base64
+import gzip
 import hashlib
 import json
 import logging
@@ -18,11 +20,18 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from hmac import compare_digest
 from pathlib import Path
 from typing import Any
 
 import requests
+
+try:
+    from simulators.storage_policy import StoragePolicy, StoragePolicyConfig, StorageFullError
+except ModuleNotFoundError:  # execução direta: python simulators/edge_client.py
+    from storage_policy import StoragePolicy, StoragePolicyConfig, StorageFullError
+from api_tcc.sync_contract import validate_sync_envelope
 
 LOGGER = logging.getLogger("fieldnode.edge_client")
 STATUS_PENDING = "PENDENTE"
@@ -31,6 +40,8 @@ STATUS_SYNCED = "SINCRONIZADA"
 STATUS_ERROR = "ERRO"
 STATUS_BLOCKED = "BLOCKED"
 PRIORITIES = ("A", "B", "C")
+MAX_BATCH_UNCOMPRESSED_BYTES = 2 * 1024 * 1024
+MAX_BATCH_COMPRESSED_BYTES = 512 * 1024
 
 
 def canonical_json(payload: dict[str, Any]) -> str:
@@ -43,6 +54,40 @@ def payload_hash(payload: dict[str, Any]) -> str:
     if canonical.get("message_id"):
         canonical.pop("id", None)
     return hashlib.sha256(canonical_json(canonical).encode("utf-8")).hexdigest()
+
+
+def compress_batch(payloads: list[dict[str, Any]]) -> tuple[bytes, str, dict[str, int]]:
+    """Serializa deterministicamente e comprime um lote; hash e do corpo cru."""
+    body = canonical_json({"messages": payloads}).encode("utf-8")
+    if len(body) > MAX_BATCH_UNCOMPRESSED_BYTES:
+        raise ValueError("lote excede o limite descomprimido")
+    encoded = gzip.compress(body, mtime=0)
+    if len(encoded) > MAX_BATCH_COMPRESSED_BYTES:
+        raise ValueError("lote excede o limite comprimido")
+    return encoded, hashlib.sha256(body).hexdigest(), {
+        "original_bytes": sum(len(canonical_json(item).encode("utf-8")) for item in payloads),
+        "serialized_bytes": len(body),
+        "compressed_bytes": len(encoded),
+        "message_count": len(payloads),
+    }
+
+
+def decompress_batch(encoded: bytes, expected_hash: str, *, max_bytes: int = MAX_BATCH_UNCOMPRESSED_BYTES) -> list[dict[str, Any]]:
+    """Valida gzip e hash antes de devolver qualquer item do lote."""
+    try:
+        body = gzip.decompress(encoded)
+    except (OSError, EOFError) as exc:
+        raise ValueError("gzip inválido ou truncado") from exc
+    if len(body) > max_bytes:
+        raise ValueError("expansão gzip excede o limite")
+    actual_hash = hashlib.sha256(body).hexdigest()
+    if not compare_digest(actual_hash, expected_hash):
+        raise ValueError("payload_hash divergente após descompressão")
+    decoded = json.loads(body.decode("utf-8"))
+    messages = decoded.get("messages") if isinstance(decoded, dict) else None
+    if not isinstance(messages, list) or any(not isinstance(item, dict) for item in messages):
+        raise ValueError("lote inválido")
+    return messages
 
 
 def classify_priority(payload: dict[str, Any]) -> str:
@@ -61,7 +106,8 @@ def utc_now() -> str:
 
 
 class EdgeBuffer:
-    def __init__(self, path: str | Path, device_id: str) -> None:
+    def __init__(self, path: str | Path, device_id: str,
+                 *, storage_config: StoragePolicyConfig | None = None) -> None:
         self.path = Path(path)
         self.device_id = device_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +115,9 @@ class EdgeBuffer:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA busy_timeout = 5000")
         self._create_schema()
+        self.storage_policy = StoragePolicy(
+            self.connection, self.path, storage_config or StoragePolicyConfig()
+        )
         self._recover_in_flight()
 
     def close(self) -> None:
@@ -90,6 +139,7 @@ class EdgeBuffer:
                 attempts INTEGER NOT NULL DEFAULT 0,
                 last_attempt_at TEXT,
                 last_error TEXT,
+                payload_encoding TEXT NOT NULL DEFAULT 'json',
                 UNIQUE (device_id, message_id),
                 UNIQUE (device_id, sequence_number)
             );
@@ -107,8 +157,39 @@ class EdgeBuffer:
                 PRIMARY KEY (device_id, sequence_number),
                 UNIQUE (device_id, message_id)
             );
+            CREATE TABLE IF NOT EXISTS storage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                priority_class TEXT NOT NULL,
+                message_ids TEXT NOT NULL,
+                bytes_affected INTEGER NOT NULL DEFAULT 0,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE (event_type, message_ids)
+            );
+            CREATE TABLE IF NOT EXISTS c_aggregates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bucket_start TEXT NOT NULL,
+                source_device_id TEXT NOT NULL,
+                sample_count INTEGER NOT NULL,
+                valid_count INTEGER NOT NULL,
+                missing_count INTEGER NOT NULL,
+                values_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
+        columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(outbox)")}
+        if "payload_encoding" not in columns:
+            self.connection.execute("ALTER TABLE outbox ADD COLUMN payload_encoding TEXT NOT NULL DEFAULT 'json'")
+        aggregate_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(c_aggregates)")}
+        for name, definition in {
+            "bucket_end": "TEXT",
+            "boot_id": "TEXT",
+            "message_ids_json": "TEXT NOT NULL DEFAULT '[]'",
+        }.items():
+            if name not in aggregate_columns:
+                self.connection.execute(f"ALTER TABLE c_aggregates ADD COLUMN {name} {definition}")
         self.connection.execute(
             "INSERT OR IGNORE INTO edge_cursor(device_id) VALUES (?)", (self.device_id,)
         )
@@ -132,18 +213,179 @@ class EdgeBuffer:
         return int(row["next_sequence"])
 
     def enqueue(self, payload: dict[str, Any]) -> int:
-        encoded = canonical_json(payload)
+        priority = classify_priority(payload)
+        payload.setdefault("priority_class", priority)
+        self._prepare_storage(priority, payload)
+        envelope = dict(payload)
+        envelope["payload_hash"] = payload_hash(payload)
+        valid, reason = validate_sync_envelope(envelope)
+        if not valid:
+            raise ValueError(reason)
+        encoded, encoding = self._encode_payload(payload, priority)
         with self.connection:
             cursor = self.connection.execute(
                 """INSERT INTO outbox
                 (device_id, message_id, sequence_number, payload, payload_hash,
-                 priority_class, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                 priority_class, status, created_at, payload_encoding)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (self.device_id, str(payload["message_id"]), int(payload["sequence_number"]),
                  encoded, payload_hash(payload),
-                 classify_priority(payload), STATUS_PENDING, utc_now()),
+                 priority, STATUS_PENDING, utc_now(), encoding),
             )
         return int(cursor.lastrowid)
+
+    def _encode_payload(self, payload: dict[str, Any], priority: str) -> tuple[str, str]:
+        raw = canonical_json(payload).encode("utf-8")
+        if priority == "C" and self.storage_policy.stage() in {"COMPRESS_C", "AGGREGATE_C", "DISCARD_C"}:
+            return base64.b64encode(gzip.compress(raw)).decode("ascii"), "gzip+base64"
+        return raw.decode("utf-8"), "json"
+
+    def _prepare_storage(self, priority: str, payload: dict[str, Any]) -> None:
+        estimate = len(canonical_json(payload).encode("utf-8")) + 512
+        stage = self.storage_policy.stage()
+        if stage in {"AGGREGATE_C", "DISCARD_C"}:
+            self._manage_c_storage(estimate)
+        self.storage_policy.require_admission(estimate, priority)
+
+    def _manage_c_storage(self, required_bytes: int) -> None:
+        while not self.storage_policy.can_admit(required_bytes, "C"):
+            row = self.connection.execute(
+                "SELECT *, length(payload) AS size FROM outbox "
+                "WHERE device_id = ? AND priority_class = 'C' AND status = ? "
+                "ORDER BY sequence_number ASC LIMIT 1",
+                (self.device_id, STATUS_PENDING),
+            ).fetchone()
+            if row is None:
+                break
+            if self.storage_policy.stage() == "AGGREGATE_C":
+                self._aggregate_rows([row])
+            else:
+                self._discard_rows([row], "storage threshold 98%")
+
+    def _aggregate_rows(self, rows: list[sqlite3.Row]) -> None:
+        samples: list[dict[str, Any]] = []
+        for row in rows:
+            payload = self._decode_row(row)
+            samples.append(payload)
+        if not samples:
+            return
+        numeric = {}
+        for key in ("temperatura", "vibracao", "rpm"):
+            values = [float(item[key]) for item in samples if isinstance(item.get(key), (int, float))]
+            if values:
+                numeric[key] = {"mean": sum(values) / len(values), "min": min(values),
+                                "max": max(values), "n": len(values)}
+        ids = [str(row["message_id"]) for row in rows]
+        times = [item.get("timestamp", item.get("event_time")) for item in samples
+                 if item.get("timestamp", item.get("event_time"))]
+        bucket_start = self._bucket_start(times[0] if times else None)
+        bucket_end = self._bucket_end(bucket_start)
+        boot_ids = {str(item.get("boot_id")) for item in samples if item.get("boot_id")}
+        with self.connection:
+            self.connection.execute(
+                "INSERT INTO c_aggregates "
+                "(bucket_start, bucket_end, source_device_id, boot_id, sample_count, valid_count, missing_count, values_json, message_ids_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (bucket_start, bucket_end, self.device_id, next(iter(boot_ids)) if len(boot_ids) == 1 else None,
+                 len(samples), sum(item["n"] for item in numeric.values()) // max(len(numeric), 1), 0,
+                 canonical_json(numeric), json.dumps(ids, sort_keys=True), utc_now()),
+            )
+            self.connection.executemany("DELETE FROM outbox WHERE id = ?", [(row["id"],) for row in rows])
+            self._record_storage_event("aggregate", "C", ids, sum(int(row["size"]) for row in rows),
+                                       "storage threshold 95%; aggregate preserves interval and statistics")
+        self._compact_storage()
+
+    @staticmethod
+    def _bucket_start(value: str | None) -> str:
+        if not value:
+            return utc_now()[:16] + ":00"
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            parsed = parsed.replace(second=0, microsecond=0)
+            parsed = parsed.replace(minute=parsed.minute - parsed.minute % 1)
+            return parsed.isoformat()
+        except ValueError:
+            return utc_now()[:16] + ":00"
+
+    @staticmethod
+    def _bucket_end(value: str) -> str:
+        parsed = datetime.fromisoformat(value)
+        return (parsed + timedelta(seconds=60)).isoformat()
+
+    def _discard_rows(self, rows: list[sqlite3.Row], reason: str) -> None:
+        ids = [str(row["message_id"]) for row in rows]
+        with self.connection:
+            self.connection.executemany("DELETE FROM outbox WHERE id = ?", [(row["id"],) for row in rows])
+            self._record_storage_event("discard", "C", ids, sum(int(row["size"]) for row in rows), reason)
+        self._compact_storage()
+
+    def _compact_storage(self) -> None:
+        """Reclama espaço liberado sem apagar dados ainda pendentes."""
+        self.connection.commit()
+        self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        self.connection.execute("VACUUM")
+
+    def _record_storage_event(self, event_type: str, priority: str, message_ids: list[str],
+                              bytes_affected: int, reason: str) -> None:
+        self.connection.execute(
+            "INSERT OR IGNORE INTO storage_events "
+            "(event_type, priority_class, message_ids, bytes_affected, reason, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (event_type, priority, json.dumps(message_ids, sort_keys=True), bytes_affected, reason, utc_now()),
+        )
+
+    def _decode_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        raw = str(row["payload"])
+        if row["payload_encoding"] == "gzip+base64":
+            return json.loads(gzip.decompress(base64.b64decode(raw)).decode("utf-8"))
+        return json.loads(raw)
+
+    def purge_expired(self, *, reference_time: datetime | None = None) -> dict[str, int]:
+        """Expira apenas pendencias com referencia temporal confiavel.
+
+        A classe A nunca e expirada automaticamente. Cada remocao deixa um
+        registro compacto em ``storage_events``; payload completo nao vai para
+        log nem para a auditoria.
+        """
+        reference_time = reference_time or datetime.now(timezone.utc)
+        expired: dict[str, int] = {priority: 0 for priority in PRIORITIES}
+        rows = self.connection.execute(
+            "SELECT * FROM outbox WHERE device_id = ? AND status = ? AND priority_class IN ('B', 'C')",
+            (self.device_id, STATUS_PENDING),
+        ).fetchall()
+        for row in rows:
+            ttl = self.storage_policy.config.ttl_seconds.get(str(row["priority_class"]))
+            if ttl is None:
+                continue
+            payload = self._decode_row(row)
+            if payload.get("time_source", "unsynced") == "unsynced":
+                continue
+            raw_time = payload.get("event_time", payload.get("timestamp"))
+            if not raw_time:
+                continue
+            try:
+                event_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+                if event_time.tzinfo is None:
+                    event_time = event_time.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if reference_time - event_time <= timedelta(seconds=ttl):
+                continue
+            with self.connection:
+                self.connection.execute("DELETE FROM outbox WHERE id = ?", (row["id"],))
+                self._record_storage_event(
+                    "discard_ttl", str(row["priority_class"]), [str(row["message_id"])],
+                    len(str(row["payload"]).encode("utf-8")),
+                    f"TTL expirado; ttl_seconds={ttl}; event_time={event_time.isoformat()}",
+                )
+            expired[str(row["priority_class"])] += 1
+        if sum(expired.values()):
+            self._compact_storage()
+        return expired
+
+    def storage_status(self) -> dict[str, Any]:
+        return {"bytes": self.storage_policy.usage_bytes(), "max_bytes": self.storage_policy.config.max_bytes,
+                "occupancy": self.storage_policy.occupancy(), "stage": self.storage_policy.stage()}
 
     def pending(self) -> list[sqlite3.Row]:
         rows: list[sqlite3.Row] = []
@@ -259,7 +501,7 @@ class EdgeClient:
     def _send(self, row: sqlite3.Row) -> bool:
         row_id = int(row["id"])
         self.buffer.mark_sending(row_id)
-        payload = json.loads(str(row["payload"]))
+        payload = self.buffer._decode_row(row)
         try:
             response = self.session.post(
                 self.api_url, json=payload,

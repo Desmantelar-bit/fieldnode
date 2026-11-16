@@ -321,6 +321,16 @@ class LeituraTelemetria(models.Model):
     clock_skew_ms = models.BigIntegerField(null=True, blank=True)
     event_time_confidence = models.FloatField(default=0.0)
     time_provenance = models.JSONField(default=dict, blank=True)
+    atrasado = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Indica recebimento posterior ao evento; nao e anomalia mecanica.",
+    )
+    agregada = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Marca uma representacao agregada, nunca uma leitura original.",
+    )
     trust_score = models.FloatField(
         null=True,
         blank=True,
@@ -345,6 +355,29 @@ class LeituraTelemetria(models.Model):
 
     def __str__(self):
         return f'#{self.id} — {self.device_id}/{self.message_id} — {self.temperatura}°C — {self.timestamp}'
+
+
+class TelemetryAggregate(models.Model):
+    """Janela estatistica de classe C, separada de leituras instantaneas."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="telemetry_aggregates")
+    device_id = models.CharField(max_length=100, db_index=True)
+    boot_id = models.UUIDField(null=True, blank=True, db_index=True)
+    window_start = models.DateTimeField(db_index=True)
+    window_end = models.DateTimeField(db_index=True)
+    priority_class = models.CharField(max_length=1, default="C")
+    sample_count = models.PositiveIntegerField()
+    valid_count = models.PositiveIntegerField()
+    missing_count = models.PositiveIntegerField(default=0)
+    statistics = models.JSONField(default=dict)
+    source_message_ids = models.JSONField(default=list)
+    aggregate_hash = models.CharField(max_length=64, unique=True)
+    recebido_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-window_start"]
+        indexes = [models.Index(fields=["machine", "-window_start"])]
 
 
 class Event(models.Model):
@@ -420,6 +453,11 @@ class Event(models.Model):
         ),
     )
     criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    atrasado = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Evento descoberto por leitura recebida fora da janela esperada.",
+    )
     dados_contexto = models.JSONField(default=dict, blank=True)
 
     class Meta:
