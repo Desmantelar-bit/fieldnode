@@ -19,10 +19,11 @@ import logging
 import uuid as uuid_lib
 from datetime import datetime
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils.timezone import make_aware, is_aware, now
 
-from api_tcc.models import DeadLetterEntry, LeituraTelemetria, TelemetryAggregate, Colheitadeira, Machine, SyncCursor
+from api_tcc.models import DeliveryHop, DeadLetterEntry, LeituraTelemetria, TelemetryAggregate, Colheitadeira, Machine, SyncCursor
 from api_tcc.services.data_health import (
     HISTORY_LIMIT,
     atualizar_machine_data_health,
@@ -40,6 +41,7 @@ from api_tcc.services.event_time import resolve_event_time, reconstruct_boot
 from api_tcc.services.reconstrucao import identificar_atraso, reconstruir_para_leitura
 from api_tcc.contracts import severity_contract
 from api_tcc.sync_contract import validate_sync_envelope
+from connectivity.signing import verify_payload
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +185,7 @@ def _computar_payload_hash(dados: dict) -> str:
     # message_id, a client may regenerate this incidental field on retry.
     if canonical.get("message_id"):
         canonical.pop("id", None)
+    canonical.pop("via", None)
     raw = json.dumps(canonical, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
@@ -294,6 +297,26 @@ def registrar_leitura(
     # Work on a copy: validation may add legacy defaults, but callers retain
     # their original object for retries and deterministic hashing.
     dados = dict(dados)
+    device_for_signature = str(dados.get("device_id") or dados.get("maquina_id") or "").strip()
+    signing_keys = getattr(settings, "FIELDNODE_DEVICE_SIGNING_KEYS", {})
+    signing_key = signing_keys.get(device_for_signature) or signing_keys.get(device_for_signature.upper())
+    signature_present = bool(dados.get("signature") or dados.get("signature_alg"))
+    if getattr(settings, "REQUIRE_MESSAGE_SIGNATURES", False) and not signature_present:
+        motivo = "assinatura_invalida: assinatura ausente"
+        registrar_falha_dlq(
+            contexto=DeadLetterEntry.Contexto.SYNC,
+            payload_referencia={"device_id": device_for_signature, "message_id": dados.get("message_id")},
+            motivo=motivo,
+        )
+        return "invalido", motivo
+    if signature_present and not verify_payload(dados, str(signing_key or "")):
+        motivo = "assinatura_invalida"
+        registrar_falha_dlq(
+            contexto=DeadLetterEntry.Contexto.SYNC,
+            payload_referencia={"device_id": device_for_signature, "message_id": dados.get("message_id")},
+            motivo=motivo,
+        )
+        return "invalido", motivo
     # Fingerprint exactly the submitted payload before validation adds legacy
     # defaults such as schema_version or vibracao_unit.
     payload_hash = _computar_payload_hash(dados)
@@ -472,6 +495,25 @@ def registrar_leitura(
                     },
                 )
                 leitura.save(force_insert=True)
+                via = dados.get("via", [])
+                if isinstance(via, list):
+                    from django.utils.dateparse import parse_datetime
+
+                    leitura.via = via
+                    leitura.save(update_fields=["via"])
+                    for hop_index, hop in enumerate(via):
+                        if not isinstance(hop, dict) or not hop.get("node") or not hop.get("t"):
+                            continue
+                        hop_time = parse_datetime(str(hop["t"]))
+                        if hop_time is None:
+                            continue
+                        DeliveryHop.objects.create(
+                            leitura=leitura,
+                            hop_index=hop_index,
+                            node_id=str(hop["node"])[:100],
+                            recebido_em=hop_time,
+                            entregue_em=received_at if hop_index == len(via) - 1 else None,
+                        )
                 # A leitura tardia entra na posicao do event_time e recalcula
                 # apenas sua vizinhanca. recebido_em permanece auto_now_add.
                 if leitura.atrasado:

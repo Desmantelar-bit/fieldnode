@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import json
+import os
 from decouple import config as env_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +27,6 @@ SECRET_KEY = env_config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Solução para problema de variável de ambiente DEBUG=release do sistema
-import os
 if os.environ.get("DEBUG") == "release":
     os.environ.pop("DEBUG", None)
 
@@ -46,6 +47,14 @@ FIELDNODE_FRONTEND_URL = env_config(
 )
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
+
+try:
+    FIELDNODE_DEVICE_SIGNING_KEYS = json.loads(
+        env_config("FIELDNODE_DEVICE_SIGNING_KEYS", default="{}")
+    )
+except json.JSONDecodeError as exc:
+    raise RuntimeError("FIELDNODE_DEVICE_SIGNING_KEYS deve ser JSON válido") from exc
+REQUIRE_MESSAGE_SIGNATURES = env_config("REQUIRE_MESSAGE_SIGNATURES", default=False, cast=bool)
 
 ALLOWED_HOSTS = env_config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split(",")
 

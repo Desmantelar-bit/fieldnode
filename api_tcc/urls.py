@@ -12,6 +12,7 @@ from api_tcc.api.views_relatorio_operacional import RelatorioView
 from api_tcc.api.views_prescricoes_legadas import LegacyDecisionView, LegacyDecisionListView, LegacyDecisionTestView
 from api_tcc.api.views_decision_action import DecisionActionView
 from api_tcc.api.views_health import HealthView
+from api_tcc.api.views_sync import DeliveryReportView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
 from api_tcc.api.views_events import EventListView, EventDetailView, EventHeatmapView
 from api_tcc.api.views_decisions import DecisionListView
@@ -54,6 +55,7 @@ urlpatterns = [
     path("metricas/", MetricasView.as_view(), name="metricas"),
     path("machines/<str:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
     path("health/", HealthView.as_view(), name="api-health"),
+    path("sync/report/", DeliveryReportView.as_view(), name="sync-delivery-report"),
     path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),
     path("events/", EventListView.as_view(), name="events-list"),

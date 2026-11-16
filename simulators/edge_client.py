@@ -53,6 +53,9 @@ def payload_hash(payload: dict[str, Any]) -> str:
     canonical = dict(payload)
     if canonical.get("message_id"):
         canonical.pop("id", None)
+    # ``via`` is mutable transport metadata. It must not change the identity
+    # fingerprint when a mule appends another hop.
+    canonical.pop("via", None)
     return hashlib.sha256(canonical_json(canonical).encode("utf-8")).hexdigest()
 
 
@@ -111,7 +114,10 @@ class EdgeBuffer:
         self.path = Path(path)
         self.device_id = device_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path)
+        # The edge export server handles HTTP requests in worker threads.
+        # Writes remain serialized by the edge process; allowing this single
+        # connection to be read by request threads is required for the demo.
+        self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA busy_timeout = 5000")
         self._create_schema()
@@ -438,6 +444,20 @@ class EdgeBuffer:
             self.connection.execute("DELETE FROM outbox WHERE id = ?", (row_id,))
             return self._advance_contiguous_cursor()
 
+    def apply_backend_ack(self, ack: dict[str, Any]) -> bool:
+        """Apply a propagated backend ACK, keeping the same validation as HTTP."""
+        if (ack.get("device_id") != self.device_id or ack.get("status") not in {"acked", "duplicate"}):
+            return False
+        row = self.connection.execute(
+            "SELECT id, message_id, sequence_number, payload_hash FROM outbox "
+            "WHERE device_id = ? AND message_id = ?",
+            (self.device_id, ack.get("message_id")),
+        ).fetchone()
+        if row is None or ack.get("sequence_number") != row["sequence_number"] or ack.get("payload_hash") != row["payload_hash"]:
+            return False
+        self.mark_synced(int(row["id"]))
+        return True
+
     def mark_error(self, row_id: int, reason: str) -> None:
         self.connection.execute(
             "UPDATE outbox SET status = ?, last_error = ? WHERE id = ?",
@@ -471,7 +491,8 @@ class EdgeClient:
     def __init__(self, buffer: EdgeBuffer, api_url: str, device_key: str, *, timeout: float = 10.0,
                  max_attempts: int | None = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
                  session: Any | None = None,
-                 sleep: Callable[[float], None] = time.sleep) -> None:
+                 sleep: Callable[[float], None] = time.sleep,
+                 connectivity_manager: Any | None = None) -> None:
         self.buffer = buffer
         self.api_url = api_url.rstrip("/") + "/"
         self.device_key = device_key
@@ -481,8 +502,11 @@ class EdgeClient:
         self.backoff_max = backoff_max
         self.session = session or requests.Session()
         self.sleep = sleep
+        self.connectivity_manager = connectivity_manager
 
     def synchronize(self, *, stop_on_retryable_failure: bool = False) -> int:
+        if self.connectivity_manager is not None:
+            return int(self.connectivity_manager.tick().get("acked", 0))
         synced = 0
         for row in self.buffer.pending():
             if self.max_attempts is not None and int(row["attempts"]) >= self.max_attempts:
@@ -669,6 +693,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_connectivity_manager(buffer: EdgeBuffer, api_url: str, device_id: str, device_key: str,
+                               *, timeout: float, max_attempts: int | None = 5,
+                               session: Any | None = None) -> Any:
+    """Build the transport layer without exposing provider choices to the loop."""
+    try:
+        from connectivity.manager import ConnectivityManager
+        from connectivity.providers.http import HttpProvider
+    except ModuleNotFoundError:  # direct execution from simulators/
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from connectivity.manager import ConnectivityManager
+        from connectivity.providers.http import HttpProvider
+    return ConnectivityManager(
+        buffer,
+        [HttpProvider(api_url, device_id, device_key, timeout=timeout, session=session)],
+        max_attempts=max_attempts,
+    )
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = build_parser().parse_args()
@@ -690,6 +733,9 @@ def main() -> int:
                 max_attempts=None,
                 backoff_base=args.backoff_base,
                 backoff_max=args.backoff_max,
+                connectivity_manager=build_connectivity_manager(
+                    buffer, args.api_url, args.device_id, args.device_key, timeout=args.timeout, max_attempts=None
+                ),
             )
             index = 0
             LOGGER.info(
@@ -722,6 +768,10 @@ def main() -> int:
                                     max_attempts=None,
                                     backoff_base=args.backoff_base,
                                     backoff_max=args.backoff_max,
+                                    connectivity_manager=build_connectivity_manager(
+                                        sync_buffer, args.api_url, args.device_id, args.device_key,
+                                        timeout=args.timeout, max_attempts=None
+                                    ),
                                 ).synchronize(stop_on_retryable_failure=True)
                             finally:
                                 sync_buffer.close()
@@ -754,7 +804,11 @@ def main() -> int:
                 raise SystemExit("FIELDNODE_DEVICE_KEY/--device-key é obrigatório para sincronizar")
             EdgeClient(buffer, args.api_url, args.device_key, timeout=args.timeout,
                        max_attempts=args.max_attempts, backoff_base=args.backoff_base,
-                       backoff_max=args.backoff_max).synchronize()
+                       backoff_max=args.backoff_max,
+                       connectivity_manager=build_connectivity_manager(
+                           buffer, args.api_url, args.device_id, args.device_key,
+                           timeout=args.timeout, max_attempts=args.max_attempts
+                       )).synchronize()
         LOGGER.info("outbox device=%s cursor_contiguo=%d counts=%s", args.device_id, buffer.cursor(), buffer.counts())
     finally:
         buffer.close()

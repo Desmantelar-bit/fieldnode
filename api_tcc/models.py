@@ -347,6 +347,8 @@ class LeituraTelemetria(models.Model):
     )
     trust_factors = models.JSONField(default=list, blank=True,
         help_text="Fatores explicativos calculados para esta leitura.")
+    via = models.JSONField(default=list, blank=True,
+        help_text="Saltos de transporte informados pelo protocolo Data Mule.")
 
     class Meta:
         ordering = ['-timestamp']
@@ -363,6 +365,23 @@ class LeituraTelemetria(models.Model):
 
     def __str__(self):
         return f'#{self.id} — {self.device_id}/{self.message_id} — {self.temperatura}°C — {self.timestamp}'
+
+
+class DeliveryHop(models.Model):
+    """Registro auditável de cada salto de transporte de uma mensagem."""
+
+    leitura = models.ForeignKey(LeituraTelemetria, on_delete=models.CASCADE, related_name="delivery_hops")
+    hop_index = models.PositiveIntegerField()
+    node_id = models.CharField(max_length=100)
+    recebido_em = models.DateTimeField()
+    entregue_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["leitura", "hop_index"]
+        constraints = [
+            models.UniqueConstraint(fields=["leitura", "hop_index"], name="uniq_delivery_hop_per_message"),
+        ]
+        indexes = [models.Index(fields=["node_id", "recebido_em"])]
 
 
 class TelemetryAggregate(models.Model):

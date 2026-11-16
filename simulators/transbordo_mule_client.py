@@ -63,6 +63,11 @@ class MuleBuffer:
                 attempts INTEGER NOT NULL DEFAULT 0,
                 last_attempt_at TEXT,
                 last_error TEXT,
+                custody_status TEXT NOT NULL DEFAULT 'COLETADO',
+                custody_token TEXT,
+                hop_count INTEGER NOT NULL DEFAULT 0,
+                hop_history TEXT NOT NULL DEFAULT '[]',
+                backend_ack TEXT,
                 UNIQUE (device_id, message_id)
             );
             CREATE INDEX IF NOT EXISTS idx_mule_dispatch
@@ -78,6 +83,15 @@ class MuleBuffer:
             self.connection.execute(
                 "ALTER TABLE mule_buffer ADD COLUMN transport_id TEXT NOT NULL DEFAULT 'unknown-transport'"
             )
+        for name, definition in {
+            "custody_status": "TEXT NOT NULL DEFAULT 'COLETADO'",
+            "custody_token": "TEXT",
+            "hop_count": "INTEGER NOT NULL DEFAULT 0",
+            "hop_history": "TEXT NOT NULL DEFAULT '[]'",
+            "backend_ack": "TEXT",
+        }.items():
+            if name not in columns:
+                self.connection.execute(f"ALTER TABLE mule_buffer ADD COLUMN {name} {definition}")
         self.connection.commit()
 
     def _recover_in_flight(self) -> None:
@@ -116,6 +130,8 @@ class MuleBuffer:
                     raise ValueError(f"hash conflitante para {row['message_id']}")
                 already_known += 1
                 continue
+            token = canonical_json({"origin": row["device_id"], "mule_id": self.transport_id,
+                                    "message_id": row["message_id"], "hash": expected_hash})
             self.connection.execute(
                 """INSERT INTO mule_buffer
                 (device_id, message_id, sequence_number, payload, payload_hash,
@@ -124,6 +140,10 @@ class MuleBuffer:
                 (row["device_id"], row["message_id"], row["sequence_number"],
                  row["payload"], expected_hash, row["priority_class"],
                  self.transport_id, STATUS_PENDING, utc_now()),
+            )
+            self.connection.execute(
+                "UPDATE mule_buffer SET custody_token = ?, hop_history = ? WHERE device_id = ? AND message_id = ?",
+                (token, json.dumps([self.transport_id]), row["device_id"], row["message_id"]),
             )
             collected += 1
         self.connection.commit()
@@ -164,8 +184,9 @@ class MuleBuffer:
     def mark_synced(self, row: sqlite3.Row) -> int:
         with self.connection:
             self.connection.execute(
-                "UPDATE mule_buffer SET sync_status = ?, last_error = NULL WHERE id = ?",
-                (STATUS_SYNCED, row["id"]),
+                "UPDATE mule_buffer SET sync_status = ?, custody_status = 'ACKED', "
+                "backend_ack = ?, last_error = NULL WHERE id = ?",
+                (STATUS_SYNCED, json.dumps({"message_id": row["message_id"], "payload_hash": row["payload_hash"]}), row["id"]),
             )
             cursor = self.connection.execute(
                 "SELECT last_acked_sequence FROM mule_cursor WHERE device_id = ?",
@@ -195,7 +216,8 @@ class MuleBuffer:
 class MuleClient:
     def __init__(self, buffer: MuleBuffer, api_url: str, device_key: str, *, timeout: float = 10.0,
                  max_attempts: int = 5, backoff_base: float = 2.0, backoff_max: float = 60.0,
-                 session: Any | None = None, sleep: Callable[[float], None] = time.sleep) -> None:
+                 session: Any | None = None, sleep: Callable[[float], None] = time.sleep,
+                 origin_buffer: EdgeBuffer | None = None, node_id: str = "mule") -> None:
         self.buffer = buffer
         self.api_url = api_url.rstrip("/") + "/"
         self.device_key = device_key
@@ -205,6 +227,28 @@ class MuleClient:
         self.backoff_max = backoff_max
         self.session = session or requests.Session()
         self.sleep = sleep
+        self.origin_buffer = origin_buffer
+        self.node_id = node_id
+
+    def collect_from_edge(self, export_url: str, export_token: str, *, since: int = 0) -> tuple[int, int]:
+        """Collect over HTTP; persistence happens before the caller can ACK it."""
+        response = self.session.get(
+            export_url,
+            params={"since": since},
+            headers={"X-Mule-Token": export_token},
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        body = response.json()
+        rows = []
+        for message in body.get("messages", []):
+            payload = dict(message["payload"])
+            rows.append({
+                "device_id": message["device_id"], "message_id": message["message_id"],
+                "sequence_number": message["sequence_number"], "payload": json.dumps(payload, sort_keys=True),
+                "payload_hash": message["payload_hash"], "priority_class": message["priority_class"],
+            })
+        return self.buffer.collect(rows)
 
     def synchronize(self) -> int:
         synced = 0
@@ -220,8 +264,11 @@ class MuleClient:
         row_id = int(row["id"])
         self.buffer.mark_sending(row_id)
         try:
+            payload = json.loads(str(row["payload"]))
+            via = payload.get("via") if isinstance(payload.get("via"), list) else []
+            payload["via"] = [*via, {"node": self.node_id, "t": utc_now()}]
             response = self.session.post(
-                self.api_url, json=json.loads(str(row["payload"])),
+                self.api_url, json=payload,
                 headers={"X-Device-Id": str(row["device_id"]), "X-Device-Key": self.device_key,
                          "Content-Type": "application/json"},
                 timeout=self.timeout,
@@ -241,10 +288,16 @@ class MuleClient:
         except (ValueError, json.JSONDecodeError) as exc:
             self.buffer.mark_error(row_id, f"ACK JSON inválido: {exc}")
             return False
-        if body.get("payload_hash") != row["payload_hash"] or body.get("message_id") != row["message_id"]:
+        if (body.get("status") is not None and body.get("status") not in {"acked", "duplicate"}) or \
+                body.get("payload_hash") != row["payload_hash"] or \
+                body.get("message_id") != row["message_id"] or \
+                (body.get("device_id") is not None and body.get("device_id") != row["device_id"]) or \
+                (body.get("sequence_number") is not None and body.get("sequence_number") != row["sequence_number"]):
             self.buffer.mark_error(row_id, "ACK não corresponde à mensagem enviada")
             return False
         cursor = self.buffer.mark_synced(row)
+        if self.origin_buffer is not None and not self.origin_buffer.apply_backend_ack(body):
+            LOGGER.warning("ACK válido não aplicado à origem message_id=%s", row["message_id"])
         LOGGER.info("ACK device=%s seq=%s cursor_contiguo=%d", row["device_id"], row["sequence_number"], cursor)
         return True
 
@@ -275,6 +328,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-url", default=os.getenv("FIELDNODE_API_URL", "http://127.0.0.1:8000/api") + "/telemetria/")
     parser.add_argument("--device-key", default=os.getenv("FIELDNODE_DEVICE_KEY", ""))
     parser.add_argument("--offline", action="store_true", help="coleta sem conectar ao backend")
+    parser.add_argument("--edge-export-url", default=os.getenv("EDGE_EXPORT_URL", ""))
+    parser.add_argument("--skip-edge-collection", action="store_true")
+    parser.add_argument("--mule-token", default=os.getenv("MULE_EXPORT_TOKEN", ""))
+    parser.add_argument("--since", type=int, default=0)
+    parser.add_argument("--node-id", default=os.getenv("TRANSPORT_ID", "mule"))
     parser.add_argument("--repeat-encounter", action="store_true")
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--max-attempts", type=int, default=5)
@@ -303,11 +361,19 @@ def main() -> int:
         if args.repeat_encounter:
             collected, _ = collect_from_harvester(harvester, mule)
             LOGGER.info("[DATA MULE] encontro repetido: %d novas mensagens", collected)
+        client = MuleClient(mule, args.api_url, args.device_key, timeout=args.timeout,
+                            max_attempts=args.max_attempts, node_id=args.node_id)
+        if args.edge_export_url and not args.skip_edge_collection:
+            if not args.mule_token:
+                raise SystemExit("--mule-token/MULE_EXPORT_TOKEN é obrigatório para coletar por HTTP")
+            collected, known = client.collect_from_edge(
+                args.edge_export_url, args.mule_token, since=args.since
+            )
+            LOGGER.info("[DATA MULE] coleta HTTP: %d novas; %d conhecidas", collected, known)
         if not args.offline:
             if not args.device_key:
                 raise SystemExit("FIELDNODE_DEVICE_KEY/--device-key é obrigatório para sincronizar")
-            synced = MuleClient(mule, args.api_url, args.device_key, timeout=args.timeout,
-                                max_attempts=args.max_attempts).synchronize()
+            synced = client.synchronize()
             LOGGER.info("[DATA MULE] %d leituras confirmadas pelo backend", synced)
         LOGGER.info("[DATA MULE] buffer=%s counts=%s", mule.path, mule.counts())
     finally:

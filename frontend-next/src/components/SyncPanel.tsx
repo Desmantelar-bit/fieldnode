@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 
 type DeviceReport = {
   device_id: string;
@@ -13,6 +14,7 @@ type QueueItem = { device_id?: string; priority_class?: 'A' | 'B' | 'C'; state?:
 type SyncResponse = {
   sincronizacao?: { dispositivos?: DeviceReport[]; perdas_registradas?: number; backlog_total?: number; alerta_backlog?: boolean };
 };
+type HopReport = { count?: number; hops?: Array<{ node_id: string; hop_index: number }> };
 
 const EMPTY_CLASSES = { A: 0, B: 0, C: 0 } as const;
 
@@ -20,6 +22,7 @@ export function SyncPanel() {
   const [report, setReport] = useState<SyncResponse['sincronizacao']>();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [error, setError] = useState(false);
+  const [hopReport, setHopReport] = useState<HopReport | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -29,6 +32,8 @@ export function SyncPanel() {
         if (!response.ok) throw new Error('status unavailable');
         const data: SyncResponse = await response.json();
         if (active) { setReport(data.sincronizacao); setError(false); }
+        const hopResponse = await fetch('/api/sync/report/?format=json', { cache: 'no-store' });
+        if (active && hopResponse.ok) setHopReport(await hopResponse.json());
       } catch { if (active) setError(true); }
     };
     const onQueue = (event: Event) => {
@@ -70,6 +75,7 @@ export function SyncPanel() {
             <table className="w-full min-w-[620px] text-left text-xs"><caption className="sr-only">Estado de sincronização por dispositivo</caption><thead className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-3)]"><tr><th className="pb-2">Dispositivo</th><th className="pb-2">Último ACK</th><th className="pb-2">Backlog</th><th className="pb-2">Atraso máximo</th></tr></thead><tbody>{devices.map((device) => <tr key={device.device_id} className="border-t border-[var(--line)]"><td className="py-2 font-medium">{device.device_id}</td><td className="py-2">seq. {device.ultimo_ack}</td><td className="py-2">{device.backlog}</td><td className="py-2">{device.atraso_maximo_segundos == null ? 'n/d' : `${device.atraso_maximo_segundos}s`}</td></tr>)}</tbody></table>
           </div>
           <p className={`mt-4 text-xs ${report?.perdas_registradas ? 'text-[color:var(--status-critico)]' : 'text-[var(--text-3)]'}`} role={report?.perdas_registradas ? 'alert' : undefined}>Perdas registradas: {report?.perdas_registradas || 0}. Fila local: A {local.A}, B {local.B}, C {local.C}.</p>
+          {hopReport && <p className="mt-2 text-xs text-[var(--text-3)]">Saltos registrados: {hopReport.count || 0}. <Link className="underline underline-offset-2" href="/api/sync/report/?format=csv">Baixar CSV</Link></p>}
         </>
       )}
     </section>

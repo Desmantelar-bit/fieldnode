@@ -115,8 +115,11 @@ class StatusMQTTView(APIView):
                 device_id=device_id, sequence_number__gt=ack,
             )
             counts = {value: pending.filter(priority_class=value).count() for value in ('A', 'B', 'C')}
-            latest = scoped_leituras.filter(device_id=device_id).order_by('-recebido_em').first()
-            delay = max(0, int((timezone.now() - latest.recebido_em).total_seconds())) if latest else None
+            oldest_pending = pending.order_by('recebido_em').first()
+            delay = (
+                max(0, int((timezone.now() - oldest_pending.recebido_em).total_seconds()))
+                if oldest_pending else None
+            )
             reports.append({
                 'device_id': device_id,
                 'ultimo_ack': ack,

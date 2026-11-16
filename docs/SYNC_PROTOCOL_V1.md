@@ -58,6 +58,29 @@ transação SQLite. Se a resposta se perder, o reenvio legítimo retorna
 - conflito não substitui a mensagem original e deve ser investigado;
 - reinicialização recupera mensagens que estavam em `ENVIANDO`.
 
+## Custódia do Data Mule
+
+Quando o Mule coleta uma mensagem, persiste uma cópia e um token antes de
+qualquer confirmação de coleta. A origem mantém sua cópia em `ORIGEM`; a cópia
+do Mule fica em `COLETADO`. Coleta não equivale a entrega.
+
+```text
+ORIGEM -> COLETADO -> ENTREGUE -> ACKED -> LIBERADO
+```
+
+O token registra origem, Mule, `message_id` e `payload_hash`. O Mule mantém a
+cópia até ACK compatível com identidade, sequência e hash. A origem só aplica
+a confirmação com `EdgeBuffer.apply_backend_ack`; o Mule não fabrica ACK e não
+troca `device_id` pelo seu identificador.
+
+O estado de custódia e o ACK ficam no SQLite do Mule, permitindo recuperação
+após reinício. Coletas repetidas e reenvios podem existir, mas a deduplicação
+do backend continua sendo a garantia de efeito único persistido.
+
+O token atual é correlação e integridade local, não assinatura criptográfica.
+Autenticidade verificável do ACK e da origem ainda depende de uma decisão
+criptográfica compatível com as credenciais de dispositivo.
+
 ## Prioridade, TTL e compressão
 
 A classe de transmissão é determinada pelas regras de severidade existentes.

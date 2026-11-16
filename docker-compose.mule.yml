@@ -1,0 +1,60 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py provision_device edge-bench-01 demo-device-key &&
+      exec gunicorn setup.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 120"
+    environment:
+      SECRET_KEY: s7-local-only
+      DEBUG: "True"
+      USE_SQLITE: "True"
+      ALLOWED_HOSTS: web,localhost,127.0.0.1
+      REQUIRE_MESSAGE_SIGNATURES: "True"
+      FIELDNODE_DEVICE_SIGNING_KEYS: '{"edge-bench-01":"s7-signing-secret"}'
+    networks: [base_net]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/')\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m simulators.edge_server --seed 20
+    environment:
+      EDGE_BUFFER_PATH: /data/edge.db
+      DEVICE_ID: edge-bench-01
+      EDGE_SIGNING_KEY: s7-signing-secret
+      MULE_EXPORT_TOKEN: s7-mule-token
+    volumes:
+      - s7_edge_data:/data
+    networks: [field_net]
+
+  mule:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
+    environment:
+      FIELDNODE_API_URL: http://web:8000/api
+      FIELDNODE_DEVICE_KEY: demo-device-key
+      MULE_EXPORT_TOKEN: s7-mule-token
+      EDGE_EXPORT_URL: http://edge:8081/outbox/export
+      TRANSPORT_ID: mule-s7
+    volumes:
+      - s7_mule_data:/data
+    networks: [base_net]
+
+networks:
+  field_net:
+    internal: true
+  base_net:
+
+volumes:
+  s7_edge_data:
+  s7_mule_data:
