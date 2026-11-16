@@ -16,6 +16,7 @@ S1-T5 — Contrato de identidade e sincronização:
 import hashlib
 import json
 import logging
+import math
 import uuid as uuid_lib
 from datetime import datetime
 
@@ -88,8 +89,25 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
         if campo not in dados or dados[campo] is None:
             return False, f"campo obrigatório ausente: {campo}"
 
-    allowed_units = severity_contract()["metrics"]["vibracao"]["allowed_units"]
+    allowed_units = set(severity_contract()["metrics"]["vibracao"]["allowed_units"])
     vibration_unit = dados.get("vibracao_unit", "indice_0_10")
+    feature_names = ("vibracao_rms_g", "vibracao_pico_g", "vibracao_curtose")
+    feature_present = any(dados.get(name) is not None for name in feature_names)
+    if feature_present:
+        allowed_units.add("g")
+        if vibration_unit != "g" or not all(dados.get(name) is not None for name in feature_names):
+            return False, "features de vibração exigem vibracao_unit='g' e os três campos"
+        for name in feature_names:
+            value = dados[name]
+            if not isinstance(value, dict) or set(value) != {"x", "y", "z"}:
+                return False, f"{name} deve conter exatamente os eixos x, y e z"
+            for axis, axis_value in value.items():
+                try:
+                    numeric = float(axis_value)
+                except (TypeError, ValueError):
+                    return False, f"{name}.{axis} deve ser numérico"
+                if not math.isfinite(numeric) or numeric < 0:
+                    return False, f"{name}.{axis} deve ser finito e não negativo"
     if vibration_unit not in allowed_units:
         return False, f"vibracao_unit inválida: {vibration_unit!r}; esperado {allowed_units}"
     dados["vibracao_unit"] = vibration_unit
@@ -442,6 +460,9 @@ def registrar_leitura(
                     temperatura=float(dados["temperatura"]),
                     vibracao=float(dados["vibracao"]),
                     vibracao_unit=dados["vibracao_unit"],
+                    vibracao_rms_g=dados.get("vibracao_rms_g"),
+                    vibracao_pico_g=dados.get("vibracao_pico_g"),
+                    vibracao_curtose=dados.get("vibracao_curtose"),
                     rpm=int(dados["rpm"]),
                     velocidade_kmh=(
                         float(dados["velocidade_kmh"])

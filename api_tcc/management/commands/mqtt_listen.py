@@ -133,7 +133,14 @@ def on_message(client, userdata, msg):
     try:
         logger.info('[MQTT] Mensagem recebida em %s', msg.topic)
 
-        resultado, detalhe = registrar_leitura(payload)
+        # A credencial MQTT foi validada acima e o device_id do tópico é a
+        # identidade autenticada da origem. Repassá-la ao domínio é o que
+        # permite distinguir uma leitura física de um payload apenas parecido
+        # com firmware, sem confiar em data_origin enviado pelo cliente.
+        resultado, detalhe = registrar_leitura(
+            payload,
+            authenticated_device_id=topic_device,
+        )
 
         if resultado == "criado":
             logger.info('[MQTT] Leitura salva: %s', detalhe)

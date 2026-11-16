@@ -370,6 +370,15 @@ npm run build
 
 ## Resiliência Offline
 
+### Topologia real da demo
+
+Na demo atual, o notebook é o hospedeiro dos serviços: Docker executa
+Mosquitto, Django, `mqtt_listen`, banco e, no modo Compose, o frontend Next.js.
+Hotspot ou LAN fornecem apenas conectividade local; não são servidor nem
+internet automática. Não existe firmware ESP32, gateway ESP-NOW ou Raspberry
+implantado neste repositório. A separação entre demo, bancada e arquitetura
+proposta está em [docs/CONECTIVIDADE.md](docs/CONECTIVIDADE.md).
+
 O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém
 payloads offline em IndexedDB. Respostas de `/api/` ficam na rede para não reutilizar
 dados autenticados entre sessões. Na sincronização, respostas 2xx, 400 e 401 removem o

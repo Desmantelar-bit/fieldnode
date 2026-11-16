@@ -133,6 +133,7 @@ class MqttIdentityBoundaryTests(TestCase):
             payload=json.dumps({"device_id": "device-B", "maquina_id": "TRACTOR-B"}).encode(),
         )
         with patch.object(mqtt_listen, "registrar_leitura") as registrar:
+            registrar.return_value = ("criado", "reading-1")
             mqtt_listen.on_message(None, None, message)
         registrar.assert_not_called()
         entry = DeadLetterEntry.objects.get(contexto="MQTT_SPOOF")
@@ -142,6 +143,17 @@ class MqttIdentityBoundaryTests(TestCase):
     def test_malformed_json_does_not_escape_message_callback(self):
         message = SimpleNamespace(topic="fieldnode/device-A/telemetria", payload=b"{")
         mqtt_listen.on_message(None, None, message)
+
+    def test_authenticated_topic_identity_is_passed_to_domain_ingestion(self):
+        payload = {"device_id": "device-A", "id": "message-1"}
+        message = SimpleNamespace(
+            topic="fieldnode/device-A/telemetria",
+            payload=json.dumps(payload).encode(),
+        )
+        with patch.object(mqtt_listen, "registrar_leitura") as registrar:
+            registrar.return_value = ("criado", "reading-1")
+            mqtt_listen.on_message(None, None, message)
+        registrar.assert_called_once_with(payload, authenticated_device_id="device-A")
 
     def test_malformed_topic_is_rejected_before_ingestion(self):
         message = SimpleNamespace(topic="fieldnode/device-A/telemetria/extra", payload=b"{}")

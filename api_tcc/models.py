@@ -291,6 +291,9 @@ class LeituraTelemetria(models.Model):
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')
     vibracao    = models.FloatField(verbose_name='Vibração')
     vibracao_unit = models.CharField(max_length=20, default='indice_0_10', verbose_name='Unidade/escala da vibração')
+    vibracao_rms_g = models.JSONField(null=True, blank=True, verbose_name='Vibração RMS por eixo (g)')
+    vibracao_pico_g = models.JSONField(null=True, blank=True, verbose_name='Pico de vibração por eixo (g)')
+    vibracao_curtose = models.JSONField(null=True, blank=True, verbose_name='Curtose de vibração por eixo')
     rpm         = models.IntegerField(verbose_name='RPM')
     velocidade_kmh = models.FloatField(
         null=True,

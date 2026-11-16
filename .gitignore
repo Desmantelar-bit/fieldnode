@@ -83,3 +83,10 @@ docs/evidence/**/*.sql
 .peridot/sessions/
 .peridot/skills/auto/
 .peridot/logs/
+# Local ESP32 credentials
+firmware/include/secrets.h
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
