@@ -278,6 +278,14 @@ class LeituraTelemetria(models.Model):
         verbose_name='Status de Sincronização',
         help_text='Estado: sincronizado (ingestão direta), pendente (offline — Semana 8).',
     )
+    priority_class = models.CharField(
+        max_length=1,
+        choices=[(value, value) for value in ("A", "B", "C")],
+        default="C",
+        db_index=True,
+        verbose_name="Classe de prioridade",
+        help_text="Classe de transmissão atribuída pelo contrato Sync v1.",
+    )
     # ── Fim dos campos S1-T5 ───────────────────────────────────────────────
 
     temperatura = models.FloatField(verbose_name='Temperatura (°C)')

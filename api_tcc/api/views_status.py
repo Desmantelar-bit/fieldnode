@@ -5,10 +5,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api_tcc.api.views_common import (
-    _filter_public_demo_leituras, _public_demo_machine_allowed, _serializar_analise,
+    _filter_public_demo_leituras, _is_public_demo_request, _public_demo_machine_allowed, _serializar_analise,
 )
 from api_tcc.ia.pipeline import analisar_maquina
-from api_tcc.models import LeituraTelemetria
+from api_tcc.models import DeadLetterEntry, LeituraTelemetria, SyncCursor
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo
 
 logger = logging.getLogger(__name__)
@@ -97,15 +97,50 @@ class StatusMQTTView(APIView):
                 'telemetria_atualizada': False,
                 'ultima_leitura_segundos_atras': None,
                 'status': 'sem_dados',
-                'detalhes': 'Nenhuma leitura recebida ainda'
+                'detalhes': 'Nenhuma leitura recebida ainda',
+                'sincronizacao': {'dispositivos': [], 'perdas_registradas': 0, 'backlog_total': 0},
             })
 
         delta = timezone.now() - ultima_leitura.recebido_em
         segundos_atras = int(delta.total_seconds())
         atualizada = segundos_atras < 10
 
+        scoped_leituras = _filter_public_demo_leituras(LeituraTelemetria.objects.all(), request)
+        devices = set(scoped_leituras.values_list('device_id', flat=True).distinct())
+        reports = []
+        for device_id in sorted(devices):
+            cursor = SyncCursor.objects.filter(device_id=device_id).first()
+            ack = cursor.last_acked_sequence if cursor else 0
+            pending = scoped_leituras.filter(
+                device_id=device_id, sequence_number__gt=ack,
+            )
+            counts = {value: pending.filter(priority_class=value).count() for value in ('A', 'B', 'C')}
+            latest = scoped_leituras.filter(device_id=device_id).order_by('-recebido_em').first()
+            delay = max(0, int((timezone.now() - latest.recebido_em).total_seconds())) if latest else None
+            reports.append({
+                'device_id': device_id,
+                'ultimo_ack': ack,
+                'pendentes_por_classe': counts,
+                'backlog': sum(counts.values()),
+                'atraso_maximo_segundos': delay,
+            })
+        loss_query = DeadLetterEntry.objects.filter(
+            contexto=DeadLetterEntry.Contexto.SYNC, resolvido=False,
+        )
+        if _is_public_demo_request(request):
+            losses = loss_query.filter(payload_referencia__device_id__in=list(devices)).count()
+        else:
+            losses = loss_query.count()
+        backlog_total = sum(report['backlog'] for report in reports)
+
         return Response({
             'telemetria_atualizada': atualizada,
             'ultima_leitura_segundos_atras': segundos_atras,
             'status': 'recente' if atualizada else 'desatualizada',
+            'sincronizacao': {
+                'dispositivos': reports,
+                'perdas_registradas': losses,
+                'backlog_total': backlog_total,
+                'alerta_backlog': backlog_total > 0 or losses > 0,
+            },
         })

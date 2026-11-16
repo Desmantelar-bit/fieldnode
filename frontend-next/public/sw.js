@@ -365,6 +365,9 @@ async function countBy(db) {
 async function queueSummaries(db) {
   return (await readAll(db)).map((item) => ({
     localId: item.localId,
+    device_id: item.payload?.device_id || item.payload?.maquina_id || 'desconhecido',
+    priority_class: item.payload?.priority_class || 'C',
+    createdAt: item.createdAt,
     state: item.state || "pending",
     last_error: item.last_error || null,
   }));

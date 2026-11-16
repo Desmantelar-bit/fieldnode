@@ -114,22 +114,27 @@ def server_metrics(compose_args: list[str], device_id: str) -> dict[str, Any]:
     code = f"""from api_tcc.models import LeituraTelemetria
 import json
 rows = list(LeituraTelemetria.objects.filter(device_id={literal}).values(
-    'message_id', 'sequence_number', 'recebido_em'
+    'message_id', 'sequence_number', 'priority_class', 'timestamp', 'recebido_em'
 ))
 rows.sort(key=lambda row: row['recebido_em'])
 sequence = [int(row['sequence_number']) for row in rows]
 unique_ids = {{row['message_id'] for row in rows}}
+class_counts = {{priority: sum(row['priority_class'] == priority for row in rows) for priority in ('A', 'B', 'C')}}
 highest = 0
 out_of_order = 0
 for value in sequence:
     if value < highest:
         out_of_order += 1
     highest = max(highest, value)
+event_rows = [row for row in rows if row['timestamp'] is not None]
+event_sequence = [int(row['sequence_number']) for row in sorted(event_rows, key=lambda row: row['timestamp'])]
 print(json.dumps({{
     'received_rows': len(rows),
     'received_unique': len(unique_ids),
     'duplicate_persisted': len(rows) - len(unique_ids),
     'out_of_order': out_of_order,
+    'event_time_order_ok': event_sequence == sorted(event_sequence),
+    'received_by_class': class_counts,
     'received_sequence': sequence,
 }}))"""
     result = compose(compose_args, "exec", "-T", "web", "python", "manage.py", "shell", "-c", code)
@@ -261,6 +266,8 @@ def measure(
             "duplicate_attempts": max(0, attempts - generated),
             "duplicate_persisted": server["duplicate_persisted"],
             "out_of_order": server["out_of_order"],
+            "event_time_order_ok": server["event_time_order_ok"],
+            "received_by_class": server["received_by_class"],
             "recovery_time_seconds": seconds_between(
                 result["backend_ready_at"], result["last_successful_sync_at"]
             ),
@@ -268,6 +275,10 @@ def measure(
             "server_received_sequence": server["received_sequence"],
         })
         expected_sequences = list(range(1, args.count + 1))
+        generated_by_class = {
+            priority: sum(row["priority_class"] == priority for row in local["rows"])
+            for priority in ("A", "B", "C")
+        }
         validation_errors = []
         if generated != args.count:
             validation_errors.append(f"geradas {generated} de {args.count} leituras solicitadas")
@@ -282,6 +293,15 @@ def measure(
             validation_errors.append(f"outbox não totalmente sincronizada: {local['counts']}")
         if sorted(server["received_sequence"]) != expected_sequences:
             validation_errors.append("sequências do backend ausentes, duplicadas ou inesperadas")
+        for priority in ("A", "B"):
+            if server["received_by_class"].get(priority, 0) != generated_by_class[priority]:
+                validation_errors.append(
+                    f"perda na classe {priority}: backend recebeu "
+                    f"{server['received_by_class'].get(priority, 0)} de {generated_by_class[priority]}"
+                )
+        if not server["event_time_order_ok"]:
+            validation_errors.append("ordem por event_time não corresponde à sequência gerada")
+        result["generated_by_class"] = generated_by_class
         result["validation_errors"] = validation_errors
         result["status"] = "VALID" if not validation_errors else "FAILED"
     finally:
@@ -347,7 +367,7 @@ def main() -> int:
         for index, duration in enumerate(args.durations, start=args.start_index):
             print(f"\n=== R{index}: indisponibilidade de {duration}s ===", flush=True)
             run_id = uuid.uuid4().hex[:12]
-            device_id = args.device_id
+            device_id = f"{args.device_id}-r{index}-{run_id}"
             try:
                 row = measure(args, duration, index, run_id=run_id, device_id=device_id)
             except KeyboardInterrupt:

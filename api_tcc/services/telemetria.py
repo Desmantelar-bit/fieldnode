@@ -451,6 +451,7 @@ def registrar_leitura(
                     transport=transport,
                     payload_hash=payload_hash,
                     sync_status="sincronizado",
+                    priority_class=str(dados.get("priority_class", "C")),
                 )
                 trust_score, trust_motivos = calcular_trust_score(
                     leitura,

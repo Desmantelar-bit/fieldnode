@@ -316,6 +316,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "data_origin",
             "transport",
             "sync_status",
+            "priority_class",
             # Risco calculado
             "status_risco",
         ]
@@ -334,6 +335,7 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'data_origin':    {'read_only': True},
             'transport':      {'read_only': True},
             'sync_status':    {'read_only': True},
+            'priority_class': {'read_only': True},
         }
 
     def validate_maquina_id(self, value):
