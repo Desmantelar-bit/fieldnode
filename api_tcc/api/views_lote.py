@@ -106,6 +106,7 @@ class IngestaoLoteView(APIView):
                     'detalhe': 'falha interna ao persistir a leitura',
                 })
 
+        resultado['acks'] = resultado['items']
         resultado.update(
             accepted=resultado['salvas'],
             rejected=resultado['invalidas'],

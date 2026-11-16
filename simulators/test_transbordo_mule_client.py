@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
-
-import pytest
+import tempfile
+import unittest
+from pathlib import Path
 
 try:
     from .edge_client import EdgeBuffer, generate_payload
@@ -43,81 +44,81 @@ def _hash(payload):
     return payload_hash(payload)
 
 
-@pytest.fixture
-def buffers(tmp_path):
-    edge = EdgeBuffer(tmp_path / "colhedora.db", "COLH-POC-01")
-    mule = MuleBuffer(tmp_path / "transbordo.db", "TRB-POC-01")
-    try:
+class DataMuleClientTest(unittest.TestCase):
+    def setUp(self):
+        self._temp_dir = tempfile.TemporaryDirectory()
+        tmp_path = Path(self._temp_dir.name)
+        self.edge = EdgeBuffer(tmp_path / "colhedora.db", "COLH-POC-01")
+        self.mule = MuleBuffer(tmp_path / "transbordo.db", "TRB-POC-01")
         for index in range(20):
-            edge.enqueue(generate_payload("COLH-POC-01", edge.next_sequence(), index, source="data_mule"))
-        yield edge, mule
-    finally:
-        for connection in (mule, edge):
+            self.edge.enqueue(generate_payload("COLH-POC-01", self.edge.next_sequence(), index, source="data_mule"))
+
+    def tearDown(self):
+        for connection in (self.mule, self.edge):
             try:
                 connection.close()
             except sqlite3.ProgrammingError:
                 pass
+        self._temp_dir.cleanup()
 
+    def test_data_mule_coleta_20_preserva_identidade_e_eh_idempotente(self):
+        self.assertEqual(len(self.edge.transfer_candidates()), 20)
+        self.assertEqual(collect_from_harvester(self.edge, self.mule), (20, 0))
+        self.assertEqual(collect_from_harvester(self.edge, self.mule), (0, 20))
+        self.assertEqual(self.mule.counts(), {"PENDENTE": 20})
 
-def test_data_mule_coleta_20_preserva_identidade_e_eh_idempotente(buffers):
-    edge, mule = buffers
+        source_rows = {row["message_id"]: row for row in self.edge.transfer_candidates()}
+        mule_rows = {
+            row["message_id"]: row
+            for row in self.mule.connection.execute("SELECT * FROM mule_buffer")
+        }
+        self.assertEqual(set(source_rows), set(mule_rows))
+        for message_id, source in source_rows.items():
+            copied = mule_rows[message_id]
+            self.assertEqual(copied["device_id"], source["device_id"])
+            self.assertEqual(copied["device_id"], "COLH-POC-01")
+            self.assertEqual(copied["sequence_number"], source["sequence_number"])
+            self.assertEqual(copied["payload_hash"], source["payload_hash"])
+            self.assertEqual(json.loads(copied["payload"])["source"], "data_mule")
 
-    assert len(edge.transfer_candidates()) == 20
-    assert collect_from_harvester(edge, mule) == (20, 0)
-    assert collect_from_harvester(edge, mule) == (0, 20)
-    assert mule.counts() == {"PENDENTE": 20}
+    def test_data_mule_reinicia_e_sincroniza_com_ack_por_mensagem(self):
+        collect_from_harvester(self.edge, self.mule)
+        mule_path = self.mule.path
+        self.mule.close()
+        self.mule = MuleBuffer(mule_path, "TRB-POC-01")
+        session = FakeSession()
+        try:
+            self.assertEqual(
+                MuleClient(self.mule, "http://backend.test/api/telemetria", "secret",
+                           session=session, sleep=lambda _: None).synchronize(),
+                20,
+            )
+            self.assertEqual(len(session.sent), 20)
+            self.assertEqual({item[1]["device_id"] for item in session.sent}, {"COLH-POC-01"})
+            self.assertEqual(self.mule.counts(), {"SINCRONIZADA": 20})
+            cursor = self.mule.connection.execute(
+                "SELECT last_acked_sequence FROM mule_cursor WHERE device_id = ?",
+                ("COLH-POC-01",),
+            ).fetchone()
+            self.assertEqual(cursor[0], 20)
+        finally:
+            self.mule.close()
 
-    source_rows = {row["message_id"]: row for row in edge.transfer_candidates()}
-    mule_rows = {
-        row["message_id"]: row
-        for row in mule.connection.execute("SELECT * FROM mule_buffer")
-    }
-    assert set(source_rows) == set(mule_rows)
-    for message_id, source in source_rows.items():
-        copied = mule_rows[message_id]
-        assert copied["device_id"] == source["device_id"] == "COLH-POC-01"
-        assert copied["sequence_number"] == source["sequence_number"]
-        assert copied["payload_hash"] == source["payload_hash"]
-        assert json.loads(copied["payload"])["source"] == "data_mule"
+    def test_data_mule_rejeita_hash_conflitante_sem_sobrescrever(self):
+        collect_from_harvester(self.edge, self.mule)
+        row = self.edge.transfer_candidates()[0]
+        self.mule.connection.execute(
+            "UPDATE mule_buffer SET payload_hash = ? WHERE message_id = ?",
+            ("f" * 64, row["message_id"]),
+        )
+        self.mule.connection.commit()
 
+        with self.assertRaises(ValueError) as ctx:
+            collect_from_harvester(self.edge, self.mule)
+        self.assertIn("hash conflitante", str(ctx.exception))
 
-def test_data_mule_reinicia_e_sincroniza_com_ack_por_mensagem(buffers):
-    edge, mule = buffers
-    collect_from_harvester(edge, mule)
-    mule_path = mule.path
-    mule.close()
-    mule = MuleBuffer(mule_path, "TRB-POC-01")
-    session = FakeSession()
-    try:
-        assert MuleClient(mule, "http://backend.test/api/telemetria", "secret",
-                          session=session, sleep=lambda _: None).synchronize() == 20
-        assert len(session.sent) == 20
-        assert {item[1]["device_id"] for item in session.sent} == {"COLH-POC-01"}
-        assert mule.counts() == {"SINCRONIZADA": 20}
-        cursor = mule.connection.execute(
-            "SELECT last_acked_sequence FROM mule_cursor WHERE device_id = ?",
-            ("COLH-POC-01",),
+        status = self.mule.connection.execute(
+            "SELECT collection_status FROM mule_buffer WHERE message_id = ?",
+            (row["message_id"],),
         ).fetchone()
-        assert cursor[0] == 20
-    finally:
-        mule.close()
-
-
-def test_data_mule_rejeita_hash_conflitante_sem_sobrescrever(buffers):
-    edge, mule = buffers
-    collect_from_harvester(edge, mule)
-    row = edge.transfer_candidates()[0]
-    mule.connection.execute(
-        "UPDATE mule_buffer SET payload_hash = ? WHERE message_id = ?",
-        ("f" * 64, row["message_id"]),
-    )
-    mule.connection.commit()
-
-    with pytest.raises(ValueError, match="hash conflitante"):
-        collect_from_harvester(edge, mule)
-
-    status = mule.connection.execute(
-        "SELECT collection_status FROM mule_buffer WHERE message_id = ?",
-        (row["message_id"],),
-    ).fetchone()
-    assert status[0] == "CONFLITO"
+        self.assertEqual(status[0], "CONFLITO")

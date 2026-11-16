@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
-from django.core.validators import MaxValueValidator
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 import uuid as uuid_lib
 
@@ -283,6 +284,30 @@ class LeituraTelemetria(models.Model):
     vibracao    = models.FloatField(verbose_name='Vibração')
     vibracao_unit = models.CharField(max_length=20, default='indice_0_10', verbose_name='Unidade/escala da vibração')
     rpm         = models.IntegerField(verbose_name='RPM')
+    velocidade_kmh = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Velocidade (km/h)",
+        help_text="Velocidade GPS quando disponível; ausência não significa velocidade zero.",
+    )
+    regime = models.CharField(
+        max_length=20,
+        default="desconhecido",
+        db_index=True,
+        choices=[
+            ("desligada", "Desligada"),
+            ("marcha_lenta", "Marcha lenta"),
+            ("trabalhando", "Trabalhando"),
+            ("deslocamento", "Deslocamento"),
+            ("desconhecido", "Desconhecido"),
+        ],
+    )
+    evidence_quality = models.CharField(
+        max_length=16,
+        default="insuficiente",
+        choices=[("boa", "Boa"), ("suspeita", "Suspeita"), ("insuficiente", "Insuficiente")],
+        help_text="Qualidade da observação para fins de treinamento; não é confiança do modelo.",
+    )
     latitude    = models.FloatField(verbose_name="Latitude", null=True, blank=True)
     longitude   = models.FloatField(verbose_name="Longitude", null=True, blank=True)
     # timestamp = event_time: momento em que o evento ocorreu na origem.
@@ -573,6 +598,94 @@ class Reevaluation(models.Model):
             models.UniqueConstraint(fields=["work_order", "regra_versao"], name="uniq_reeval_workorder_rule_version"),
         ]
         ordering = ["-executada_em"]
+
+
+class LabeledWindow(models.Model):
+    """Janela rotulada com rastreabilidade da decisão e da regra aplicada."""
+
+    class Label(models.TextChoices):
+        ACAO_ASSOCIADA_RESOLUCAO = "acao_associada_resolucao", "Ação associada à resolução"
+        NEGATIVO = "negativo", "Negativo"
+        POSITIVO = "positivo", "Positivo"
+
+    class LabelSource(models.TextChoices):
+        HUMANO = "humano", "Humano"
+        TELEMETRIA = "telemetria", "Telemetria"
+        AMBOS = "ambos", "Ambos"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="labeled_windows")
+    organization = models.ForeignKey("Organization", on_delete=models.PROTECT, null=True, blank=True, related_name="labeled_windows")
+    decision = models.ForeignKey("Decision", on_delete=models.PROTECT, related_name="labeled_windows")
+    janela_inicio = models.DateTimeField()
+    janela_fim = models.DateTimeField()
+    features = models.JSONField(default=dict)
+    label = models.CharField(max_length=40, choices=Label.choices)
+    categoria = models.CharField(max_length=80)
+    justificativa = models.TextField()
+    fonte_rotulo = models.CharField(max_length=20, choices=LabelSource.choices)
+    regra_versao = models.CharField(max_length=50)
+    elegivel_exportacao = models.BooleanField(default=True, db_index=True)
+    motivo_exclusao = models.TextField(blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["machine__external_code", "janela_inicio", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["decision", "regra_versao"], name="uniq_labeled_window_decision_rule"),
+        ]
+        indexes = [models.Index(fields=["organization", "elegivel_exportacao"])]
+
+
+class MachineSpec(models.Model):
+    """Contexto cadastral e limites experimentais de uma máquina específica."""
+
+    machine = models.OneToOneField("Machine", on_delete=models.PROTECT, related_name="spec")
+    modelo = models.CharField(max_length=150, blank=True)
+    ano = models.PositiveIntegerField(null=True, blank=True, validators=[MinValueValidator(1900), MaxValueValidator(2100)])
+    horas_motor = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
+    limites_json = models.JSONField(default=dict, blank=True)
+    origem = models.CharField(max_length=80, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        if self.horas_motor is not None and self.pk:
+            anterior = type(self).objects.filter(pk=self.pk).values_list("horas_motor", flat=True).first()
+            if anterior is not None and self.horas_motor < anterior:
+                raise ValidationError({"horas_motor": "horas_motor não pode diminuir silenciosamente."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class MaintenanceRecord(models.Model):
+    """Registro histórico de manutenção, sem inferir diagnóstico."""
+
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, related_name="maintenance_records")
+    registro_id = models.CharField(max_length=100, blank=True)
+    data = models.DateField()
+    tipo = models.CharField(max_length=100)
+    pecas = models.JSONField(default=list, blank=True)
+    horas_motor = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
+    observacao = models.TextField(blank=True)
+    origem = models.CharField(max_length=80, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-criado_em"]
+        constraints = [
+            models.UniqueConstraint(fields=["machine", "registro_id"], condition=~models.Q(registro_id=""), name="uniq_maintenance_machine_record_id"),
+        ]
+        indexes = [models.Index(fields=["machine", "-data"])]
+
+    def clean(self):
+        super().clean()
+        if self.horas_motor is not None:
+            previous = type(self).objects.filter(machine=self.machine, data__lt=self.data, horas_motor__isnull=False).order_by("-data").first()
+            if previous and self.horas_motor < previous.horas_motor:
+                raise ValidationError({"horas_motor": "horímetro inferior ao histórico anterior; revisar o registro."})
 
 
 class RegistroAnalise(models.Model):

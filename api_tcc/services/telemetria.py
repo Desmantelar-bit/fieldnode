@@ -35,6 +35,7 @@ from api_tcc.services.decisions import persistir_decision_da_anomalia
 from api_tcc.services.dlq import registrar_falha_dlq
 from api_tcc.services.sensor_limits import LIMITES
 from api_tcc.services.normalizacao import registrar_e_normalizar
+from api_tcc.services.regime import inferir_regime
 from api_tcc.services.event_time import resolve_event_time, reconstruct_boot
 from api_tcc.contracts import severity_contract
 
@@ -143,6 +144,14 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
                 return False, f"longitude={lng} fora do range [-180, 180]"
         except (TypeError, ValueError):
             return False, f"longitude não é numérica: {dados['longitude']!r}"
+
+    if "velocidade_kmh" in dados and dados["velocidade_kmh"] is not None:
+        try:
+            velocidade = float(dados["velocidade_kmh"])
+            if not 0 <= velocidade <= 300:
+                return False, f"velocidade_kmh={velocidade} fora do range [0, 300]"
+        except (TypeError, ValueError):
+            return False, f"velocidade_kmh não é numérica: {dados['velocidade_kmh']!r}"
 
     return True, ""
 
@@ -355,6 +364,12 @@ def registrar_leitura(
                     vibracao=float(dados["vibracao"]),
                     vibracao_unit=dados["vibracao_unit"],
                     rpm=int(dados["rpm"]),
+                    velocidade_kmh=(
+                        float(dados["velocidade_kmh"])
+                        if dados.get("velocidade_kmh") is not None
+                        else None
+                    ),
+                    regime=inferir_regime(dados.get("rpm"), dados.get("velocidade_kmh")),
                     latitude=float(dados["latitude"])
                     if dados.get("latitude") is not None
                     else None,
@@ -381,12 +396,16 @@ def registrar_leitura(
                 )
                 leitura.trust_score = trust_score
                 leitura.trust_factors = trust_motivos
+                from api_tcc.services.eventos import evidence_quality
+                leitura.evidence_quality = evidence_quality(trust_score)
                 anomaly_result = detect_anomaly(
                     machine_obj.external_code,
                     {
                         "temperatura": leitura.temperatura,
                         "vibracao": leitura.vibracao,
                         "rpm": leitura.rpm,
+                        "regime": leitura.regime,
+                        "velocidade_kmh": leitura.velocidade_kmh,
                     },
                 )
                 leitura.save(force_insert=True)

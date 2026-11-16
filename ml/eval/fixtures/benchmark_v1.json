@@ -1,0 +1,9 @@
+{
+  "benchmark_id": "fieldnode-anomaly",
+  "version": "benchmark_v1",
+  "scenarios": ["normal", "subida_gradual", "pico_isolado", "sensor_travado", "lacuna_comunicacao", "maquina_desligada", "fora_de_ordem", "mudanca_de_carga"],
+  "seeds": 20,
+  "training_separated": true,
+  "created": "2026-11-15",
+  "note": "Cenários fixados antes do ajuste; métricas sintéticas, não de campo."
+}

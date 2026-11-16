@@ -80,9 +80,8 @@ class AgenticDecisionCommandTest(TestCase):
     @patch("api_tcc.services.agentic.requests.post")
     def test_resposta_valida_persiste_decision_pendente_agentiva(self, post):
         post.return_value = self._gemini_response(
-            '{"texto":"Investigar o sistema de arrefecimento.",'
-            '"acao_recomendada":"Inspecionar radiador antes de intervir.",'
-            '"severidade":"CRITICO","confianca":0.82}'
+            '{"texto":"A temperatura observada exige revisão.",'
+            '"evidencias_citadas":["%s"]}' % self.leitura.id
         )
 
         call_command("gerar_decisao_agentiva")
@@ -93,7 +92,7 @@ class AgenticDecisionCommandTest(TestCase):
         self.assertEqual(decision.event, self.event)
         self.assertEqual(decision.detalhes["metodologia"], "agentic_llm_poc")
         self.assertEqual(decision.detalhes["prompt_version"], "agentic_decision_v1")
-        self.assertEqual(decision.confianca, 0.82)
+        self.assertEqual(decision.confianca, 0.93)
         post.assert_called_once()
         self.assertEqual(post.call_args.args[0], agentic.GEMINI_URL)
         self.assertEqual(post.call_args.kwargs["headers"]["x-goog-api-key"], "test-key")
@@ -102,12 +101,12 @@ class AgenticDecisionCommandTest(TestCase):
 
     @override_settings(GEMINI_API_KEY="test-key")
     @patch("api_tcc.services.agentic.requests.post")
-    def test_resposta_malformada_vai_para_dlq_sem_persistir_decision(self, post):
+    def test_resposta_malformada_vai_para_dlq_e_fallback(self, post):
         post.return_value = self._gemini_response("não é json")
 
         call_command("gerar_decisao_agentiva")
 
-        self.assertFalse(Decision.objects.exists())
+        self.assertTrue(Decision.objects.exists())
         entrada = DeadLetterEntry.objects.get()
         self.assertEqual(entrada.contexto, DeadLetterEntry.Contexto.AGENTIC_LLM)
         self.assertEqual(entrada.payload_referencia["machine_external_code"], "AGENTIC-DEMO-01")

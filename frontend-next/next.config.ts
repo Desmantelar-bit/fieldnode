@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
+  experimental: {
+    cpus: 1,
+  },
   // Preserve a barra final ao encaminhar para o Django, que usa APPEND_SLASH.
   skipTrailingSlashRedirect: true,
   headers() {

@@ -69,7 +69,7 @@ class AnomalyDetectionTest(TransactionTestCase):
 
         result = detect_anomaly(
             machine_id,
-            {"temperatura": 72.0, "vibracao": 8.0, "rpm": 800},
+            {"temperatura": 72.0, "vibracao": 8.0, "rpm": 800, "regime": "trabalhando"},
         )
 
         self.assertEqual(result.detection_method, "ISOLATION_FOREST")

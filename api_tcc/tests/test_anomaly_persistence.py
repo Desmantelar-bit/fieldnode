@@ -1,7 +1,9 @@
 import uuid
+from datetime import timedelta
 import numpy as np
 from unittest.mock import patch, MagicMock
 from django.test import TransactionTestCase
+from django.utils import timezone
 
 from api_tcc.models import Machine, LeituraTelemetria
 from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
@@ -17,11 +19,15 @@ class AnomalyPersistenceTest(TransactionTestCase):
         import shutil
         from pathlib import Path
         model_dir = Path('media/models')
-        for f in model_dir.glob(f'anomaly_{self.machine_id}_*.pkl'):
+        for f in model_dir.glob(f'anomaly_{self.machine_id}*.pkl'):
             f.unlink()
 
     def tearDown(self):
         REGISTRY.clear()
+        from pathlib import Path
+        model_dir = Path('media/models')
+        for f in model_dir.glob(f'anomaly_{self.machine_id}*.pkl'):
+            f.unlink()
 
     def test_persistence_and_consistency_and_no_fit(self):
         """
@@ -85,14 +91,23 @@ class AnomalyPersistenceTest(TransactionTestCase):
         """Verify that the management command creates a .pkl with expected metadata."""
         from django.core.management import call_command
         
-        # Ensure machine has enough data
-        Machine.objects.get_or_create(external_code=self.machine_id)
-        for i in range(100):
+        # Ensure machine has enough data meeting S5-T4 training policy
+        machine, _ = Machine.objects.get_or_create(external_code=self.machine_id)
+        base_time = timezone.now() - timedelta(hours=12)
+        for i in range(110):
+            regime = "trabalhando" if i < 100 else "marcha_lenta"
+            rpm = 1800.0 if regime == "trabalhando" else 800.0
             LeituraTelemetria.objects.create(
-                machine=Machine.objects.get(external_code=self.machine_id),
+                machine=machine,
                 device_id=f"dev-cmd-{i}",
                 message_id=f"msg-cmd-{i}",
-                temperatura=70.0, vibracao=0.4, rpm=1800.0, timestamp="2026-09-25T10:00:00Z"
+                temperatura=70.0,
+                vibracao=0.4,
+                rpm=rpm,
+                regime=regime,
+                trust_score=0.95,
+                evidence_quality="boa",
+                timestamp=base_time + timedelta(minutes=i * 6),
             )
             
         call_command('treinar_modelo_anomalia', machine=self.machine_id)
@@ -121,12 +136,13 @@ class AnomalyPersistenceTest(TransactionTestCase):
                 temperatura=70.0 + (i % 5),
                 vibracao=0.4,
                 rpm=1800.0,
+                regime="trabalhando",
                 timestamp="2026-09-25T10:00:00Z",
             )
 
-        first = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 500.0})
+        first = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 1800.0})
         with patch("api_tcc.services.anomaly_detection.IsolationForest.fit") as mock_fit:
-            second = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 500.0})
+            second = detect_anomaly(self.machine_id, {"temperatura": 150.0, "vibracao": 5.0, "rpm": 1800.0})
 
         self.assertIsNotNone(registry.get_model_path(self.machine_id))
         self.assertEqual(first, second)

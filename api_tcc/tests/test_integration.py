@@ -272,7 +272,7 @@ class EndpointIngestaoTest(TestCase):
             "/api/telemetria/", payload, format="json", **self.headers
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["status"], "ok")
+        self.assertEqual(response.data["status"], "acked")
 
     def test_duplicata_retorna_200_sem_duplicar_banco(self):
         payload = _payload_valido(id=str(uuid.uuid4()))
@@ -280,7 +280,7 @@ class EndpointIngestaoTest(TestCase):
         response = self.client.post("/api/telemetria/", payload, format="json", **self.headers)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], "duplicata ignorada")
+        self.assertEqual(response.data["status"], "duplicate")
         self.assertEqual(LeituraTelemetria.objects.count(), 1)
 
     def test_sem_api_key_retorna_401(self):

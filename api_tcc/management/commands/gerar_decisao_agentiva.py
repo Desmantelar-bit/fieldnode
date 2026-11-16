@@ -6,12 +6,13 @@ from django.utils import timezone
 from api_tcc.models import DeadLetterEntry
 from api_tcc.services.agentic import (
     METHODOLOGY,
-    chamar_gemini,
+    chamar_explicacao_gemini,
     carregar_prompt,
     candidatos_agenticos,
     decisao_agentica_existente,
     montar_contexto,
     persistir_decisao_agentica,
+    explicacao_deterministica,
 )
 from api_tcc.services.dlq import registrar_falha_dlq
 
@@ -45,8 +46,8 @@ class Command(BaseCommand):
                 continue
             contexto = montar_contexto(machine, events)
             try:
-                saida = chamar_gemini(carregar_prompt(contexto))
-                decision = persistir_decisao_agentica(machine, events, saida)
+                saida = chamar_explicacao_gemini(contexto)
+                decision = persistir_decisao_agentica(machine, events, saida, contexto)
             except Exception as exc:
                 falhas += 1
                 registrar_falha_dlq(
@@ -59,6 +60,11 @@ class Command(BaseCommand):
                     },
                     motivo=str(exc),
                 )
+                try:
+                    fallback = explicacao_deterministica(contexto)
+                    persistir_decisao_agentica(machine, events, fallback, contexto)
+                except Exception:
+                    pass
                 self.stderr.write(self.style.WARNING(f"{machine.external_code}: tentativa enviada à DLQ"))
                 continue
 

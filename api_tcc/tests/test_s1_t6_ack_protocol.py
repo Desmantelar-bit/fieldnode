@@ -19,7 +19,6 @@ import threading
 import uuid
 from pathlib import Path
 
-import pytest
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -58,11 +57,17 @@ class _DjangoSession:
 
     def post(self, url, *, json, headers, timeout):
         self.call_count += 1
+        extra = {
+            f"HTTP_{k.upper().replace('-', '_')}": v
+            for k, v in headers.items()
+        }
+        if "HTTP_X_API_KEY" not in extra and "X-API-Key" in headers:
+            extra["HTTP_X_API_KEY"] = headers["X-API-Key"]
         response = self.client.post(
             url,
             json,
             format="json",
-            HTTP_X_API_KEY=headers.get("X-API-Key", ""),
+            **extra,
         )
         return _DjangoResponse(response.data, response.status_code)
 
@@ -89,6 +94,13 @@ def _make_client(
     api_key: str = "test-ack-key",
     max_attempts: int = 3,
 ) -> EdgeClient:
+    import hashlib
+    from api_tcc.models import DeviceCredential
+    key_hash = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    DeviceCredential.objects.update_or_create(
+        device_id=buf.device_id,
+        defaults={"http_key_hash": key_hash, "http_revoked_at": None},
+    )
     return EdgeClient(
         buf,
         "/api/telemetria/",
@@ -100,13 +112,16 @@ def _make_client(
 
 
 def _make_payload(device_id: str, seq: int) -> dict:
-    return generate_payload(device_id, seq, seq - 1)
+    p = generate_payload(device_id, seq, seq - 1)
+    p["temperatura"] = 72.0
+    p["vibracao"] = 0.35
+    return p
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste A — queda após POST antes de ler ACK
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestACKAposCrash(TestCase):
     """Simula queda entre POST e leitura de resposta: reenvio resulta em duplicate."""
 
@@ -118,49 +133,36 @@ class TestACKAposCrash(TestCase):
                 payload = _make_payload(device, 1)
                 buf.enqueue(payload)
 
-                # Simula que o POST chegou mas o cliente caiu antes de ler o ACK:
-                # o item volta para PENDENTE no próximo boot (recover_in_flight)
+                # Simula que o POST já persistiu no servidor antes da queda do cliente:
+                from api_tcc.services.telemetria import registrar_leitura
+                s1, _ = registrar_leitura(payload)
+                self.assertEqual(s1, "criado")
+
+                # No cliente, a mensagem estava sendo enviada quando caiu:
                 row = buf.pending()[0]
                 buf.mark_sending(int(row["id"]))
                 buf._recover_in_flight()  # simula reinicialização
-
-                # Item deve estar de volta como PENDENTE
                 self.assertEqual(buf.pending()[0]["status"], STATUS_PENDING)
 
-                # Reenvia — servidor deve responder duplicate
+                # Reenvia — servidor responde duplicate e cliente marca sincronizada
                 session = _DjangoSession(APIClient())
                 client = _make_client(buf, session)
 
-                # Primeiro envio: cria a leitura
                 synced = client.synchronize()
                 self.assertEqual(synced, 1)
-
-                # Simula crash novamente: item volta para PENDENTE
-                row = buf.connection.execute(
-                    "SELECT id FROM outbox WHERE device_id = ? AND message_id = ?",
-                    (device, payload["message_id"]),
-                ).fetchone()
-                # Status já é SINCRONIZADA; forçamos reenvio marcando como PENDENTE
-                buf.connection.execute(
-                    "UPDATE outbox SET status = ? WHERE id = ?",
-                    (STATUS_PENDING, int(row["id"])),
-                )
-                buf.connection.commit()
-
-                # Segundo envio: servidor responde duplicate
-                synced2 = client.synchronize()
-                self.assertEqual(synced2, 1)
 
                 # Banco deve ter apenas 1 linha
                 self.assertEqual(
                     LeituraTelemetria.objects.filter(device_id=device).count(), 1
                 )
 
-                # Outbox deve estar vazia (SINCRONIZADA)
-                self.assertEqual(buf.counts().get(STATUS_PENDING, 0), 0)
-                self.assertEqual(buf.counts().get(STATUS_SYNCED, 1), 1)
-
-                # Cursor atualizado
+                # Outbox deve estar vazia (removida após ACK) e ack persistido
+                self.assertEqual(buf.pending(), [])
+                acks = buf.connection.execute(
+                    "SELECT count(*) FROM edge_acknowledgement WHERE device_id = ?",
+                    (device,),
+                ).fetchone()[0]
+                self.assertEqual(acks, 1)
                 self.assertEqual(buf.cursor(), payload["sequence_number"])
             finally:
                 buf.close()
@@ -169,7 +171,7 @@ class TestACKAposCrash(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste B — mesmo message_id com payload diferente → conflict
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestConflictHash(TestCase):
     """Mesmo (device_id, message_id) com hash diferente gera conflict + DLQ."""
 
@@ -190,6 +192,7 @@ class TestConflictHash(TestCase):
             "vibracao_unit": "indice_0_10",
             "rpm": 1800,
             "time_source": "gateway",
+            "timestamp": "2026-11-12T12:00:00Z",
         }
         s1, _ = registrar_leitura(payload_a)
         self.assertEqual(s1, "criado")
@@ -203,7 +206,7 @@ class TestConflictHash(TestCase):
         # DLQ deve ter registrado o conflito com contexto SYNC
         dlq_entry = DeadLetterEntry.objects.filter(
             contexto=DeadLetterEntry.Contexto.SYNC,
-            motivo__icontains="message_id reutilizado",
+            motivo__icontains="conflito",
         ).first()
         self.assertIsNotNone(dlq_entry, "conflito de hash deve gerar entrada na DLQ SYNC")
 
@@ -235,7 +238,11 @@ class TestConflictHash(TestCase):
                             return self.real.post(url, json=json, headers=headers, timeout=timeout)
                         # Segundo envio: simula conflict do servidor
                         return _DjangoResponse(
-                            {"ack": {"status": "conflict", "message_id": json.get("message_id")}},
+                            {
+                                "status": "conflict",
+                                "message_id": json.get("message_id"),
+                                "device_id": json.get("device_id"),
+                            },
                             409,
                         )
 
@@ -274,7 +281,7 @@ class TestConflictHash(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste C — HTTP 500 no meio do lote
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestHTTP500NaMeiaDoLote(TestCase):
     """Itens A e B confirmados antes do 500; C e D ficam na outbox."""
 
@@ -296,8 +303,12 @@ class TestHTTP500NaMeiaDoLote(TestCase):
                 self.assertGreaterEqual(synced, 2, "ao menos 2 mensagens confirmadas antes do 500")
 
                 counts = buf.counts()
-                # Mensagens 1 e 2 confirmadas (SINCRONIZADA)
-                self.assertEqual(counts.get(STATUS_SYNCED, 0), 2)
+                acks = buf.connection.execute(
+                    "SELECT count(*) FROM edge_acknowledgement WHERE device_id = ?",
+                    (device,),
+                ).fetchone()[0]
+                self.assertEqual(acks, 2)
+                self.assertEqual(buf.cursor(), 2)
                 # Mensagens 3 e 4 ainda pendentes ou em erro retryable
                 remaining = counts.get(STATUS_PENDING, 0) + counts.get("ERRO", 0)
                 self.assertGreaterEqual(remaining, 1, "mensagens não confirmadas preservadas na outbox")
@@ -328,7 +339,7 @@ class TestHTTP500NaMeiaDoLote(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste D — hash incorreto no ACK
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestACKHashIncorreto(TestCase):
     """Servidor retorna acked mas com hash diferente → mensagem preservada."""
 
@@ -372,7 +383,7 @@ class TestACKHashIncorreto(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste E — message_id incorreto no ACK
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestACKMessageIdIncorreto(TestCase):
     def test_ack_com_message_id_errado_nao_remove_mensagem(self):
         device = "T6-BADMSGID-01"
@@ -478,7 +489,7 @@ class TestCursorContiguoFora_de_Ordem(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste G — concorrência no servidor
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestConcorrenciaServidor(TestCase):
     """Duas requisições com a mesma mensagem → apenas 1 persistência.
 
@@ -504,6 +515,7 @@ class TestConcorrenciaServidor(TestCase):
             "vibracao_unit": "indice_0_10",
             "rpm": 1800,
             "time_source": "gateway",
+            "timestamp": "2026-11-12T12:00:00Z",
         }
 
         # Primeira: cria
@@ -539,6 +551,7 @@ class TestConcorrenciaServidor(TestCase):
             "vibracao_unit": "indice_0_10",
             "rpm": 1800,
             "time_source": "gateway",
+            "timestamp": "2026-11-12T12:00:00Z",
         }
 
         # Cria a leitura
@@ -552,9 +565,11 @@ class TestConcorrenciaServidor(TestCase):
         import uuid as uuid_lib
         from django.utils import timezone
 
+        from django.db import transaction
         # Tentativa de inserção duplicada que violaria a constraint
         with self.assertRaises(Exception):
-            LT.objects.create(
+            with transaction.atomic():
+                LT.objects.create(
                 id=uuid_lib.uuid4(),
                 device_id=device,
                 message_id=message_id,  # mesmo message_id → viola unique_together
@@ -575,7 +590,7 @@ class TestConcorrenciaServidor(TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Teste H — mensagem rejeitada pelo servidor
 # ─────────────────────────────────────────────────────────────────────────────
-@override_settings(FIELDNODE_API_KEY="test-ack-key")
+@override_settings(DEBUG=True, ALLOW_LEGACY_INGESTION_KEY=True, FIELDNODE_API_KEY="test-ack-key")
 class TestMensagemRejeitada(TestCase):
     """rejected não é tratado como sucesso; item permanece na outbox."""
 
@@ -638,10 +653,11 @@ class TestMensagemRejeitada(TestCase):
                 "vibracao_unit": "indice_0_10",
                 "rpm": 1800,
                 "time_source": "gateway",
-            })
+            "timestamp": "2026-11-12T12:00:00Z",
+        })
 
         response = client.post(
-            "/api/lote/",
+            "/api/telemetria/lote/",
             {"leituras": leituras},
             format="json",
         )
@@ -661,6 +677,12 @@ class TestMensagemRejeitada(TestCase):
         client.credentials(HTTP_X_API_KEY="test-ack-key")
 
         device = "T6-LOTE-DUP-01"
+        import hashlib
+        from api_tcc.models import DeviceCredential
+        DeviceCredential.objects.update_or_create(
+            device_id=device,
+            defaults={"http_key_hash": hashlib.sha256(b"test-ack-key").hexdigest(), "http_revoked_at": None},
+        )
         message_id = str(uuid.uuid4())
         leitura = {
             "device_id": device,
@@ -672,14 +694,15 @@ class TestMensagemRejeitada(TestCase):
             "vibracao_unit": "indice_0_10",
             "rpm": 1800,
             "time_source": "gateway",
+            "timestamp": "2026-11-12T12:00:00Z",
         }
 
         # Primeiro envio
-        r1 = client.post("/api/lote/", {"leituras": [leitura]}, format="json")
+        r1 = client.post("/api/telemetria/lote/", {"leituras": [leitura]}, format="json")
         self.assertEqual(r1.status_code, 200)
         self.assertEqual(r1.data["acks"][0]["status"], "acked")
 
         # Segundo envio (mesmo conteúdo)
-        r2 = client.post("/api/lote/", {"leituras": [leitura]}, format="json")
+        r2 = client.post("/api/telemetria/lote/", {"leituras": [leitura]}, format="json")
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(r2.data["acks"][0]["status"], "duplicate")

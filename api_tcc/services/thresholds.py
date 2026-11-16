@@ -34,8 +34,16 @@ def effective_thresholds(machine: Machine, metric: str, *, at=None) -> dict:
         "atencao": contract["atencao"],
         "critico": contract["critico"],
     }
+    spec = getattr(machine, "spec", None)
+    spec_values = spec.limites_json.get(metric) if spec and isinstance(spec.limites_json, dict) else None
+    if isinstance(spec_values, dict) and "atencao" in spec_values and "critico" in spec_values:
+        requested = {"atencao": spec_values["atencao"], "critico": spec_values["critico"]}
+        source = "machine_spec_clamped"
+    else:
+        source = "contrato_central"
     if override is not None:
         requested = {"atencao": override.atencao, "critico": override.critico}
+        source = "threshold_override_clamped"
     critico = min(max(_number(requested["critico"], "critico"), piso), teto)
     atencao = min(max(_number(requested["atencao"], "atencao"), piso), critico)
     return {
@@ -46,6 +54,8 @@ def effective_thresholds(machine: Machine, metric: str, *, at=None) -> dict:
         "contrato_critico": contract["critico"],
         "override_id": str(override.id) if override is not None else None,
         "expira_em": override.expira_em if override is not None else None,
+        "limite_origem": source,
+        "limite_especifico_aplicado": source != "contrato_central",
     }
 
 

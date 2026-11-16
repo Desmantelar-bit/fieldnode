@@ -97,6 +97,9 @@ def criar_evento_anomalia_estatistica(leitura, resultado) -> Event:
         dados_contexto={
             "anomaly_score": resultado.anomaly_score,
             "detection_method": resultado.detection_method,
+            "model_version": resultado.model_version,
+            "detection_status": resultado.detection_status,
+            "data_quality": resultado.data_quality,
             "contributing_feature": resultado.contributing_feature,
             "explanation": resultado.explanation,
         },

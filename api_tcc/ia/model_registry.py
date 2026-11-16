@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,17 +36,21 @@ class ModelRegistry:
             raise ValueError("machine_id inválido para resolução do artefato")
         return re.sub(r"[^A-Za-z0-9_.-]", "_", token)
 
-    def get_model_path(self, machine_id: str) -> Path | None:
+    def get_model_path(self, machine_id: str, regime: str | None = None) -> Path | None:
         token = self._machine_token(machine_id)
+        if regime:
+            token = self._machine_token(f"{token}__{regime}")
         candidates = []
         for path in self.models_dir.glob(f"anomaly_{token}_*.pkl"):
             match = self._filename_pattern.match(path.name)
-            if match and match.group("machine") == token:
+            if match and (match.group("machine") == token or match.group("machine").startswith(token + "__")):
                 candidates.append(path)
         return max(candidates, key=lambda path: path.name) if candidates else None
 
     def save_model(self, machine_id: str, model: Any, metadata: dict[str, Any]) -> Path:
         token = self._machine_token(machine_id)
+        if metadata.get("regime"):
+            token = self._machine_token(f"{token}__{metadata['regime']}")
         trained_at = str(metadata.get("treinado_em", ""))
         if not trained_at:
             raise ValueError("metadata.treinado_em é obrigatório")
@@ -57,11 +62,15 @@ class ModelRegistry:
         path = self.models_dir / f"anomaly_{token}_{timestamp}.pkl"
         if path.exists():
             raise FileExistsError(f"artefato já existe: {path.name}")
-        joblib.dump({"model": model, "metadata": metadata}, path)
+        payload = {"model": model, "metadata": metadata}
+        artifact_hash = self._model_hash(model)
+        metadata["artifact_hash"] = artifact_hash
+        metadata["artifact_path"] = str(path)
+        joblib.dump(payload, path)
         return path
 
-    def load_latest_model(self, machine_id: str) -> tuple[Any, dict[str, Any]]:
-        path = self.get_model_path(machine_id)
+    def load_latest_model(self, machine_id: str, regime: str | None = None) -> tuple[Any, dict[str, Any]]:
+        path = self.get_model_path(machine_id, regime=regime)
         if path is None:
             raise ModelNotFoundError(f"nenhum modelo encontrado para {machine_id}")
         try:
@@ -70,11 +79,20 @@ class ModelRegistry:
             raise ModelArtifactError(f"não foi possível carregar {path.name}") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("metadata"), dict) or "model" not in payload:
             raise ModelArtifactError(f"estrutura inválida no artefato {path.name}")
+        metadata = payload["metadata"]
+        expected_hash = metadata.get("artifact_hash")
+        actual_hash = self._model_hash(payload["model"])
+        if expected_hash and expected_hash != actual_hash:
+            raise ModelArtifactError(f"hash divergente no artefato {path.name}")
         return payload["model"], payload["metadata"]
 
-    def load_model(self, machine_id: str) -> tuple[Any, dict[str, Any]] | None:
+    @staticmethod
+    def _model_hash(model: Any) -> str:
+        return hashlib.sha256(joblib.hash(model.get_params(deep=True)).encode("utf-8")).hexdigest()
+
+    def load_model(self, machine_id: str, regime: str | None = None) -> tuple[Any, dict[str, Any]] | None:
         try:
-            return self.load_latest_model(machine_id)
+            return self.load_latest_model(machine_id, regime=regime)
         except ModelNotFoundError:
             return None
 

@@ -107,6 +107,7 @@ export default function DecisoesPage() {
   };
 
   return <AppShell active="/decisoes" eyebrow="FieldNode / Operação" title="Central de decisões" description="Recomendações, evidências e ações registradas pela operação.">
+    {selected?.contexto_maquina && <section className="mb-4 rounded-xl border border-[var(--line)] p-4" aria-label="Contexto da máquina"><h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-2)]">Contexto da máquina</h2><p className="mt-2 text-sm text-[var(--text-2)]">{selected.contexto_maquina.modelo || 'Modelo não informado'}{selected.contexto_maquina.ano ? ' · ' + selected.contexto_maquina.ano : ''} · Horas acumuladas: {selected.contexto_maquina.horas_motor ?? 'indisponíveis'} · Horas desde a última manutenção: {selected.contexto_maquina.horas_desde_ultima_manutencao ?? 'indisponíveis'}</p></section>}
     {loading ? <LoadingState mensagem="Carregando decisões..." /> : error && !items.length ? <ErrorState title="Central indisponível" message={error} /> : !items.length ? <EmptyState title="Fila vazia" message="Não há decisões para as máquinas disponíveis." /> :
       <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.4fr)]">
         <section aria-label="Fila de decisões" className="space-y-3">

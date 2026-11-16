@@ -292,6 +292,9 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             "vibracao",
             "vibracao_unit",
             "rpm",
+            "velocidade_kmh",
+            "regime",
+            "evidence_quality",
             "latitude",
             "longitude",
             # Tempo: campos internos + aliases semânticos
@@ -324,6 +327,9 @@ class LeituraTelemetriaSerializer(serializers.ModelSerializer):
             'recebido_em':    {'read_only': True},
             'trust_score':    {'read_only': True},
             'trust_factors':  {'read_only': True},
+            'velocidade_kmh': {'read_only': True},
+            'regime':         {'read_only': True},
+            'evidence_quality': {'read_only': True},
             'source':         {'read_only': True},
             'data_origin':    {'read_only': True},
             'transport':      {'read_only': True},
@@ -397,6 +403,7 @@ class DecisionSerializer(serializers.ModelSerializer):
     metodologia = serializers.SerializerMethodField()
     transicoes_permitidas = serializers.SerializerMethodField()
     evidencia = serializers.SerializerMethodField()
+    contexto_maquina = serializers.SerializerMethodField()
     machine = serializers.UUIDField(source="machine.id", read_only=True)
     machine_external_code = serializers.CharField(
         source="machine.external_code", read_only=True
@@ -431,6 +438,7 @@ class DecisionSerializer(serializers.ModelSerializer):
             "metodologia",
             "transicoes_permitidas",
             "evidencia",
+            "contexto_maquina",
             "detalhes",
         ]
         read_only_fields = fields
@@ -464,6 +472,27 @@ class DecisionSerializer(serializers.ModelSerializer):
                 "event_time_confidence": reading.event_time_confidence,
                 "temperatura": reading.temperatura, "vibracao": reading.vibracao,
                 "rpm": reading.rpm, "trust_score": reading.trust_score,
+            },
+        }
+
+    def get_contexto_maquina(self, obj):
+        spec = getattr(obj.machine, "spec", None)
+        records = list(obj.machine.maintenance_records.order_by("-data", "-criado_em")[:20])
+        current_hours = spec.horas_motor if spec else None
+        latest = records[0] if records else None
+        since_last = None
+        if current_hours is not None and latest and latest.horas_motor is not None and current_hours >= latest.horas_motor:
+            since_last = current_hours - latest.horas_motor
+        return {
+            "modelo": spec.modelo if spec and spec.modelo else (obj.machine.modelo.nome if obj.machine.modelo_id else None),
+            "ano": spec.ano if spec else None,
+            "horas_motor": current_hours,
+            "horas_desde_ultima_manutencao": since_last,
+            "ultima_manutencao": None if latest is None else {
+                "data": latest.data,
+                "tipo": latest.tipo,
+                "horas_motor": latest.horas_motor,
+                "pecas": latest.pecas if latest.pecas else None,
             },
         }
 

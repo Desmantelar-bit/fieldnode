@@ -204,14 +204,15 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env
 python manage.py migrate
-python manage.py treinar_isolation_forest
+python manage.py treinar_modelo_anomalia --machine <codigo-da-maquina>
 python manage.py runserver
 ```
 
-O Isolation Forest é treinado offline com o cenário normal de bancada. O arquivo
-`api_tcc/ia/modelos/isolation_forest_v1.pkl` acompanha o projeto; para regenerá-lo
-de forma determinística, execute `python manage.py treinar_isolation_forest`.
-Ele é um sinal não supervisionado complementar aos thresholds determinísticos.
+O Isolation Forest é treinado pelo comando oficial por máquina e registrado com
+metadados e hash. Quando não há artefato compatível, o serviço identifica o
+resultado como `baseline_estatistico`; ele não é apresentado como modelo treinado.
+Isolation Forest é um sinal não supervisionado complementar aos thresholds
+determinísticos.
 
 ### Frontend
 

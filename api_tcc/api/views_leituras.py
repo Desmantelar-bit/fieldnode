@@ -14,6 +14,7 @@ from api_tcc.permissions import (
     IsAuthenticatedOrPublicDemo, get_machine_for_request, get_machines_for_request,
 )
 from api_tcc.services.telemetria import calcular_status_risco
+from api_tcc.services.anomaly_detection import resumo_elegibilidade, pode_treinar, selecionar_fonte_modelo
 
 
 
@@ -59,6 +60,7 @@ class MachineDataHealthView(APIView):
                 "leituras_analisadas": 0,
                 "sinais_de_alerta": {},
                 "fatores_ultima_leitura": fatores,
+                "model_health": _model_health(machine),
             })
 
         return Response({
@@ -70,7 +72,26 @@ class MachineDataHealthView(APIView):
             "leituras_analisadas": health.leituras_analisadas,
             "sinais_de_alerta": health.sinais_de_alerta,
             "fatores_ultima_leitura": fatores,
+            "model_health": _model_health(machine),
         })
+
+
+def _model_health(machine):
+    summary = resumo_elegibilidade(machine)
+    eligible, reasons = pode_treinar(machine)
+    source = selecionar_fonte_modelo(machine)
+    return {
+        "training_eligible": eligible,
+        "training_status": "eligible" if eligible else "insufficient_data",
+        "reasons": reasons,
+        "eligible_readings": summary["eligible_readings"],
+        "coverage_hours": summary["coverage_hours"],
+        "regimes": summary["regimes"],
+        "average_trust": summary["average_trust"],
+        "critical_event_open": summary["critical_event_open"],
+        "model_source": source["model_source"],
+        "regime_policy": "modelos separados por regime; desconhecido não alerta",
+    }
 
 
 def _fatores_trust_legiveis(raw_factors):

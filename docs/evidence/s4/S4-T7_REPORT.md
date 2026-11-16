@@ -14,6 +14,7 @@
 - `manage.py check`: VERIFICADO.
 - `npm run lint`: VERIFICADO.
 - `npm run type-check`: VERIFICADO.
+- `npm run build`: compilação, tipagem e geração das 16 páginas observadas; o processo ficou preso na coleta final de traces e foi interrompido, portanto o exit code final não está confirmado.
 - E2E real de reagendamento e inspeção visual desktop/mobile: NÃO VERIFICADO nesta rodada.
 
 ## Limites

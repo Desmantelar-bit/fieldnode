@@ -42,9 +42,11 @@ node_modules/
 # Arquivos de media gerados e uploads
 media/
 staticfiles/
+api_tcc/ia/modelos/*.pkl
 
 # Arquivos binários descartáveis e gravações
 *.webm
+.tmp_public_eval/
 
 # Sistema operacional
 .DS_Store

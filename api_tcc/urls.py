@@ -17,6 +17,7 @@ from api_tcc.api.views_events import EventListView, EventDetailView, EventHeatma
 from api_tcc.api.views_decisions import DecisionListView
 from api_tcc.api.views_search import GlobalSearchView
 from api_tcc.api.views_attention import AttentionSummaryView
+from api_tcc.api.views_assistant import AssistantToolView
 from api_tcc.api.views_prescricao import LegacyMachineDecisionView
 from api_tcc.api.views_workorders import WorkOrderDetailView, WorkOrderExportView, WorkOrderListView, ThresholdOverrideView
 from api_tcc.api.views_relatorio import RelatorioExportarView
@@ -58,6 +59,7 @@ urlpatterns = [
     path("events/", EventListView.as_view(), name="events-list"),
     path("events/heatmap/", EventHeatmapView.as_view(), name="events-heatmap"),
     path("attention/summary/", AttentionSummaryView.as_view(), name="attention-summary"),
+    path("assistant/tools/", AssistantToolView.as_view(), name="assistant-tools"),
     path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),
     path("search/", GlobalSearchView.as_view(), name="global-search"),

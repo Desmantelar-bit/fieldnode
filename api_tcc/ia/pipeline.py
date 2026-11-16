@@ -9,7 +9,7 @@ import logging
 import math
 import pandas as pd
 from django.db.models import QuerySet
-from api_tcc.ia.deteccao_multivariada import calcular_score_anomalia
+from api_tcc.services.anomaly_detection import detect_compatibility_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +66,12 @@ def detectar_anomalia(
     # Sinal adicional multivariado: complementa, sem substituir, os limiares acima.
     if ultima_leitura is not None:
         try:
-            resultado_iso = calcular_score_anomalia(
+            resultado_iso = detect_compatibility_artifact(
                 ultima_leitura['temperatura'],
                 ultima_leitura['vibracao'],
                 ultima_leitura['rpm'],
             )
-            if resultado_iso['anomalia_multivariada'] and not motivos:
+            if resultado_iso.is_anomaly and not motivos:
                 motivos.append(
                     'padrão combinado de sensores fora do comportamento usual '
                     '(Isolation Forest)'

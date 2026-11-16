@@ -28,6 +28,15 @@ export const DecisaoSchema = z.object({
     leitura: z.object({ id: z.string(), event_time: z.string().nullable(), time_source: z.string(), event_time_confidence: z.number(), temperatura: z.number(), vibracao: z.number(), rpm: z.number(), trust_score: z.number().nullable() }).nullable(),
   }).nullable().optional(),
   historico: z.array(z.object({ action: z.string(), quando: z.string(), ator: z.string().nullable(), metadata: z.record(z.string(), z.unknown()) })).optional(),
+  contexto_maquina: z.object({
+    modelo: z.string().nullable(),
+    ano: z.number().int().nullable(),
+    horas_motor: z.number().nullable(),
+    horas_desde_ultima_manutencao: z.number().nullable(),
+    ultima_manutencao: z.object({
+      data: z.string(), tipo: z.string(), horas_motor: z.number().nullable(), pecas: z.unknown().nullable(),
+    }).nullable(),
+  }).optional(),
 });
 
 export const DecisaoPageSchema = z.object({
