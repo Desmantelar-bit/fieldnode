@@ -1,0 +1,5 @@
+[
+  {"model":"api_tcc.fabricantemapping","pk":9001,"fields":{"manufacturer":"j1939_bancada_v1","raw_parameter":"SPN_190","canonical_parameter":"engine.rpm","unit_conversion_factor":1.0,"mapping_version":"j1939_v1","confidence":0.8,"ativo":true}},
+  {"model":"api_tcc.fabricantemapping","pk":9002,"fields":{"manufacturer":"j1939_bancada_v1","raw_parameter":"SPN_110","canonical_parameter":"engine.coolant_temp","unit_conversion_factor":1.0,"mapping_version":"j1939_v1","confidence":0.8,"ativo":true}},
+  {"model":"api_tcc.fabricantemapping","pk":9003,"fields":{"manufacturer":"j1939_bancada_v1","raw_parameter":"SPN_100","canonical_parameter":"engine.oil_pressure","unit_conversion_factor":1.0,"mapping_version":"j1939_v1","confidence":0.8,"ativo":true}}
+]

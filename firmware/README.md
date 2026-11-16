@@ -1,5 +1,7 @@
 # Firmware FieldNode
 
+[![Firmware CI](https://github.com/Desmantelar-bit/fieldnode/actions/workflows/firmware.yml/badge.svg)](https://github.com/Desmantelar-bit/fieldnode/actions/workflows/firmware.yml)
+
 Primeiro fluxo de bancada: DS18B20 -> ESP32 -> Wi-Fi -> Mosquitto ->
 `mqtt_listen` -> banco. O projeto usa PlatformIO e o ambiente padrão
 `esp32dev`; confirme o modelo da placa antes de compilar para hardware real.
@@ -25,6 +27,22 @@ limitação documentada em `docs/SEGURANCA.md`.
 pio run -e esp32dev
 pio test -e native
 ```
+
+O ambiente `esp32dev` gera `firmware/.pio/build/esp32dev/firmware.bin`. O
+ambiente `native` executa os testes host-side sem placa física. O CI copia
+`include/secrets.example.h` para `include/secrets.h` apenas no runner, compila o
+firmware, executa os testes e publica o `.bin` com SHA-256. O artefato é um
+build de CI; não é certificado nem validado em hardware de campo.
+
+Para instalar o CLI usado pelo CI:
+
+```powershell
+python -m pip install platformio==6.1.16
+```
+
+O workflow `Firmware CI` roda em pull requests para `main`, pushes em `main` e
+execução manual. A proteção da branch precisa exigir o check `Build and host
+tests`; criar o workflow, por si só, não protege `main`.
 
 O firmware usa NVS para a sequência e gera um `boot_id` novo a cada boot. Sem
 RTC/NTP, publica `time_source=unsynced` e `uptime_ms`; não inventa timestamp.

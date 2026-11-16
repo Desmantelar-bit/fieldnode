@@ -23,6 +23,7 @@ OPERATIONAL_IMPACT_WEIGHTS = {
     Event.Tipo.ANOMALIA_ESTATISTICA: 0.75,
     Event.Tipo.ANOMALIA_ML: 0.7,
     Event.Tipo.TENDENCIA_RISCO: 0.6,
+    Event.Tipo.FALHA_DTC: 0.8,
 }
 UNKNOWN_OPERATIONAL_IMPACT = 0.25
 EVIDENCE_BOA = 0.8
@@ -104,6 +105,60 @@ def criar_evento_anomalia_estatistica(leitura, resultado) -> Event:
             "explanation": resultado.explanation,
         },
     )
+
+
+def registrar_eventos_dm1(
+    leitura,
+    dtcs,
+    *,
+    pgn=65226,
+    source_message_id=None,
+    classificacao="bancada",
+) -> list[Event]:
+    """Persiste DTCs DM1 recebidos em uma leitura fisica.
+
+    A funcao recusa fixtures/simuladores: um DTC so pode ser marcado como
+    medido quando a ingestao ja validou a credencial do dispositivo e gravou
+    ``data_origin=medido``. O rotulo de bancada permanece na evidÃªncia porque
+    emissor de teste nao equivale a uma ECU de maquina em operacao.
+    """
+    if getattr(leitura, "data_origin", None) != "medido":
+        raise ValueError("DM1 exige leitura com data_origin=medido")
+    eventos = []
+    for dtc in dtcs or []:
+        spn = int(dtc["spn"] if isinstance(dtc, dict) else dtc.spn)
+        fmi = int(dtc["fmi"] if isinstance(dtc, dict) else dtc.fmi)
+        occurrence = int(
+            dtc.get("occurrence_count", 0) if isinstance(dtc, dict) else dtc.occurrence_count
+        )
+        contexto = {
+            "pgn": int(pgn),
+            "spn": spn,
+            "fmi": fmi,
+            "occurrence_count": occurrence,
+            "data_origin": "medido",
+            "classification": classificacao,
+        }
+        if source_message_id:
+            contexto["source_message_id"] = str(source_message_id)
+        duplicate_query = Event.objects.filter(
+            machine=leitura.machine,
+            tipo=Event.Tipo.FALHA_DTC,
+            dados_contexto__pgn=int(pgn),
+            dados_contexto__spn=spn,
+            dados_contexto__fmi=fmi,
+            dados_contexto__source_message_id=str(source_message_id) if source_message_id else None,
+        )
+        if source_message_id and duplicate_query.exists():
+            continue
+        eventos.append(_persistir_evento_com_priority(
+            machine=leitura.machine,
+            leitura_origem=leitura,
+            tipo=Event.Tipo.FALHA_DTC,
+            severidade=Event.Severidade.ATENCAO,
+            dados_contexto=contexto,
+        ))
+    return eventos
 
 
 def evidence_quality(trust: float | None) -> str:

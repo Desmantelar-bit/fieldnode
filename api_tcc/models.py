@@ -419,6 +419,7 @@ class Event(models.Model):
         ANOMALIA_ML = "ANOMALIA_ML", "Anomalia ML"
         ANOMALIA_ESTATISTICA = "ANOMALIA_ESTATISTICA", "Anomalia estatistica"
         TENDENCIA_RISCO = "TENDENCIA_RISCO", "Tendencia de risco"
+        FALHA_DTC = "FALHA_DTC", "Falha DTC"
 
     class Severidade(models.TextChoices):
         NORMAL = "NORMAL", "Normal"

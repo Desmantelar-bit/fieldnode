@@ -9,6 +9,7 @@ from api_tcc.services.eventos import (
     _persistir_evento_com_priority,
     calcular_priority_score,
     evidence_quality,
+    registrar_eventos_dm1,
 )
 from api_tcc.services.telemetria import registrar_leitura
 
@@ -28,6 +29,26 @@ def _payload(**overrides):
 
 
 class EventEngineTest(TestCase):
+    def test_dm1_medido_cria_evento_rotulado_bancada_e_deduplica_por_mensagem(self):
+        _, leitura_id = registrar_leitura(_payload(temperatura=40.0))
+        leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        leitura.data_origin = "medido"
+        leitura.save(update_fields=["data_origin"])
+
+        dtc = {"spn": 100, "fmi": 3, "occurrence_count": 2}
+        eventos = registrar_eventos_dm1(leitura, [dtc], source_message_id="can-001")
+        self.assertEqual(len(eventos), 1)
+        self.assertEqual(eventos[0].tipo, Event.Tipo.FALHA_DTC)
+        self.assertEqual(eventos[0].dados_contexto["classification"], "bancada")
+        self.assertEqual(eventos[0].dados_contexto["data_origin"], "medido")
+        self.assertEqual(registrar_eventos_dm1(leitura, [dtc], source_message_id="can-001"), [])
+
+    def test_dm1_simulado_nao_pode_ser_marcado_como_medido(self):
+        _, leitura_id = registrar_leitura(_payload(temperatura=40.0))
+        leitura = LeituraTelemetria.objects.get(id=leitura_id)
+        with self.assertRaises(ValueError):
+            registrar_eventos_dm1(leitura, [{"spn": 100, "fmi": 3}])
+
     def test_leitura_com_temperatura_critica_gera_event_temp_alta(self):
         status, leitura_id = registrar_leitura(_payload())
 

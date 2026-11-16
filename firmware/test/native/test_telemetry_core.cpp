@@ -5,6 +5,9 @@
 
 void test_vibration_features();
 void test_clock_policy();
+void test_espnow_frame_crc_and_size();
+void test_j1939_pgn_and_parameters();
+void test_j1939_temperature_pressure_and_dm1();
 
 void test_severity_boundaries() {
   using namespace fieldnode;
@@ -24,14 +27,30 @@ void test_sample_validation_and_sequence() {
   TEST_ASSERT_EQUAL_UINT32(1, next_sequence(UINT32_MAX));
 }
 
-void setup() {
+void setUp(void) {}
+void tearDown(void) {}
+
+int run_all_tests() {
   UNITY_BEGIN();
   RUN_TEST(test_severity_boundaries);
   RUN_TEST(test_sample_validation_and_sequence);
   RUN_TEST(test_vibration_features);
   RUN_TEST(test_clock_policy);
-  UNITY_END();
+  RUN_TEST(test_espnow_frame_crc_and_size);
+  RUN_TEST(test_j1939_pgn_and_parameters);
+  RUN_TEST(test_j1939_temperature_pressure_and_dm1);
+  return UNITY_END();
+}
+
+#if defined(ARDUINO)
+void setup() {
+  run_all_tests();
 }
 
 void loop() {}
+#else
+int main(int argc, char **argv) {
+  return run_all_tests();
 }
+#endif
+

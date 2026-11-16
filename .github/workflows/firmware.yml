@@ -1,0 +1,93 @@
+name: Firmware CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - "scripts/generate_firmware_contract.py"
+      - "docs/CONTRATO_TELEMETRIA_V1.md"
+      - ".github/workflows/firmware.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - "scripts/generate_firmware_contract.py"
+      - "docs/CONTRATO_TELEMETRIA_V1.md"
+      - ".github/workflows/firmware.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    name: Build and host tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: firmware/platformio.ini
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-py3.12-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            platformio-${{ runner.os }}-py3.12-
+
+      - name: Install PlatformIO Core
+        run: python -m pip install platformio==6.1.16
+
+      - name: Show tool versions
+        run: |
+          python --version
+          pio --version
+
+      - name: Prepare build-only secrets
+        shell: bash
+        run: cp include/secrets.example.h include/secrets.h
+
+      - name: Check generated firmware contract
+        working-directory: .
+        run: python scripts/generate_firmware_contract.py --check
+
+      - name: Build ESP32 firmware
+        run: pio run -e esp32dev
+
+      - name: Run host-side tests
+        run: pio test -e native
+
+      - name: Prepare CI artifact and checksum
+        shell: bash
+        run: |
+          mkdir -p ci-artifact
+          cp .pio/build/esp32dev/firmware.bin ci-artifact/fieldnode-esp32dev-${GITHUB_SHA}.bin
+          sha256sum ci-artifact/*.bin > ci-artifact/SHA256SUMS
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "environment=esp32dev"
+            echo "platformio=$(pio --version)"
+            echo "artifact=CI build; not certified or validated on physical hardware"
+          } > ci-artifact/build-metadata.txt
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fieldnode-firmware-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            firmware/ci-artifact/*.bin
+            firmware/ci-artifact/SHA256SUMS
+            firmware/ci-artifact/build-metadata.txt
