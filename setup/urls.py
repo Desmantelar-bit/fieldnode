@@ -5,6 +5,7 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from django.conf import settings
 from rest_framework import permissions
+from api_tcc.api.views_prometheus import prometheus_metrics
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -36,6 +37,7 @@ admin.site.site_title = 'FieldNode Admin'
 admin.site.index_title = 'Painel Administrativo'
 
 urlpatterns = [
+    path('metrics', prometheus_metrics, name='prometheus-metrics'),
     # Raiz leva ao frontend, servido separadamente do backend.
     path('', RedirectView.as_view(url=settings.FIELDNODE_FRONTEND_URL, permanent=False), name='root'),
     path('admin/', admin.site.urls),

@@ -37,6 +37,7 @@ export const DecisaoSchema = z.object({
       data: z.string(), tipo: z.string(), horas_motor: z.number().nullable(), pecas: z.unknown().nullable(),
     }).nullable(),
   }).optional(),
+  detalhes: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const DecisaoPageSchema = z.object({

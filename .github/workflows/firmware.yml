@@ -1,6 +1,7 @@
 name: Firmware CI
 
 on:
+  workflow_call:
   push:
     branches: [main]
     paths:

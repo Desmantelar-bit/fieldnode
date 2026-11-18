@@ -8,5 +8,11 @@ Responda SOMENTE com JSON válido, sem Markdown, usando exatamente:
 Cada afirmação factual deve ser sustentada pelas evidências citadas. Se faltarem dados,
 diga isso explicitamente. Os identificadores citados devem existir em evidencias.
 
+operation_graph representa somente relacoes operacionais cadastradas e validas no tempo da avaliacao.
+Ele nao prova causalidade e nao autoriza inventar relacoes. Maquinas afetadas sao resultado de regra
+deterministica, nao um diagnostico. Se o status for indisponivel, declare que o grafo nao pode ser
+consultado; isso e diferente de grafo vazio. Preserve premissas e faltantes.
+Nao mencione pessoas, telefones ou responsaveis sem fonte autorizada no JSON.
+
 JSON decision.v1 autorizado:
 {{CONTEXT_JSON}}

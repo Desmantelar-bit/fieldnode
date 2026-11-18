@@ -16,6 +16,7 @@ S1-T5 — Contrato de identidade e sincronização:
 import hashlib
 import json
 import logging
+import time
 import math
 import uuid as uuid_lib
 from datetime import datetime
@@ -33,6 +34,7 @@ from api_tcc.services.data_health import (
 from api_tcc.services.eventos import avaliar_leitura
 from api_tcc.services.eventos import criar_evento_anomalia_estatistica
 from api_tcc.services.anomaly_detection import REGISTRY, detect_anomaly
+from api_tcc.metrics import observe_sync_delay, record_ingest_result
 from api_tcc.services.decisions import persistir_decision_da_anomalia
 from api_tcc.services.dlq import registrar_falha_dlq
 from api_tcc.services.sensor_limits import LIMITES
@@ -293,7 +295,7 @@ def _atualizar_sync_cursor(device_id: str, sequence_number: int) -> None:
         logger.debug("SyncCursor criado sem saltar lacunas: device=%s seq=%d", device_id, nova_sequencia)
 
 
-def registrar_leitura(
+def _registrar_leitura_impl(
     dados: dict,
     *,
     authenticated_device_id: str | None = None,
@@ -534,6 +536,11 @@ def registrar_leitura(
                         },
                     )
                 leitura.save(force_insert=True)
+                if leitura.timestamp is not None:
+                    observe_sync_delay(
+                        leitura.priority_class,
+                        (received_at - leitura.timestamp).total_seconds(),
+                    )
                 via = dados.get("via", [])
                 if isinstance(via, list):
                     from django.utils.dateparse import parse_datetime
@@ -679,6 +686,24 @@ def registrar_leitura(
                 str(exc),
             )
         return "erro", str(exc)
+
+
+def registrar_leitura(*args, **kwargs):
+    """Instrumenta o caminho real de ingestão sem alterar seu contrato."""
+    started_at = time.monotonic()
+    resultado = "erro"
+    try:
+        resultado = _registrar_leitura_impl(*args, **kwargs)
+        return resultado
+    finally:
+        status = {
+            "criado": "accepted",
+            "invalido": "rejected",
+            "duplicata": "duplicate",
+            "conflito": "conflict",
+            "erro": "failed",
+        }.get(resultado[0] if isinstance(resultado, tuple) else "erro", "failed")
+        record_ingest_result(status, started_at)
 
 
 def _normalizar_timestamp(valor) -> datetime:

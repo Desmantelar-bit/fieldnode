@@ -70,6 +70,7 @@ Este documento cataloga todas as rotas do FieldNode (Frontend Next.js e Backend 
 | `/api/events/` | GET | Token / Demo | JSON | Listagem de eventos priorizados pelo Attention Engine. |
 | `/api/events/<uuid>/` | GET | Token / Demo | JSON | Detalhes e rastreabilidade de um evento operacional específico. |
 | `/api/events/<uuid>/consequence/` | GET | Token / Demo | JSON | Avaliação de consequências com premissas e faltantes, limitada à organização do evento. |
+| `/api/incidents/` | GET | Token / Demo | JSON | Incidentes e eventos agrupados, limitados às máquinas acessíveis ao usuário. |
 | `/api/operation-graph/` | GET, POST | Token | JSON | Lista e cadastra vínculos operacionais entre máquinas autorizadas. |
 | `/api/operation-graph/import/` | POST | Token | JSON | Valida e importa CSV de vínculos em transação, sem persistência parcial. |
 | `/api/decisions/` | GET | Token / Demo | JSON | Fila de decisões recomendadas pela IA e histórico de ações. |

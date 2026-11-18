@@ -146,6 +146,20 @@ class DecisionAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(models.OrganizationPolicy)
+class OrganizationPolicyAdmin(admin.ModelAdmin):
+    list_display = ("organization", "custo_hora_parada", "moeda")
+    search_fields = ("organization__nome",)
+
+
+@admin.register(models.Incident)
+class IncidentAdmin(admin.ModelAdmin):
+    list_display = ("id", "organization", "machine", "front", "status", "aberto_em", "fechado_em")
+    list_filter = ("status", "rotulo")
+    search_fields = ("machine__external_code", "organization__nome")
+    readonly_fields = ("id", "criado_em")
+
+
 admin.site.register(models.UnidadedeMedida)
 admin.site.register(models.Marca)
 admin.site.register(models.Modelo)

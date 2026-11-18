@@ -5,11 +5,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 from django.utils import timezone
 
-from api_tcc.models import Event, LeituraTelemetria, Machine, MachineLink
+from api_tcc.models import Event, LeituraTelemetria, Machine, MachineLink, OrganizationPolicy
 from api_tcc.services.operation_graph import afetados_por
 
 
@@ -40,9 +41,13 @@ class ConsequenceAssessment:
     faltantes: list[str] = field(default_factory=list)
     confianca: str = "insuficiente"
     needs_verification: bool = False
+    custo_estimado: Decimal | None = None
+    moeda: str | None = None
+    custo_hora_parada_utilizado: Decimal | None = None
+    origem_premissa: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "event_id": self.event_id,
             "rule_version": self.rule_version,
             "afetados": self.afetados,
@@ -54,6 +59,41 @@ class ConsequenceAssessment:
             "confianca": self.confianca,
             "needs_verification": self.needs_verification,
         }
+        if self.custo_estimado is not None:
+            payload.update({
+                "custo_estimado": str(self.custo_estimado),
+                "moeda": self.moeda,
+                "custo_hora_parada_utilizado": str(self.custo_hora_parada_utilizado),
+                "origem_premissa": self.origem_premissa,
+            })
+        return payload
+
+
+def _aplicar_premissa_financeira(assessment: ConsequenceAssessment, event: Event) -> None:
+    """Calcula custo somente com política da própria organização e horizonte válido."""
+
+    if assessment.horizonte_minutos is None or assessment.horizonte_minutos <= 0:
+        return
+    organization_id = getattr(event.machine, "organization_id", None)
+    if organization_id is None:
+        return
+    try:
+        policy = OrganizationPolicy.objects.get(organization_id=organization_id)
+    except OrganizationPolicy.DoesNotExist:
+        return
+    if policy.custo_hora_parada is None or policy.moeda != "BRL":
+        return
+    try:
+        horizon = Decimal(str(assessment.horizonte_minutos))
+        cost = (policy.custo_hora_parada * horizon / Decimal("60")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+    except (InvalidOperation, TypeError, ValueError):
+        return
+    assessment.custo_estimado = cost
+    assessment.moeda = policy.moeda
+    assessment.custo_hora_parada_utilizado = policy.custo_hora_parada
+    assessment.origem_premissa = "premissa informada pelo cliente; estimativa matemática"
 
 
 def _temperature_limit(machine: Machine) -> float | None:
@@ -207,6 +247,8 @@ def avaliar(event: Event, *, em: datetime | None = None) -> ConsequenceAssessmen
         assessment.faltantes.append(
             "tendência sem R² mínimo, crescente, ou com limite já atingido"
         )
+
+    _aplicar_premissa_financeira(assessment, event)
 
     if assessment.horizonte_minutos is not None and not assessment.faltantes:
         assessment.confianca = "alta"

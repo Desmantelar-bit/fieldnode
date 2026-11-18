@@ -346,7 +346,7 @@ class MQTTCorrelationTest(TestCase):
 
         # Mock de registrar_leitura para capturar o estado do contexto
         # sem depender do banco de dados.
-        def _mock_registrar(dados):
+        def _mock_registrar(dados, **kwargs):
             ids_capturados.append(get_correlation_id())
             return "criado", dados.get("id")
 
@@ -385,7 +385,7 @@ class MQTTCorrelationTest(TestCase):
         uuid_b = str(uuid.uuid4())
         ids_por_mensagem = []
 
-        def _mock_registrar(dados):
+        def _mock_registrar(dados, **kwargs):
             ids_por_mensagem.append(get_correlation_id())
             return "criado", dados.get("id")
 

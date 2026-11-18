@@ -1,6 +1,29 @@
 PYTHON ?= python
 
-.PHONY: eval eval-public mule-demo mule-demo-clean
+.PHONY: eval eval-public mule-demo mule-demo-clean test-backend test-mysql lint test-front test-firmware ci-local docs-status
+
+test-backend:
+	$(PYTHON) manage.py migrate --noinput
+	$(PYTHON) -m pytest api_tcc/tests simulators
+
+test-mysql:
+	USE_SQLITE=False $(PYTHON) manage.py migrate --noinput
+	USE_SQLITE=False $(PYTHON) -m pytest api_tcc/tests/test_telemetria.py api_tcc/tests/test_health.py
+
+lint:
+	$(PYTHON) -m compileall -q api_tcc setup simulators scripts
+	$(PYTHON) -m pytest --collect-only -q
+
+test-front:
+	cd frontend-next && npm ci && npm run lint && npm run type-check && npm run build
+
+test-firmware:
+	cd firmware && python -m pip install platformio==6.1.16 && copy /Y include\\secrets.example.h include\\secrets.h && pio run -e esp32dev && pio test -e native
+
+docs-status:
+	$(PYTHON) scripts/check_docs_status.py
+
+ci-local: lint test-backend test-front docs-status
 
 eval:
 	$(PYTHON) -m ml.eval.run

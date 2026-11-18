@@ -23,6 +23,7 @@ from api_tcc.api.views_prescricao import LegacyMachineDecisionView
 from api_tcc.api.views_workorders import WorkOrderDetailView, WorkOrderExportView, WorkOrderListView, ThresholdOverrideView
 from api_tcc.api.views_operation_graph import OperationGraphView, OperationGraphImportView
 from api_tcc.api.views_consequence import ConsequenceAssessmentView
+from api_tcc.api.views_incidents import IncidentListView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
 
@@ -66,6 +67,7 @@ urlpatterns = [
     path("assistant/tools/", AssistantToolView.as_view(), name="assistant-tools"),
     path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
     path("events/<uuid:event_id>/consequence/", ConsequenceAssessmentView.as_view(), name="event-consequence"),
+    path("incidents/", IncidentListView.as_view(), name="incidents-list"),
     path("operation-graph/", OperationGraphView.as_view(), name="operation-graph"),
     path("operation-graph/import/", OperationGraphImportView.as_view(), name="operation-graph-import"),
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),

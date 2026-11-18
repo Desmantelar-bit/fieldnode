@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,9 @@ from django.utils import timezone
 from api_tcc.models import Decision, Event, Machine
 from api_tcc.services.decisions import criar_decision
 from api_tcc.services.decision_schema import validate_decision_details
+from api_tcc.services.consequence import avaliar
+from api_tcc.services.operation_graph import afetados_por
+from api_tcc.metrics import record_llm_failure, record_llm_success
 
 METHODOLOGY = "agentic_llm_poc"
 PROMPT_VERSION = "agentic_decision_v1"
@@ -34,6 +38,46 @@ def carregar_prompt(contexto: dict[str, Any]) -> str:
     return template.replace("{{CONTEXT_JSON}}", json.dumps(contexto, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def _operation_graph_context(machine: Machine, event: Event) -> dict[str, Any]:
+    """Serializa somente o trecho autorizado do grafo para esta decisão."""
+    try:
+        affected = afetados_por(
+            machine,
+            em=event.criado_em,
+            organization=machine.organization,
+        )
+        assessment = avaliar(event, em=event.criado_em)
+    except Exception:
+        return {
+            "schema_version": "operation_graph.v1",
+            "status": "indisponivel",
+            "source_machine": {"id": str(machine.pk), "codigo": machine.external_code, "tipo": machine.tipo},
+            "affected_machines": [],
+            "premissas": [],
+            "faltantes": ["não foi possível consultar o grafo operacional"],
+            "rule_version": "consequence-v0.1",
+        }
+
+    affected_machines = []
+    for item in affected:
+        affected_machines.append({
+            "id": str(item["machine"].pk),
+            "codigo": item["machine"].external_code,
+            "tipo": item["machine"].tipo,
+            "distance": item["distance"],
+            "path": [{"link_id": str(link.pk), "type": link.tipo} for link in item["path"]],
+        })
+    return {
+        "schema_version": "operation_graph.v1",
+        "status": "disponivel",
+        "source_machine": {"id": str(machine.pk), "codigo": machine.external_code, "tipo": machine.tipo},
+        "affected_machines": affected_machines,
+        "premissas": assessment.premissas,
+        "faltantes": assessment.faltantes,
+        "rule_version": assessment.rule_version,
+    }
+
+
 def montar_decision_v1(machine: Machine, events: list[Event]) -> dict[str, Any]:
     """Cria o único contexto autorizado para a explicação do LLM."""
     evidencias = []
@@ -50,6 +94,7 @@ def montar_decision_v1(machine: Machine, events: list[Event]) -> dict[str, Any]:
                 "limiar": dados.get("limite_critico") if isinstance(dados.get("limite_critico"), (int, float)) else None,
                 "event_time": event.criado_em.isoformat(),
             })
+    operation_graph = _operation_graph_context(machine, events[0])
     contexto = {
         "schema": "decision.v1",
         "observado": "Eventos selecionados pelo pipeline para explicação.",
@@ -58,7 +103,8 @@ def montar_decision_v1(machine: Machine, events: list[Event]) -> dict[str, Any]:
         "qualidade_dado": {"evidence_quality": events[0].evidence_quality, "fatores": []},
         "regra": {"id": "AGENTIC_LLM", "versao": PROMPT_VERSION},
         "modelo": {"id": "agentic-selection", "score": None, "contribuinte": None},
-        "dados_faltantes": [], "horizonte_minutos": None, "alternativas": [],
+        "dados_faltantes": operation_graph["faltantes"], "horizonte_minutos": None, "alternativas": [],
+        "operation_graph": operation_graph,
     }
     validate_decision_details(contexto)
     return contexto
@@ -94,7 +140,9 @@ def chamar_explicacao_gemini(decision_v1: dict[str, Any]) -> dict[str, Any]:
     """Chama o provedor somente com decision.v1 e valida antes de retornar."""
     api_key = str(getattr(settings, "GEMINI_API_KEY", "") or "").strip()
     if not api_key:
+        record_llm_failure("configuration")
         raise AgenticOutputError("GEMINI_API_KEY não configurada")
+    started_at = time.monotonic()
     try:
         response = requests.post(
             GEMINI_URL,
@@ -103,8 +151,14 @@ def chamar_explicacao_gemini(decision_v1: dict[str, Any]) -> dict[str, Any]:
             timeout=2.0,
         )
         response.raise_for_status()
-        return validar_explicacao(extrair_texto_gemini(response.json()), decision_v1)
+        result = validar_explicacao(extrair_texto_gemini(response.json()), decision_v1)
+        record_llm_success(time.monotonic() - started_at)
+        return result
+    except AgenticOutputError:
+        record_llm_failure("validation")
+        raise
     except requests.RequestException as exc:
+        record_llm_failure("unavailable")
         raise AgenticOutputError(f"falha na chamada Gemini: {type(exc).__name__}") from None
 
 
@@ -154,7 +208,9 @@ def validar_saida(texto: str) -> dict[str, Any]:
 def chamar_gemini(prompt: str) -> dict[str, Any]:
     api_key = str(getattr(settings, "GEMINI_API_KEY", "") or "").strip()
     if not api_key:
+        record_llm_failure("configuration")
         raise AgenticOutputError("GEMINI_API_KEY não configurada")
+    started_at = time.monotonic()
     try:
         response = requests.post(
             GEMINI_URL,
@@ -163,8 +219,14 @@ def chamar_gemini(prompt: str) -> dict[str, Any]:
             timeout=2.0,
         )
         response.raise_for_status()
-        return validar_saida(extrair_texto_gemini(response.json()))
+        result = validar_saida(extrair_texto_gemini(response.json()))
+        record_llm_success(time.monotonic() - started_at)
+        return result
+    except AgenticOutputError:
+        record_llm_failure("validation")
+        raise
     except requests.RequestException as exc:
+        record_llm_failure("unavailable")
         raise AgenticOutputError(f"falha na chamada Gemini: {type(exc).__name__}") from None
 
 
@@ -205,12 +267,12 @@ def persistir_decisao_agentica(machine: Machine, events: list[Event], saida: dic
             "qualidade_dado": {"evidence_quality": events[0].evidence_quality, "fatores": []},
             "regra": {"id": "AGENTIC_LLM", "versao": PROMPT_VERSION},
             "modelo": {"id": "gemini-2.5-flash", "score": confianca, "contribuinte": None},
-            "dados_faltantes": [], "horizonte_minutos": None, "alternativas": [],
+            "dados_faltantes": decision_v1["dados_faltantes"], "horizonte_minutos": None, "alternativas": [],
             "metodologia": METHODOLOGY,
             "prompt_version": PROMPT_VERSION,
             "event_ids": [str(event.id) for event in events],
             "event_priority_scores": [float(event.priority_score) for event in events],
-            "operation_graph": "indisponivel_na_poc",
+            "operation_graph": decision_v1["operation_graph"],
             "explicacao": {"fonte": saida.get("fonte", "llm_validated"), "evidencias_citadas": saida.get("evidencias_citadas", [])},
         },
     )

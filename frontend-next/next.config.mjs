@@ -1,13 +1,11 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {
     cpus: 1,
   },
-  // Preserve a barra final ao encaminhar para o Django, que usa APPEND_SLASH.
   skipTrailingSlashRedirect: true,
   headers() {
     return Promise.resolve([
@@ -24,27 +22,15 @@ const nextConfig: NextConfig = {
       {
         source: "/manifest.json",
         headers: [
-          {
-            key: "Content-Type",
-            value: "application/manifest+json; charset=utf-8",
-          },
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400",
-          },
+          { key: "Content-Type", value: "application/manifest+json; charset=utf-8" },
+          { key: "Cache-Control", value: "public, max-age=86400" },
         ],
       },
       {
         source: "/sw.js",
         headers: [
-          {
-            key: "Content-Type",
-            value: "application/javascript; charset=utf-8",
-          },
-          {
-            key: "Cache-Control",
-            value: "no-cache, no-store, must-revalidate",
-          },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
         ],
       },
     ]);

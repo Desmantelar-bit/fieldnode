@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from decimal import Decimal
 import uuid as uuid_lib
 
 
@@ -974,10 +975,89 @@ class MaintenanceContact(models.Model):
 
 class OrganizationPolicy(models.Model):
     organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name="policy")
+    custo_hora_parada = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        help_text="Premissa opcional informada pelo cliente, em BRL por hora.",
+    )
+    moeda = models.CharField(max_length=3, default="BRL")
     prazo_por_severidade = models.JSONField(default=dict, blank=True)
     webhook_url = models.URLField(blank=True)
     webhook_secret = models.CharField(max_length=255, blank=True)
     reevaluation_policy = models.JSONField(default=dict, blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.moeda != "BRL":
+            raise ValidationError({"moeda": "A política financeira atual suporta somente BRL."})
+        if not isinstance(self.prazo_por_severidade, dict):
+            raise ValidationError({"prazo_por_severidade": "Informe um objeto por severidade."})
+        valid = set(Event.Severidade.values)
+        unknown = set(self.prazo_por_severidade) - valid
+        if unknown:
+            raise ValidationError({"prazo_por_severidade": f"Severidade desconhecida: {sorted(unknown)}"})
+        for severity, minutes in self.prazo_por_severidade.items():
+            if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
+                raise ValidationError({"prazo_por_severidade": f"Prazo inválido para {severity}. Use inteiro positivo em minutos."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class Incident(models.Model):
+    """Agrupamento operacional de eventos; proximidade não prova causalidade."""
+
+    class Status(models.TextChoices):
+        ABERTO = "ABERTO", "Aberto"
+        FECHADO = "FECHADO", "Fechado"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="incidents")
+    machine = models.ForeignKey("Machine", on_delete=models.PROTECT, null=True, blank=True, related_name="incidents")
+    front = models.ForeignKey("Front", on_delete=models.PROTECT, null=True, blank=True, related_name="incidents")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ABERTO, db_index=True)
+    aberto_em = models.DateTimeField()
+    fechado_em = models.DateTimeField(null=True, blank=True)
+    hipotese_causa = models.TextField(null=True, blank=True)
+    rotulo = models.CharField(max_length=80, default="Sintomas simultâneos")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    eventos = models.ManyToManyField(Event, through="IncidentEvent", related_name="incidents")
+
+    class Meta:
+        ordering = ["-aberto_em"]
+        indexes = [
+            models.Index(fields=["organization", "status", "aberto_em"]),
+            models.Index(fields=["machine", "status", "aberto_em"]),
+            models.Index(fields=["front", "status", "aberto_em"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.machine_id and not self.front_id:
+            raise ValidationError("Um incidente precisa de máquina ou frente.")
+        if self.machine_id and self.machine.organization_id != self.organization_id:
+            raise ValidationError({"machine": "A máquina deve pertencer à organização do incidente."})
+        if self.front_id and self.front.organization_id != self.organization_id:
+            raise ValidationError({"front": "A frente deve pertencer à organização do incidente."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class IncidentEvent(models.Model):
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="event_links")
+    event = models.ForeignKey(Event, on_delete=models.PROTECT, related_name="incident_links")
+    associado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["incident", "event"], name="uniq_incident_event"),
+        ]
 
 
 class Membership(models.Model):

@@ -6,6 +6,7 @@ import { EmptyState, ErrorState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/ui/FeedbackStates';
 import { decisionService } from '@/services/decisionService';
 import { DecisaoSchema, type Decisao } from '@/schemas/decisoes';
+import { ConsequencePanel } from '@/components/ConsequencePanel';
 
 const statusLabel: Record<string, string> = {
   PENDENTE: 'Pendente', APROVADA: 'Aprovada', REJEITADA: 'Rejeitada',
@@ -122,6 +123,7 @@ export default function DecisoesPage() {
           {!selected ? <p className="py-12 text-center text-sm text-[var(--text-3)]">Selecione uma recomendação para consultar evidências e ações.</p> : <>
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="section-heading">{selected.machine_external_code} · {selected.severidade}</p><h2 className="mt-1 text-lg font-semibold text-[var(--text-1)]">{selected.texto}</h2></div><span data-testid="decision-status" className="status-pill px-3 py-1.5 text-xs">{statusLabel[selected.status]}</span></div>
             <p className="mt-4 text-sm leading-relaxed text-[var(--text-2)]"><strong className="text-[var(--text-1)]">Ação recomendada:</strong> {selected.acao_recomendada}</p>
+            {selected.event && <ConsequencePanel eventId={selected.event} source={{ id: selected.machine, codigo: selected.machine_external_code, tipo: 'origem', severity: selected.severidade }} recommendation={selected.acao_recomendada} />}
             <div className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-2)]">Evidência observada</h3>
               {selected.evidencia?.leitura ? <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[var(--text-3)]">Temperatura</dt><dd>{selected.evidencia.leitura.temperatura} °C</dd></div><div><dt className="text-xs text-[var(--text-3)]">Vibração</dt><dd>{selected.evidencia.leitura.vibracao}</dd></div><div><dt className="text-xs text-[var(--text-3)]">RPM</dt><dd>{selected.evidencia.leitura.rpm}</dd></div><div><dt className="text-xs text-[var(--text-3)]">Qualidade</dt><dd>{selected.evidencia.evento.evidence_quality}{selected.evidencia.evento.needs_verification ? ' · requer verificação' : ''}</dd></div><div className="col-span-2"><dt className="text-xs text-[var(--text-3)]">Event time / origem</dt><dd>{selected.evidencia.leitura.event_time ? new Date(selected.evidencia.leitura.event_time).toLocaleString('pt-BR') : 'Horário indisponível'} · {selected.evidencia.leitura.time_source}</dd></div></dl> : <p className="mt-2 text-sm text-[var(--text-3)]">Evidência de leitura não vinculada a esta recomendação.</p>}
             </div>

@@ -1,6 +1,7 @@
 name: FieldNode E2E
 
 on:
+  workflow_call:
   push:
     paths:
       - 'api_tcc/**'

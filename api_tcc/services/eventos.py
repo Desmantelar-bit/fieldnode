@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 from api_tcc.contracts import metric_definition
 from api_tcc.services.thresholds import classify_machine_metric
+from api_tcc.metrics import record_event_created
 SUPPRESSAO_EVENTO_MINUTOS = 15
 PRIORITY_URGENCY_DECAY_HOURS = 24.0
 
@@ -295,6 +296,15 @@ def _persistir_evento_com_priority(
         _historico_para_evento(leitura_origem),
     )
     event.save(force_insert=True)
+    record_event_created(event.tipo, event.severidade)
+    try:
+        from api_tcc.services.incidents import agrupar_evento
+
+        agrupar_evento(event)
+    except Exception:
+        # O evento é a evidência primária; uma falha de agrupamento não pode
+        # apagar nem impedir a persistência do alerta original.
+        logger.exception("Falha ao agrupar evento em incidente. event_id=%s", event.pk)
     return event
 
 

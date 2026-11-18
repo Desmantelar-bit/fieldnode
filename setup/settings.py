@@ -47,6 +47,7 @@ FIELDNODE_FRONTEND_URL = env_config(
 )
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
+FIELDNODE_METRICS_TOKEN = env_config("FIELDNODE_METRICS_TOKEN", default="")
 
 try:
     FIELDNODE_DEVICE_SIGNING_KEYS = json.loads(
