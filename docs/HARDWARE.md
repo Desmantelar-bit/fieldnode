@@ -1,5 +1,23 @@
 # Hardware e retenção local
 
+## S8-T10/S8-T11: sensores físicos e rastreabilidade
+
+A BOM técnica aprovada para a próxima bancada está em [`BOM.md`](BOM.md). Ela
+substitui o uso indevido de DHT como temperatura de máquina e SW-420 como
+medição de vibração: DS18B20 inox e termopar tipo K atendem temperaturas em
+contextos diferentes; MPU6050/ADXL345 mede aceleração; Hall/óptico mede pulsos;
+GPS UART fornece velocidade e posição somente com qualidade aceita.
+
+O firmware possui módulos independentes em `firmware/lib/rpm` e
+`firmware/lib/gps`. A configuração atual de bancada usa, sem comprovar a placa
+física, GPIO 27 para RPM e UART1 em RX16/TX17 a 9600 baud. O debounce de 500 us
+é configurável e deve ser confrontado com a maior rotação e pulsos por volta.
+
+RPM ausente não é publicado como zero. GPS sem fix, com HDOP acima de 5 ou dado
+mais velho que 3 s não fornece posição/velocidade utilizável. Aquisição, foto,
+cotação, recebimento, primeiro fix, calibração e validação em máquina permanecem
+**NÃO VERIFICADOS** sem hardware e registros físicos.
+
 ## S8-T4: outbox em flash
 
 O firmware agora contém uma outbox append-only em três arquivos LittleFS,

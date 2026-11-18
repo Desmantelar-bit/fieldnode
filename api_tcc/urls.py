@@ -21,6 +21,8 @@ from api_tcc.api.views_attention import AttentionSummaryView
 from api_tcc.api.views_assistant import AssistantToolView
 from api_tcc.api.views_prescricao import LegacyMachineDecisionView
 from api_tcc.api.views_workorders import WorkOrderDetailView, WorkOrderExportView, WorkOrderListView, ThresholdOverrideView
+from api_tcc.api.views_operation_graph import OperationGraphView, OperationGraphImportView
+from api_tcc.api.views_consequence import ConsequenceAssessmentView
 from api_tcc.api.views_relatorio import RelatorioExportarView
 from api_tcc import views_gps
 
@@ -63,6 +65,9 @@ urlpatterns = [
     path("attention/summary/", AttentionSummaryView.as_view(), name="attention-summary"),
     path("assistant/tools/", AssistantToolView.as_view(), name="assistant-tools"),
     path("events/<uuid:event_id>/", EventDetailView.as_view(), name="event-detail"),
+    path("events/<uuid:event_id>/consequence/", ConsequenceAssessmentView.as_view(), name="event-consequence"),
+    path("operation-graph/", OperationGraphView.as_view(), name="operation-graph"),
+    path("operation-graph/import/", OperationGraphImportView.as_view(), name="operation-graph-import"),
     path("decisions/", DecisionListView.as_view(), name="decisions-list"),
     path("search/", GlobalSearchView.as_view(), name="global-search"),
     path("decisions/<uuid:decision_id>/", DecisionActionView.as_view(), name="decision-action"),

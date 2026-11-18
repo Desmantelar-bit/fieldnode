@@ -69,6 +69,9 @@ Este documento cataloga todas as rotas do FieldNode (Frontend Next.js e Backend 
 | `/api/machines/<id>/health/` | GET | Token / Demo | JSON | Diagnóstico de integridade e Trust Score dos dados da máquina. |
 | `/api/events/` | GET | Token / Demo | JSON | Listagem de eventos priorizados pelo Attention Engine. |
 | `/api/events/<uuid>/` | GET | Token / Demo | JSON | Detalhes e rastreabilidade de um evento operacional específico. |
+| `/api/events/<uuid>/consequence/` | GET | Token / Demo | JSON | Avaliação de consequências com premissas e faltantes, limitada à organização do evento. |
+| `/api/operation-graph/` | GET, POST | Token | JSON | Lista e cadastra vínculos operacionais entre máquinas autorizadas. |
+| `/api/operation-graph/import/` | POST | Token | JSON | Valida e importa CSV de vínculos em transação, sem persistência parcial. |
 | `/api/decisions/` | GET | Token / Demo | JSON | Fila de decisões recomendadas pela IA e histórico de ações. |
 | `/api/decisions/<uuid>/` | POST, PATCH | Token | JSON | Aprovação, rejeição ou arquivamento de decisão por operador humano. |
 | `/api/prescricoes/` | POST, GET | Token / Demo | JSON | Geração e consulta de prescrições operacionais. |

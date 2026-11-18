@@ -7,6 +7,30 @@
 #include "features.h"
 #include "espnow_link.h"
 #include "j1939.h"
+#include "gps.h"
+#include "rpm.h"
+#include "can_listen.h"
+#include "local_alarm.h"
+#include "prescricao_curta.h"
+#include "spc.h"
+
+void test_rpm_and_gps();
+
+void test_rpm_and_gps() {
+  TEST_ASSERT_FLOAT_WITHIN(0.01F, 600.0F, fieldnode::rpm_from(10, 1.0F, 1));
+  TEST_ASSERT_FLOAT_WITHIN(0.01F, 1500.0F, fieldnode::rpm_from(25, 1.0F, 1));
+  TEST_ASSERT_FLOAT_WITHIN(0.01F, 3000.0F, fieldnode::rpm_from(50, 1.0F, 1));
+  TEST_ASSERT_TRUE(std::isnan(fieldnode::rpm_from(1, 0.0F, 1)));
+
+  TEST_ASSERT_TRUE(fieldnode::gps_quality_is_usable(true, 1.2F, 100, 5.0F, 3000,
+                                                     -23.5, -46.6, 0.0F));
+  TEST_ASSERT_FALSE(fieldnode::gps_quality_is_usable(false, 1.2F, 100, 5.0F, 3000,
+                                                      -23.5, -46.6, 0.0F));
+  TEST_ASSERT_FALSE(fieldnode::gps_quality_is_usable(true, 8.0F, 100, 5.0F, 3000,
+                                                      -23.5, -46.6, 12.0F));
+  TEST_ASSERT_FALSE(fieldnode::gps_quality_is_usable(true, 1.2F, 4000, 5.0F, 3000,
+                                                      -23.5, -46.6, 12.0F));
+}
 
 void test_vibration_features() {
   constexpr size_t n = 4096;
@@ -97,4 +121,54 @@ void test_j1939_temperature_pressure_and_dm1() {
   TEST_ASSERT_EQUAL_UINT32(100U, dtcs[0].spn);
   TEST_ASSERT_EQUAL_UINT8(3U, dtcs[0].fmi);
   TEST_ASSERT_EQUAL_UINT8(2U, dtcs[0].occurrence_count);
+}
+
+void test_can_listener_is_listen_only() {
+  TEST_ASSERT_TRUE(fieldnode::can_listen::begin(5, 4, true));
+  TEST_ASSERT_TRUE(fieldnode::can_listen::is_started());
+  TEST_ASSERT_TRUE(fieldnode::can_listen::is_listen_only());
+  TEST_ASSERT_EQUAL_UINT(0U, fieldnode::can_listen::poll(nullptr));
+}
+
+void test_spc_four_series_and_freeze() {
+  using fieldnode::spc::State;
+  constexpr float alpha = 0.05F;
+  constexpr float k = 1.5F;
+  constexpr float h = 5.0F;
+
+  State sustained{};
+  for (int i = 0; i < 40; ++i) fieldnode::spc::update(sustained, 100.0F + (i % 2), alpha, k, h);
+  int sustained_result = 0;
+  for (int i = 0; i < 5 && sustained_result == 0; ++i)
+    sustained_result = fieldnode::spc::update(sustained, 110.0F, alpha, k, h);
+  TEST_ASSERT_EQUAL_INT(1, sustained_result);
+
+  State isolated{};
+  for (int i = 0; i < 40; ++i) fieldnode::spc::update(isolated, 100.0F, alpha, k, h);
+  TEST_ASSERT_EQUAL_INT(0, fieldnode::spc::update(isolated, 130.0F, alpha, k, h));
+  TEST_ASSERT_FALSE(isolated.frozen);
+
+  State drift{};
+  for (int i = 0; i < 80; ++i) {
+    const float baseline_noise = static_cast<float>((i % 4) - 1.5) * 0.2F;
+    TEST_ASSERT_EQUAL_INT(0, fieldnode::spc::update(drift, 100.0F + baseline_noise + i * 0.001F,
+                                                    alpha, k, h));
+  }
+  TEST_ASSERT_FALSE(drift.frozen);
+
+  const float mean_before_alarm = sustained.mean;
+  TEST_ASSERT_TRUE(sustained.frozen);
+  fieldnode::spc::update(sustained, 140.0F, alpha, k, h);
+  TEST_ASSERT_FLOAT_WITHIN(0.0001F, mean_before_alarm, sustained.mean);
+}
+
+void test_local_alarm_and_short_prescription() {
+  fieldnode::local_alarm::State alarm{};
+  fieldnode::local_alarm::trigger(alarm, "P03", fieldnode::prescricao_curta::text_for("P03"));
+  TEST_ASSERT_TRUE(alarm.active);
+  TEST_ASSERT_EQUAL_STRING("P03", alarm.code);
+  TEST_ASSERT_EQUAL_STRING("TEMP ALTA: PARAR E INSPECIONAR", alarm.message);
+  TEST_ASSERT_NULL(fieldnode::prescricao_curta::text_for("P99"));
+  fieldnode::local_alarm::clear(alarm);
+  TEST_ASSERT_FALSE(alarm.active);
 }

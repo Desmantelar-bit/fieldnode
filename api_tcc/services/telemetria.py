@@ -84,7 +84,7 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
         if not valido_sync:
             return False, motivo_sync
 
-    campos_obrigatorios = ["maquina_id", "temperatura", "vibracao", "rpm"]
+    campos_obrigatorios = ["maquina_id", "temperatura", "vibracao"]
     for campo in campos_obrigatorios:
         if campo not in dados or dados[campo] is None:
             return False, f"campo obrigatório ausente: {campo}"
@@ -149,6 +149,8 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
     # Agora aceitamos qualquer maquina_id e deixamos o sistema criar registros dinamicamente
 
     for campo, (minimo, maximo) in LIMITES.items():
+        if campo == "rpm" and dados.get(campo) is None:
+            continue
         try:
             valor = float(dados[campo])
         except (TypeError, ValueError):
@@ -184,6 +186,20 @@ def validar_payload(dados: dict) -> tuple[bool, str]:
                 return False, f"velocidade_kmh={velocidade} fora do range [0, 300]"
         except (TypeError, ValueError):
             return False, f"velocidade_kmh não é numérica: {dados['velocidade_kmh']!r}"
+
+    if "gps_fix" in dados and dados["gps_fix"] is not None and not isinstance(dados["gps_fix"], bool):
+        return False, "gps_fix deve ser booleano ou nulo"
+    if "gps_hdop" in dados and dados["gps_hdop"] is not None:
+        try:
+            hdop = float(dados["gps_hdop"])
+            if not math.isfinite(hdop) or not 0 <= hdop <= 99.9:
+                return False, "gps_hdop fora do range [0, 99.9]"
+        except (TypeError, ValueError, OverflowError):
+            return False, f"gps_hdop não é numérico: {dados['gps_hdop']!r}"
+    if dados.get("gps_fix") is False and any(
+        dados.get(campo) is not None for campo in ("latitude", "longitude", "velocidade_kmh")
+    ):
+        return False, "GPS sem fix não pode carregar posição ou velocidade utilizável"
 
     return True, ""
 
@@ -463,7 +479,7 @@ def registrar_leitura(
                     vibracao_rms_g=dados.get("vibracao_rms_g"),
                     vibracao_pico_g=dados.get("vibracao_pico_g"),
                     vibracao_curtose=dados.get("vibracao_curtose"),
-                    rpm=int(dados["rpm"]),
+                    rpm=int(dados["rpm"]) if dados.get("rpm") is not None else None,
                     velocidade_kmh=(
                         float(dados["velocidade_kmh"])
                         if dados.get("velocidade_kmh") is not None
@@ -505,16 +521,18 @@ def registrar_leitura(
                 leitura.trust_factors = trust_motivos
                 from api_tcc.services.eventos import evidence_quality
                 leitura.evidence_quality = evidence_quality(trust_score)
-                anomaly_result = detect_anomaly(
-                    machine_obj.external_code,
-                    {
-                        "temperatura": leitura.temperatura,
-                        "vibracao": leitura.vibracao,
-                        "rpm": leitura.rpm,
-                        "regime": leitura.regime,
-                        "velocidade_kmh": leitura.velocidade_kmh,
-                    },
-                )
+                anomaly_result = None
+                if leitura.rpm is not None:
+                    anomaly_result = detect_anomaly(
+                        machine_obj.external_code,
+                        {
+                            "temperatura": leitura.temperatura,
+                            "vibracao": leitura.vibracao,
+                            "rpm": leitura.rpm,
+                            "regime": leitura.regime,
+                            "velocidade_kmh": leitura.velocidade_kmh,
+                        },
+                    )
                 leitura.save(force_insert=True)
                 via = dados.get("via", [])
                 if isinstance(via, list):
@@ -570,10 +588,11 @@ def registrar_leitura(
                         trust_score=leitura.trust_score,
                         motivos=trust_motivos,
                         timestamp=leitura.timestamp,
-                        anomalia_detectada=anomaly_result.is_anomaly,
+                        anomalia_detectada=bool(anomaly_result and anomaly_result.is_anomaly),
                     )
                     avaliar_leitura(leitura)
-                if leitura.timestamp is not None and anomaly_result.is_anomaly and anomaly_result.anomaly_score >= 0.70:
+                if (leitura.timestamp is not None and anomaly_result is not None
+                        and anomaly_result.is_anomaly and anomaly_result.anomaly_score >= 0.70):
                     event = criar_evento_anomalia_estatistica(leitura, anomaly_result)
                     persistir_decision_da_anomalia(
                         machine_obj,
@@ -709,7 +728,7 @@ def _registrar_leitura_invalida(dados: dict, motivo: str) -> None:
         logger.error("Falha ao registrar leitura inválida (auditoria): %s", str(exc))
 
 
-def calcular_status_risco(temperatura: float, vibracao: float, rpm: int) -> dict:
+def calcular_status_risco(temperatura: float, vibracao: float, rpm: int | None) -> dict:
     """
     Centraliza a lógica de classificação de risco da máquina.
     Define cores e rótulos baseados nos thresholds operacionais.

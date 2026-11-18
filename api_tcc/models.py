@@ -294,7 +294,12 @@ class LeituraTelemetria(models.Model):
     vibracao_rms_g = models.JSONField(null=True, blank=True, verbose_name='Vibração RMS por eixo (g)')
     vibracao_pico_g = models.JSONField(null=True, blank=True, verbose_name='Pico de vibração por eixo (g)')
     vibracao_curtose = models.JSONField(null=True, blank=True, verbose_name='Curtose de vibração por eixo')
-    rpm         = models.IntegerField(verbose_name='RPM')
+    rpm         = models.IntegerField(
+        verbose_name='RPM',
+        null=True,
+        blank=True,
+        help_text='RPM medido; nulo quando o sensor não estiver disponível. Nulo não significa RPM zero.',
+    )
     velocidade_kmh = models.FloatField(
         null=True,
         blank=True,
@@ -1019,6 +1024,21 @@ class Machine(models.Model):
         verbose_name="Código externo",
         help_text="ID do hardware/ESP32 normalizado (.strip().upper())",
     )
+    tipo = models.CharField(
+        max_length=20,
+        choices=[
+            ("colhedora", "Colhedora"),
+            ("transbordo", "Transbordo"),
+            ("caminhao", "Caminhão"),
+            ("trator", "Trator"),
+            ("outro", "Outro"),
+        ],
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Tipo operacional",
+        help_text="Nulo significa classificação ainda não informada; não é conversão silenciosa para outro.",
+    )
 
     # FKs opcionais — nullable para permitir backfill incremental
     organization  = models.ForeignKey(
@@ -1041,6 +1061,14 @@ class Machine(models.Model):
         null=True,
         blank=True,
         verbose_name="Colheitadeira vinculada",
+    )
+    site = models.ForeignKey(
+        "Site",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="machines",
+        verbose_name="Site operacional",
     )
 
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
@@ -1080,6 +1108,143 @@ class Machine(models.Model):
             .distinct()
             .order_by("canonical_parameter")
         )
+
+
+class Site(models.Model):
+    """Unidade operacional pertencente a uma organização."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.PROTECT, related_name="sites"
+    )
+    nome = models.CharField(max_length=255)
+    codigo = models.CharField(max_length=80, blank=True)
+    ativo = models.BooleanField(default=True, db_index=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "codigo"],
+                condition=~models.Q(codigo=""),
+                name="uniq_site_org_codigo",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nome
+
+
+class Front(models.Model):
+    """Frente operacional dentro de um Site da mesma organização."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.PROTECT, related_name="fronts"
+    )
+    site = models.ForeignKey(Site, on_delete=models.PROTECT, related_name="fronts")
+    nome = models.CharField(max_length=255)
+    codigo = models.CharField(max_length=80, blank=True)
+    ativo = models.BooleanField(default=True, db_index=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "codigo"],
+                condition=~models.Q(codigo=""),
+                name="uniq_front_org_codigo",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.site_id and self.organization_id and self.site.organization_id != self.organization_id:
+            raise ValidationError({"site": "O Site deve pertencer à mesma organização da frente."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+
+class MachineLink(models.Model):
+    """Relação temporal e direcional entre duas Machines."""
+
+    class Tipo(models.TextChoices):
+        ALIMENTA = "ALIMENTA", "Alimenta"
+        TRANSPORTA_PARA = "TRANSPORTA_PARA", "Transporta para"
+        DEPENDE_DE = "DEPENDE_DE", "Depende de"
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.PROTECT, related_name="machine_links"
+    )
+    origem = models.ForeignKey(
+        Machine, on_delete=models.PROTECT, related_name="links_saida"
+    )
+    destino = models.ForeignKey(
+        Machine, on_delete=models.PROTECT, related_name="links_entrada"
+    )
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    front = models.ForeignKey(
+        Front,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="machine_links",
+    )
+    valido_de = models.DateTimeField()
+    valido_ate = models.DateTimeField(null=True, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["valido_de", "id"]
+        indexes = [
+            models.Index(fields=["organization", "origem", "valido_de"]),
+            models.Index(fields=["organization", "destino", "valido_de"]),
+            models.Index(fields=["organization", "tipo", "valido_de"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(origem=models.F("destino")),
+                name="machine_link_sem_autoreferencia",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(valido_ate__isnull=True)
+                    | models.Q(valido_de__lt=models.F("valido_ate"))
+                ),
+                name="machine_link_inicio_antes_fim",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.organization_id or not self.origem_id or not self.destino_id:
+            return
+        if self.origem.organization_id != self.organization_id or self.destino.organization_id != self.organization_id:
+            raise ValidationError("Origem, destino e vínculo devem pertencer à mesma organização.")
+        if self.origem_id == self.destino_id:
+            raise ValidationError({"destino": "Origem e destino devem ser máquinas distintas."})
+        if self.front_id:
+            if self.front.organization_id != self.organization_id:
+                raise ValidationError({"front": "A frente deve pertencer à organização do vínculo."})
+            if self.origem.site_id and self.front.site_id != self.origem.site_id:
+                raise ValidationError({"front": "A frente deve estar no Site da máquina de origem."})
+            if self.destino.site_id and self.front.site_id != self.destino.site_id:
+                raise ValidationError({"front": "A frente deve estar no Site da máquina de destino."})
+        if self.valido_ate is not None and self.valido_de >= self.valido_ate:
+            raise ValidationError({"valido_ate": "valido_de deve ser anterior a valido_ate."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class FabricanteMapping(models.Model):

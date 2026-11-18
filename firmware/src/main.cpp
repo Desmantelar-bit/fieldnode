@@ -13,6 +13,11 @@
 #include "telemetry_core.h"
 #include "clock.h"
 #include "acquisition.h"
+#include "gps.h"
+#include "rpm.h"
+#include "spc.h"
+#include "local_alarm.h"
+#include "prescricao_curta.h"
 
 namespace {
 OneWire one_wire(PIN_DS18B20);
@@ -25,8 +30,23 @@ uint32_t sequence = 0;
 unsigned long last_sample_ms = 0;
 fieldnode::Ds3231Clock rtc;
 fieldnode::Mpu6050Acquisition vibration;
+fieldnode::RpmCounter rpm_counter(RPM_DEBOUNCE_US);
+fieldnode::GpsAcquisition gps;
+fieldnode::spc::State temperature_spc;
+fieldnode::local_alarm::State local_alarm_state;
+unsigned long last_wifi_attempt_ms = 0;
 
-void set_led(const bool on) { digitalWrite(PIN_STATUS_LED, on ? HIGH : LOW); }
+void IRAM_ATTR on_rpm_pulse() { rpm_counter.record_pulse_from_isr(micros()); }
+
+void set_led(const bool on) {
+  digitalWrite(PIN_STATUS_LED, (on || local_alarm_state.active) ? HIGH : LOW);
+}
+
+void local_alarm_output(const bool active, const char* code, const char* message) {
+  digitalWrite(PIN_LOCAL_BUZZER, active ? HIGH : LOW);
+  set_led(active);
+  if (active) Serial.printf("[alarme-local] %s %s\n", code, message);
+}
 
 String uuid_v4() {
   uint32_t words[4];
@@ -45,11 +65,16 @@ void connect_wifi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(FIELDNODE_WIFI_SSID, FIELDNODE_WIFI_PASSWORD);
   Serial.printf("[wifi] conectando a %s", FIELDNODE_WIFI_SSID);
-  while (WiFi.status() != WL_CONNECTED) {
+  const unsigned long deadline = millis() + 10000UL;
+  while (WiFi.status() != WL_CONNECTED && millis() < deadline) {
     delay(500);
     Serial.print('.');
   }
-  Serial.printf(" conectado, IP=%s\n", WiFi.localIP().toString().c_str());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf(" conectado, IP=%s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println(" sem conexao; operacao local continua");
+  }
 }
 
 bool connect_mqtt() {
@@ -71,7 +96,8 @@ void load_sequence() {
   sequence = preferences.getUInt("sequence", 0);
 }
 
-void publish_temperature(const float temperature_c, const fieldnode::VibrationWindow* window) {
+void publish_temperature(const float temperature_c, const fieldnode::VibrationWindow* window,
+                        const fieldnode::RpmReading* rpm, const fieldnode::GpsReading* gps_reading) {
   const auto severity = fieldnode::classify_temperature(temperature_c);
   const uint32_t next = fieldnode::next_sequence(sequence);
   const String message_id = boot_id + "-" + String(next);
@@ -89,7 +115,17 @@ void publish_temperature(const float temperature_c, const fieldnode::VibrationWi
   document["temperatura"] = temperature_c;
   document["vibracao"] = 0.0F;
   document["vibracao_unit"] = TELEMETRY_VIBRATION_UNIT;
-  document["rpm"] = 0;
+  if (rpm != nullptr && rpm->valid) document["rpm"] = static_cast<int>(rpm->rpm + 0.5F);
+  if (gps_reading != nullptr) {
+    document["gps_fix"] = gps_reading->fix;
+    document["gps_hdop"] = gps_reading->hdop;
+    if (gps_reading->usable) {
+      document["velocidade_kmh"] = gps_reading->speed_kmh;
+      document["latitude"] = gps_reading->latitude;
+      document["longitude"] = gps_reading->longitude;
+      document["gps_satellites"] = gps_reading->satellites;
+    }
+  }
   document["severidade"] = fieldnode::severity_name(severity);
   document["source"] = "firmware";
   document["transport"] = "mqtt";
@@ -121,6 +157,8 @@ void publish_temperature(const float temperature_c, const fieldnode::VibrationWi
 
 void setup() {
   pinMode(PIN_STATUS_LED, OUTPUT);
+  pinMode(PIN_LOCAL_BUZZER, OUTPUT);
+  digitalWrite(PIN_LOCAL_BUZZER, LOW);
   set_led(false);
   Serial.begin(115200);
   boot_id = uuid_v4();
@@ -129,6 +167,9 @@ void setup() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 100000);
   rtc.begin(Wire, PIN_I2C_SDA, PIN_I2C_SCL);
   vibration.begin(Wire, MPU6050_I2C_ADDRESS);
+  pinMode(PIN_RPM, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_RPM), on_rpm_pulse, RISING);
+  gps.begin(PIN_GPS_RX, PIN_GPS_TX, GPS_BAUD);
   Serial.printf("[boot] device=%s boot_id=%s sequence=%lu\n", FIELDNODE_DEVICE_ID,
                 boot_id.c_str(), static_cast<unsigned long>(sequence));
   connect_wifi();
@@ -136,12 +177,14 @@ void setup() {
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED && millis() - last_wifi_attempt_ms >= 10000UL) {
     set_led(false);
+    last_wifi_attempt_ms = millis();
     connect_wifi();
   }
   if (!mqtt.connected()) connect_mqtt();
   mqtt.loop();
+  gps.poll();
   if (millis() - last_sample_ms < SAMPLE_INTERVAL_MS) return;
   last_sample_ms = millis();
   ds18b20.requestTemperatures();
@@ -151,7 +194,17 @@ void loop() {
     set_led(false);
     return;
   }
+  const int trend = fieldnode::spc::update(temperature_spc, temperature_c, 0.05F, 1.5F, 5.0F);
+  if (trend != 0 && !local_alarm_state.active) {
+    fieldnode::local_alarm::trigger(local_alarm_state, "P03",
+                                    fieldnode::prescricao_curta::text_for("P03"), local_alarm_output);
+  }
   fieldnode::VibrationWindow window{};
   const bool vibration_valid = vibration.read_window(window);
-  if (mqtt.connected()) publish_temperature(temperature_c, vibration_valid ? &window : nullptr);
+  const auto rpm = rpm_counter.snapshot(millis(), SAMPLE_INTERVAL_MS, RPM_PULSES_PER_REV);
+  const auto gps_reading = gps.reading(millis(), GPS_MAX_HDOP, GPS_MAX_AGE_MS);
+  if (mqtt.connected()) {
+    publish_temperature(temperature_c, vibration_valid ? &window : nullptr,
+                        rpm.valid ? &rpm : nullptr, &gps_reading);
+  }
 }

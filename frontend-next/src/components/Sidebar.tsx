@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, CalendarDays, FileText, LayoutGrid, Map, Tractor, Users } from 'lucide-react';
+import { Activity, CalendarDays, FileText, LayoutGrid, Map, Network, Tractor, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { FieldNodeLogo } from '@/components/FieldNodeLogo';
 import { LogoutButton } from '@/components/LogoutButton';
@@ -16,6 +16,7 @@ const items = [
   { icon: CalendarDays, href: '/agenda',        label: 'Agenda', short: 'Agenda' },
   { icon: Users,       href: '/operarios',    label: 'Operários',  short: 'Equipe' },
   { icon: FileText,    href: '/relatorios',   label: 'Relatórios', short: 'Relatos' },
+  { icon: Network,     href: '/frentes',      label: 'Frentes',    short: 'Frentes' },
 ] as const;
 
 export function Sidebar() {

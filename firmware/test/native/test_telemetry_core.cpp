@@ -8,6 +8,10 @@ void test_clock_policy();
 void test_espnow_frame_crc_and_size();
 void test_j1939_pgn_and_parameters();
 void test_j1939_temperature_pressure_and_dm1();
+void test_rpm_and_gps();
+void test_can_listener_is_listen_only();
+void test_spc_four_series_and_freeze();
+void test_local_alarm_and_short_prescription();
 
 void test_severity_boundaries() {
   using namespace fieldnode;
@@ -39,6 +43,10 @@ int run_all_tests() {
   RUN_TEST(test_espnow_frame_crc_and_size);
   RUN_TEST(test_j1939_pgn_and_parameters);
   RUN_TEST(test_j1939_temperature_pressure_and_dm1);
+  RUN_TEST(test_rpm_and_gps);
+  RUN_TEST(test_can_listener_is_listen_only);
+  RUN_TEST(test_spc_four_series_and_freeze);
+  RUN_TEST(test_local_alarm_and_short_prescription);
   return UNITY_END();
 }
 
