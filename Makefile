@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: eval eval-public mule-demo mule-demo-clean test-backend test-mysql lint test-front test-firmware ci-local docs-status
+.PHONY: eval eval-public mule-demo mule-demo-clean test-backend test-mysql lint test-front test-firmware ci-local docs-status gateway-up cloud-up preflight load-explain
 
 test-backend:
 	$(PYTHON) manage.py migrate --noinput
@@ -36,3 +36,18 @@ mule-demo:
 
 mule-demo-clean:
 	docker compose -p fieldnode-s7 -f docker-compose.mule.yml down -v
+
+gateway-up:
+	@test -f .env || (echo 'Crie .env a partir de .env.example; nenhum segredo será criado automaticamente.' && exit 1)
+	docker compose up -d --build
+	docker compose exec -T web python manage.py migrate --noinput
+	./scripts/preflight.sh
+
+preflight:
+	./scripts/preflight.sh
+
+load-explain:
+	$(PYTHON) scripts/load/explain_queries.py
+
+cloud-up:
+	./scripts/cloud_up.sh

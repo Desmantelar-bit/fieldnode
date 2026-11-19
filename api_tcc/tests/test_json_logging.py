@@ -29,6 +29,8 @@ from api_tcc.correlation import (
     get_correlation_id,
     reset_correlation_id,
     set_correlation_id,
+    set_message_context,
+    reset_message_context,
 )
 
 
@@ -461,3 +463,34 @@ class TestCamposExtras(TestCase):
         self.assertIsInstance(parsed, dict)
         self.assertEqual(parsed["sequence_number"], 7)
         self.assertEqual(parsed["transport"], "mqtt")
+
+
+class TestContextoMensagem(TestCase):
+    def test_contexto_tecnico_e_compartilhado_por_eventos(self):
+        token = set_message_context(
+            device_id="COLH-01",
+            message_id="msg-001",
+            sequence=12,
+            boot_id="boot-001",
+        )
+        try:
+            filtro = CorrelationFilter()
+            formatter = JSONFormatter()
+            eventos = []
+            for texto in ("recebida", "persistida"):
+                eventos.append(json.loads(formatter.format(_apply_filter(
+                    filtro, _make_record(texto)
+                ))))
+            for campo in ("device_id", "message_id", "sequence", "boot_id"):
+                self.assertEqual(eventos[0][campo], eventos[1][campo])
+            self.assertEqual(eventos[0]["sequence"], 12)
+        finally:
+            reset_message_context(token)
+
+    def test_contexto_e_limpo_apos_reset(self):
+        token = set_message_context(device_id="COLH-01", message_id="msg-001")
+        reset_message_context(token)
+        record = _apply_filter(CorrelationFilter(), _make_record("fora"))
+        parsed = json.loads(JSONFormatter().format(record))
+        self.assertIsNone(parsed["device_id"])
+        self.assertIsNone(parsed["message_id"])

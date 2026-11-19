@@ -78,6 +78,13 @@ local_settings.py
 artifacts/
 # Dumps de banco gerados em evidências (não versionar)
 docs/evidence/**/*.sql
+# Backups and restore material are local operational data, never versioned.
+backups/
+*.sql.gz.enc
+*.sql.gz
+*.manifest
+*.backup-key
+restore-tmp/
 .peridot/memory.db
 .peridot/mem/
 .peridot/sessions/

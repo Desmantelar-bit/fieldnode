@@ -26,13 +26,23 @@ import json
 import logging
 import os
 import re
+import threading
+import time
+import uuid
 from django.utils import timezone
 from django.core.management.base import BaseCommand
 import paho.mqtt.client as mqtt
 from api_tcc.services.telemetria import registrar_leitura
-from api_tcc.correlation import set_correlation_id, reset_correlation_id, new_correlation_id
+from api_tcc.correlation import (
+    set_correlation_id,
+    reset_correlation_id,
+    set_message_context,
+    reset_message_context,
+    new_correlation_id,
+)
 from api_tcc.models import DeviceCredential
 from api_tcc.services.dlq import registrar_falha_dlq
+from api_tcc.services.heartbeat import beat
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +133,24 @@ def on_message(client, userdata, msg):
         logger.info('[MQTT] Status autenticado recebido para dispositivo %s', topic_device)
         return
 
+    message_identity = str(payload.get("message_id") or payload.get("id") or "").strip() or None
     reading_id = (
         str(payload.get("id") or "").strip()
         or str(payload.get("message_id") or "").strip()
         or new_correlation_id()
     )
 
+    raw_sequence = payload.get("sequence_number")
+    try:
+        sequence = int(raw_sequence) if raw_sequence is not None else None
+    except (TypeError, ValueError, OverflowError):
+        sequence = None
+    context_token = set_message_context(
+        device_id=topic_device,
+        message_id=message_identity,
+        sequence=sequence,
+        boot_id=payload.get("boot_id"),
+    )
     token = set_correlation_id(reading_id)
     try:
         logger.info('[MQTT] Mensagem recebida em %s', msg.topic)
@@ -155,6 +177,7 @@ def on_message(client, userdata, msg):
         logger.exception('[MQTT] Erro ao processar mensagem: %s', e)
     finally:
         reset_correlation_id(token)
+        reset_message_context(context_token)
 
 
 class Command(BaseCommand):
@@ -176,6 +199,20 @@ class Command(BaseCommand):
         client.on_disconnect = on_disconnect
         client.on_message = on_message
 
+        instance_id = str(uuid.uuid4())
+        stop_heartbeat = threading.Event()
+
+        def heartbeat_loop():
+            interval = max(5, int(os.environ.get("FIELDNODE_WORKER_HEARTBEAT_INTERVAL_SECONDS", "20")))
+            while not stop_heartbeat.is_set():
+                try:
+                    beat(instance_id)
+                except Exception:
+                    logger.exception("falha ao atualizar heartbeat do worker")
+                stop_heartbeat.wait(interval)
+
+        heartbeat_thread = threading.Thread(target=heartbeat_loop, name="mqtt-heartbeat", daemon=True)
+        heartbeat_thread.start()
         try:
             client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
             # S7-T3: migrado de self.stdout.write para logger para manter
@@ -187,3 +224,9 @@ class Command(BaseCommand):
         except Exception as e:
             logger.exception('erro fatal no worker MQTT: %s', type(e).__name__)
             raise
+        finally:
+            stop_heartbeat.set()
+            try:
+                beat(instance_id, status="stopped")
+            except Exception:
+                logger.exception("falha ao registrar parada do worker")

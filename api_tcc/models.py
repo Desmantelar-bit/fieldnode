@@ -877,6 +877,22 @@ class DeviceCredential(models.Model):
         return f"{self.device_id} ({'ativa' if self.active else 'revogada'})"
 
 
+class WorkerHeartbeat(models.Model):
+    """Estado compartilhado do worker MQTT, consultável pela API."""
+
+    worker_name = models.CharField(max_length=80, unique=True)
+    instance_id = models.CharField(max_length=80)
+    last_heartbeat_at = models.DateTimeField(db_index=True)
+    status = models.CharField(max_length=20, default="running")
+
+    class Meta:
+        verbose_name = "Heartbeat do worker"
+        verbose_name_plural = "Heartbeats dos workers"
+
+    def __str__(self):
+        return f"{self.worker_name} ({self.status})"
+
+
 class SecurityCounter(models.Model):
     """Shared, database-backed fixed-window counters used for auth abuse controls."""
 
@@ -988,6 +1004,13 @@ class OrganizationPolicy(models.Model):
     webhook_url = models.URLField(blank=True)
     webhook_secret = models.CharField(max_length=255, blank=True)
     reevaluation_policy = models.JSONField(default=dict, blank=True)
+    retention_policy = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Prazos aprovados por categoria, em dias; vazio nao autoriza exclusao automatica.",
+    )
+    retention_policy_version = models.CharField(max_length=40, blank=True)
+    retention_policy_effective_at = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
         super().clean()
@@ -1004,6 +1027,15 @@ class OrganizationPolicy(models.Model):
                 raise ValidationError({"prazo_por_severidade": f"Prazo inválido para {severity}. Use inteiro positivo em minutos."})
 
     def save(self, *args, **kwargs):
+        if not isinstance(self.retention_policy, dict):
+            raise ValidationError({"retention_policy": "Informe um objeto por categoria."})
+        allowed = {"telemetria_bruta", "telemetria_canonica", "telemetria_agregada", "eventos", "incidentes", "gps", "auxiliares"}
+        unknown = set(self.retention_policy) - allowed
+        if unknown:
+            raise ValidationError({"retention_policy": f"Categoria desconhecida: {sorted(unknown)}"})
+        for category, days in self.retention_policy.items():
+            if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 36500:
+                raise ValidationError({"retention_policy": f"Prazo invalido para {category}. Use inteiro entre 1 e 36500 dias."})
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -1058,6 +1090,30 @@ class IncidentEvent(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["incident", "event"], name="uniq_incident_event"),
         ]
+
+
+class RetentionPurgeRun(models.Model):
+    """Registro independente da propria purga; a rotina nunca o remove."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    executor = models.CharField(max_length=120)
+    organization_id_text = models.CharField(max_length=36, blank=True)
+    categories = models.JSONField(default=list)
+    policy_version = models.CharField(max_length=40, blank=True)
+    reference_at = models.DateTimeField()
+    evaluated = models.PositiveIntegerField(default=0)
+    deleted = models.PositiveIntegerField(default=0)
+    preserved = models.PositiveIntegerField(default=0)
+    preservation_reasons = models.JSONField(default=dict, blank=True)
+    export_manifest = models.JSONField(default=dict, blank=True)
+    result = models.CharField(max_length=20, default="running")
+    errors = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        indexes = [models.Index(fields=["organization_id_text", "-started_at"])]
 
 
 class Membership(models.Model):

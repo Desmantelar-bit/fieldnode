@@ -35,6 +35,25 @@ declara essa parte concluída apenas por configurar uma variável.
 
 ## Execução local
 
+## Logs de ingestão e health em camadas
+
+O listener MQTT e o serviço de telemetria usam contexto por mensagem com
+`contextvars`, restaurado com token no `finally`. O JSON inclui
+`correlation_id`, `device_id`, `message_id`, `sequence` e `boot_id` quando
+confiáveis; ausências ficam como `null`. O nome de operador e payload completo
+não entram nesse contexto. Como `contextvars` não atravessam processos, a
+fronteira entre worker e API usa os campos da mensagem e o heartbeat no banco.
+
+Use `jq 'select(.message_id == "ID_DA_MENSAGEM")' fieldnode.log` para reconstruir
+as etapas de uma mensagem.
+
+`/api/health/live` só confirma que o processo HTTP responde. `/api/health/ready`
+detalha banco, broker, worker, modelo e disco, retornando `503` quando uma
+dependência obrigatória falha. `FIELDNODE_EXPECTED_MQTT_DEVICES` define quando
+broker e worker são obrigatórios, evitando falso positivo sem dispositivos
+previstos. O worker grava `WorkerHeartbeat` a cada 20 segundos por padrão e o
+limite inicial de atraso é 60 segundos, ambos configuráveis.
+
 ```powershell
 $env:FIELDNODE_METRICS_TOKEN = "token-local"
 Invoke-WebRequest http://127.0.0.1:8000/metrics -Headers @{"X-Metrics-Token"="token-local"}

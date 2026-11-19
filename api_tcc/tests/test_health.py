@@ -13,6 +13,7 @@ import uuid
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -201,3 +202,34 @@ class HealthViewTest(TestCase):
             response = self.client.get("/api/health/")
 
         self.assertEqual(response.json()["status"], "degradado")
+
+
+class LayeredHealthViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_liveness_nao_depende_do_banco(self):
+        with patch("api_tcc.api.views_health._verificar_banco", side_effect=AssertionError):
+            response = self.client.get("/api/health/live")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    @override_settings(FIELDNODE_EXPECTED_MQTT_DEVICES="COLH-01")
+    def test_readiness_retorna_503_com_worker_stale(self):
+        with patch("api_tcc.api.views_health._check_broker", return_value={"status": "ok"}), \
+                patch("api_tcc.api.views_health.heartbeat_snapshot", return_value={
+                    "status": "stale", "required": True, "age_seconds": 61,
+                }):
+            response = self.client.get("/api/health/ready")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["checks"]["worker"]["status"], "stale")
+
+    @override_settings(FIELDNODE_EXPECTED_MQTT_DEVICES="")
+    def test_readiness_sem_dispositivo_nao_exige_worker(self):
+        with patch("api_tcc.api.views_health._check_broker", return_value={"status": "unavailable"}), \
+                patch("api_tcc.api.views_health.heartbeat_snapshot", return_value={
+                    "status": "not_required", "required": False,
+                }):
+            response = self.client.get("/api/health/ready")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["checks"]["worker"]["required"])

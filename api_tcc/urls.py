@@ -11,7 +11,7 @@ from api_tcc.api.views_status import AnomaliaView, ManutencaoView, StatusMQTTVie
 from api_tcc.api.views_relatorio_operacional import RelatorioView
 from api_tcc.api.views_prescricoes_legadas import LegacyDecisionView, LegacyDecisionListView, LegacyDecisionTestView
 from api_tcc.api.views_decision_action import DecisionActionView
-from api_tcc.api.views_health import HealthView
+from api_tcc.api.views_health import HealthView, LiveHealthView, ReadyHealthView
 from api_tcc.api.views_sync import DeliveryReportView
 from api_tcc.api.views_dlq import DeadLetterEntryListView
 from api_tcc.api.views_events import EventListView, EventDetailView, EventHeatmapView
@@ -58,6 +58,8 @@ urlpatterns = [
     path("metricas/", MetricasView.as_view(), name="metricas"),
     path("machines/<str:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
     path("health/", HealthView.as_view(), name="api-health"),
+    path("health/live", LiveHealthView.as_view(), name="api-health-live"),
+    path("health/ready", ReadyHealthView.as_view(), name="api-health-ready"),
     path("sync/report/", DeliveryReportView.as_view(), name="sync-delivery-report"),
     path("dlq/", DeadLetterEntryListView.as_view(), name="dlq-list"),
     path("status-mqtt/", StatusMQTTView.as_view(), name="status-mqtt"),

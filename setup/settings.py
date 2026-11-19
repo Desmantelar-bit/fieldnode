@@ -48,6 +48,16 @@ FIELDNODE_FRONTEND_URL = env_config(
 # API Key do Gemini (usada exclusivamente na camada explicativa do backend).
 GEMINI_API_KEY = env_config("GEMINI_API_KEY", default="")
 FIELDNODE_METRICS_TOKEN = env_config("FIELDNODE_METRICS_TOKEN", default="")
+FIELDNODE_EXPECTED_MQTT_DEVICES = env_config("FIELDNODE_EXPECTED_MQTT_DEVICES", default="")
+FIELDNODE_WORKER_HEARTBEAT_TIMEOUT_SECONDS = env_config(
+    "FIELDNODE_WORKER_HEARTBEAT_TIMEOUT_SECONDS", default=60, cast=int
+)
+FIELDNODE_WORKER_HEARTBEAT_INTERVAL_SECONDS = env_config(
+    "FIELDNODE_WORKER_HEARTBEAT_INTERVAL_SECONDS", default=20, cast=int
+)
+FIELDNODE_DISK_CRITICAL_FREE_RATIO = env_config(
+    "FIELDNODE_DISK_CRITICAL_FREE_RATIO", default=0.05, cast=float
+)
 
 try:
     FIELDNODE_DEVICE_SIGNING_KEYS = json.loads(

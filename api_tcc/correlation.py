@@ -46,6 +46,33 @@ _correlation_id_var: ContextVar[Optional[str]] = ContextVar(
     default=None,
 )
 
+_message_context_var: ContextVar[dict] = ContextVar(
+    "message_context",
+    default={},
+)
+
+MESSAGE_CONTEXT_FIELDS = ("device_id", "message_id", "sequence", "boot_id")
+
+
+def get_message_context() -> dict:
+    """Retorna uma cópia do contexto técnico da mensagem atual."""
+    return dict(_message_context_var.get())
+
+
+def set_message_context(**values):
+    """Define contexto de mensagem e retorna token para restauração segura."""
+    context = get_message_context()
+    context.update({
+        key: values.get(key)
+        for key in MESSAGE_CONTEXT_FIELDS
+        if key in values
+    })
+    return _message_context_var.set(context)
+
+
+def reset_message_context(token) -> None:
+    _message_context_var.reset(token)
+
 
 def get_correlation_id() -> Optional[str]:
     """Retorna o correlation ID do contexto atual, ou None se não definido."""
@@ -99,6 +126,10 @@ class CorrelationFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         cid = get_correlation_id()
         record.correlation_id = cid if cid is not None else "null"
+        context = get_message_context()
+        for field in MESSAGE_CONTEXT_FIELDS:
+            if field in context or not hasattr(record, field):
+                setattr(record, field, context.get(field))
         return True
 
 
@@ -177,6 +208,7 @@ _LOGRECORD_RESERVED = frozenset({
     "stack_info", "taskName", "thread", "threadName",
     # campos injetados pelo CorrelationFilter — tratados explicitamente
     "correlation_id",
+    "device_id", "message_id", "sequence", "boot_id",
 })
 
 
@@ -218,6 +250,12 @@ class JSONFormatter(logging.Formatter):
             "message": message,
             "correlation_id": correlation_id,
         }
+
+        context = get_message_context()
+        for field in MESSAGE_CONTEXT_FIELDS:
+            payload[field] = context.get(field)
+            if payload[field] is None:
+                payload[field] = getattr(record, field, None)
 
         # ── Campos extras definidos via extra={} ───────────────────────────
         # Preserva apenas chaves que não conflitem com campos reservados

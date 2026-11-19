@@ -45,6 +45,7 @@ from api_tcc.services.reconstrucao import identificar_atraso, reconstruir_para_l
 from api_tcc.contracts import severity_contract
 from api_tcc.sync_contract import validate_sync_envelope
 from connectivity.signing import verify_payload
+from api_tcc.correlation import set_message_context, reset_message_context
 
 logger = logging.getLogger(__name__)
 
@@ -692,6 +693,13 @@ def registrar_leitura(*args, **kwargs):
     """Instrumenta o caminho real de ingestão sem alterar seu contrato."""
     started_at = time.monotonic()
     resultado = "erro"
+    dados = args[0] if args and isinstance(args[0], dict) else kwargs.get("dados", {})
+    context_token = set_message_context(
+        device_id=dados.get("device_id") or dados.get("maquina_id"),
+        message_id=dados.get("message_id") or dados.get("id"),
+        sequence=dados.get("sequence_number"),
+        boot_id=dados.get("boot_id"),
+    )
     try:
         resultado = _registrar_leitura_impl(*args, **kwargs)
         return resultado
@@ -704,6 +712,7 @@ def registrar_leitura(*args, **kwargs):
             "erro": "failed",
         }.get(resultado[0] if isinstance(resultado, tuple) else "erro", "failed")
         record_ingest_result(status, started_at)
+        reset_message_context(context_token)
 
 
 def _normalizar_timestamp(valor) -> datetime:
