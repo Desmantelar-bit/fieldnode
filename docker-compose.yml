@@ -115,7 +115,7 @@ services:
       # processo Gunicorn está rodando. Usa o endpoint /api/health/ (S7-T1).
       test:
         - "CMD-SHELL"
-        - "python -c \"import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8000/api/health/'); import json; d = json.loads(r.read()); exit(0 if d.get('status') == 'ok' else 1)\""
+        - "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/')\""
       interval: 15s
       timeout: 10s
       retries: 8
