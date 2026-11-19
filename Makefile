@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: eval eval-public mule-demo mule-demo-clean test-backend test-mysql lint test-front test-firmware ci-local docs-status gateway-up cloud-up preflight load-explain
+.PHONY: eval eval-public mule-demo mule-demo-clean test-backend test-mysql lint test-front test-firmware ci-local docs-status gateway-up edge-up edge-down edge-status edge-logs edge-preflight cloud-up preflight demo-reset save-demo-images load-explain
 
 test-backend:
 	$(PYTHON) manage.py migrate --noinput
@@ -43,8 +43,31 @@ gateway-up:
 	docker compose exec -T web python manage.py migrate --noinput
 	./scripts/preflight.sh
 
+edge-up:
+	@test -f .env || (echo 'Crie .env a partir de .env.example e defina NODE_ROLE=edge e NODE_ID.' && exit 1)
+	docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge up -d --build
+	docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge exec -T web python manage.py migrate --noinput
+
+edge-down:
+	docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge down
+
+edge-status:
+	docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge ps
+
+edge-logs:
+	docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge logs --tail=200
+
+edge-preflight:
+	./scripts/preflight.sh
+
 preflight:
 	./scripts/preflight.sh
+
+demo-reset:
+	./scripts/demo_reset.sh
+
+save-demo-images:
+	./scripts/save_demo_images.sh
 
 load-explain:
 	$(PYTHON) scripts/load/explain_queries.py

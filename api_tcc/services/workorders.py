@@ -6,6 +6,7 @@ from django.utils import timezone
 from api_tcc.models import Decision, MaintenanceContact, OrganizationPolicy, User, WorkOrder
 from api_tcc.permissions import user_can_access_machine
 from api_tcc.services.audit import record as audit_record
+from api_tcc.services.domain_changes import record_domain_change
 
 
 def approve(decision, user, *, responsavel_tipo=None, responsavel_id=None, prazo=None, request=None):
@@ -52,5 +53,17 @@ def approve(decision, user, *, responsavel_tipo=None, responsavel_id=None, prazo
         locked.decidido_por = user
         locked.decidido_em = timezone.now()
         locked.save(update_fields=["status", "decidido_por", "decidido_em"])
+        record_domain_change(
+            entity="Decision",
+            entity_id=locked.pk,
+            op="update",
+            payload={"status": locked.status, "decidido_por_id": locked.decidido_por_id, "work_order_id": str(order.pk)},
+        )
+        record_domain_change(
+            entity="WorkOrder",
+            entity_id=order.pk,
+            op="create",
+            payload={"decision_id": str(locked.pk), "machine_id": str(locked.machine_id), "status": order.status},
+        )
         audit_record("decision.approve", locked, request, before=before, after={"status": locked.status}, metadata={"work_order_id": str(order.id)})
         return order

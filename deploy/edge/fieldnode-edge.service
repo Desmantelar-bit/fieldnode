@@ -1,0 +1,17 @@
+[Unit]
+Description=FieldNode Edge gateway
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/fieldnode
+Environment=COMPOSE_PROJECT_NAME=fieldnode-edge
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge down
+RemainAfterExit=yes
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

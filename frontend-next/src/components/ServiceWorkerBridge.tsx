@@ -38,6 +38,9 @@ export function ServiceWorkerBridge() {
       if (message?.type === 'TELEMETRY_QUEUE_ERROR') {
         window.dispatchEvent(new CustomEvent('fieldnode-queue-error'));
       }
+      if (message?.type === 'ACTION_SYNC_STATUS') {
+        window.dispatchEvent(new CustomEvent('fieldnode-action-queue-status', { detail: message }));
+      }
     };
     navigator.serviceWorker.addEventListener('message', handleMessage);
 
@@ -58,6 +61,7 @@ export function ServiceWorkerBridge() {
           apiUrl: API_URL,
         });
         worker?.postMessage({ type: 'GET_TELEMETRY_STATUS' });
+        worker?.postMessage({ type: 'SYNC_ACTIONS' });
         if (localStorage.getItem('fn-auth-user')) worker?.postMessage({ type: 'AUTH_RECOVERED' });
       })
       .catch((error) => {

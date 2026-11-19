@@ -1,433 +1,122 @@
 # FieldNode
 
-Plataforma de telemetria e inteligência operacional para máquinas agrícolas.
-Ingestão Django, dashboard Next.js, análise de anomalias e sincronização tolerante a falhas de rede rural.
+Telemetria e inteligência operacional para máquinas agrícolas, com foco em um problema pouco glamouroso e muito real: dado atrasado, rede instável e alerta demais para pouca decisão.
 
----
+O checkout atual prova software, testes e bancada. Ele não prova sensor calibrado, operação de campo, execução mecânica ou resultado econômico.
 
-## Arquitetura
-
-```mermaid
-graph TD
-    SOURCE["Fonte de telemetria / simulador"]
-    MQTT["Broker MQTT\n(localhost:1883)"]
-    SIM["scripts/simular_mqtt.py\n(fallback HTTP se broker cair)"]
-    API["API Django 5.2\n:8000"]
-    DB[("MySQL 8\nou SQLite")]
-    IA["Análise operacional\n(regras + anomalias)"]
-    NEXT["Next.js 15\n:3000"]
-    SW["Service Worker\n(cache + outbox local)"]
-    USER["Navegador"]
-
-    SOURCE -->|"MQTT publish"| MQTT
-    MQTT -->|"mqtt_listen.py"| API
-    SIM -->|"POST /api/telemetria/"| API
-    API -->|"UUID dedup + persist"| DB
-    API -->|"agenda modelos"| IA
-    IA -->|"lê leituras"| DB
-    IA -->|"salva prescrição"| DB
-    NEXT -->|"SSR + fetch"| API
-    USER -->|"HTTP"| NEXT
-    SW -->|"reenvio same-origin; autorização pendente"| API
-```
-
----
-
-## Pipeline de análise
+## O fluxo central
 
 ```mermaid
 flowchart LR
-    L["Leituras\n(últimas N)"] --> ISO["Isolation Forest\ndetecção de anomalia"]
-    L --> RG["Regras ponderadas\n+ score heurístico"]
-    L --> TH["Thresholds documentados\ntriagem operacional"]
-
-    ISO --> AGG["Consolidação\nde severidade"]
-    RG --> AGG
-    TH --> AGG
-
-    AGG -->|"NORMAL"| P1["Manter operação"]
-    AGG -->|"ATENCAO"| P2["Inspecionar em 4-8h"]
-    AGG -->|"CRITICO"| P3["Inspeção imediata recomendada"]
-
-    P1 --> PRESC[("Prescrição\nsalva no banco")]
-    P2 --> PRESC
-    P3 --> PRESC
+  S[Simulador ou cliente de bancada] --> T[MQTT ou HTTP]
+  T --> A[Django API]
+  A --> V[Validação e deduplicação UUID]
+  V --> D[(MySQL ou SQLite)]
+  D --> I[Regras e detecção não supervisionada]
+  I --> E[Eventos e decisões persistentes]
+  E --> U[Dashboard Next.js]
 ```
 
----
+O caminho de uma leitura até uma decisão é rastreável: origem, timestamp, identidade, qualidade do dado, evento, recomendação e aprovação humana.
 
-## Stack
+## Estado real
 
-| Camada | Tecnologia |
-| --- | --- |
-| Backend | Django 5.2 + Django REST Framework |
-| Frontend | Next.js 15 + React + Tailwind CSS |
-| Banco | MySQL 8 em Docker / SQLite em desenvolvimento |
-| Análise | Isolation Forest como sinal não supervisionado + regras/thresholds determinísticos |
-| Hardware e transporte | Simuladores MQTT e cliente Python de bancada; ESP32/ESP-NOW permanecem como integração física a validar |
-| Offline | Outbox SQLite no cliente Python e fila local IndexedDB no Service Worker |
-| Docs API | Swagger em `/swagger/` |
-| Testes | Django TestCase + pytest |
+| Camada | O que existe | Limite atual |
+| --- | --- | --- |
+| Ingestão | HTTP autenticado por dispositivo, MQTT, validação e deduplicação | Ensaio físico depende de placa, sensor e credencial provisionados |
+| Dados | MySQL no Compose e SQLite em desenvolvimento | Escala de produção ainda não foi medida |
+| Borda | Cliente Python com outbox SQLite, ACK, retry e prioridades A/B/C | É bancada de software, não firmware embarcado validado |
+| Análise | Regras/thresholds para triagem e Isolation Forest como sinal não supervisionado | Não é previsão validada de falha, RUL ou diagnóstico mecânico |
+| Operação | Eventos e decisões persistentes com revisão humana | Utilidade em campo ainda precisa de dados e piloto |
+| Hardware | Firmware e contratos PlatformIO presentes | Placa, rádio, gateway ESP-NOW e campo permanecem pendentes |
 
----
+A matriz detalhada está em [`docs/CLAIMS_VS_CODE.md`](docs/CLAIMS_VS_CODE.md). O escopo de hardware está em [`docs/REPOSICIONAMENTO_ESCOPO_HARDWARE.md`](docs/REPOSICIONAMENTO_ESCOPO_HARDWARE.md).
 
-## O que está implementado
+Para a validação externa, consulte [`docs/PILOTO.md`](docs/PILOTO.md), [`docs/CARTA_DE_INTENCAO_MODELO.md`](docs/CARTA_DE_INTENCAO_MODELO.md) e [`docs/RESULTADOS_VALIDACAO_COMERCIAL.md`](docs/RESULTADOS_VALIDACAO_COMERCIAL.md). Esses arquivos separam material preparado de contato, autorização, piloto e evidência real.
 
-- ingestão HTTP autenticada por credencial individual `X-Device-Id`/`X-Device-Key`, validação de payload e deduplicação por UUID;
-- persistência em SQLite/MySQL, com identidade de máquina, sequência, timestamp e hash no cliente de borda;
-- cliente Python de bancada com outbox SQLite, prioridades A/B/C, retry, ACK e cursor contíguo;
-- Trust Score heurístico e estado agregado de qualidade dos dados por máquina;
-- geração determinística de eventos e decisões persistentes, com aprovação ou rejeição por usuário autenticado e registro de outcome;
-- detecção de anomalias com Isolation Forest como sinal complementar, e regras ponderadas para triagem operacional;
-- dashboard Next.js com service worker: cache de assets e fila local de telemetria sem credenciais privilegiadas;
-- autenticação por token DRF com registro público, login, logout e verificação de sessão.
+## Arquitetura e stack
 
-As evidências são de código, testes e bancada de software. As leituras usadas nas demonstrações são simuladas; isso não comprova sensor físico calibrado, operação em campo, execução mecânica ou resultado econômico.
+- Backend: Django 5.2, Django REST Framework e Gunicorn.
+- Frontend: Next.js 15, React, TypeScript, Tailwind, SWR, Recharts e Leaflet.
+- Transporte: Mosquitto/MQTT, HTTP e clientes de bancada.
+- Análise: pandas, scikit-learn, regras determinísticas e metadados de modelo.
+- Firmware: PlatformIO/ESP32, com validação host-side onde indicada nos relatórios.
 
-## Roadmap
+O notebook é o hospedeiro da demo atual: Compose executa Mosquitto, Django, worker, banco e frontend. Hotspot ou LAN fornecem rede local; não são servidor nem internet automática. Veja [`docs/CONECTIVIDADE.md`](docs/CONECTIVIDADE.md).
 
-- integração física com ESP32 e sensores identificados, incluindo calibração e energia;
-- medição de ESP-NOW ou outro transporte aprovado em bancada física;
-- medição de retenção e capacidade de armazenamento de 30 dias no hardware-alvo;
-- validação progressiva em campo, com alcance, estabilidade e condições registradas;
-- avaliação de CAN/J1939, ISOBUS e integrações com fabricantes;
-- dataset operacional rotulado e avaliação supervisionada de manutenção;
-- evolução da autenticação do MVP para cookie httpOnly + CSRF.
+## Quickstart local
 
----
-
-## Execução com Docker (recomendado)
-
-**Pré-requisito:** Docker instalado. Nenhum Python, MySQL ou Mosquitto local necessário.
-
-### 1. Clonar e configurar variáveis
+Pré-requisito: Docker e Docker Compose.
 
 ```bash
 git clone <repositório>
 cd fieldnode
 cp .env.example .env
-```
-
-Edite o `.env` e preencha no mínimo:
-
-| Variável | O que colocar |
-| --- | --- |
-| `SECRET_KEY` | Chave secreta Django |
-| `ALLOW_LEGACY_INGESTION_KEY` | Compatibilidade legada local; somente `DEBUG=True` |
-| `DB_PASSWORD` | Senha do usuário MySQL |
-| `DB_ROOT_PASSWORD` | Senha do root MySQL |
-
-### 2. Subir os serviços
-
-```bash
-docker compose up --build
-```
-
-Aguarde os healthchecks: `db (healthy)`, `mosquitto (healthy)`, `web (healthy)`.
-
-### 3. Executar migrations
-
-```bash
+docker compose up --build -d
 docker compose exec web python manage.py migrate
 ```
 
-### 4. (Opcional) Popular com dados de demonstração
+Confira `http://127.0.0.1:8000/api/health/`, `http://127.0.0.1:8000/swagger/` e `http://127.0.0.1:3000/`. Para preparar a demo, use `make gateway-up` ou `make preflight`; ambos dependem de `.env` local e não criam segredo.
 
 ```bash
 docker compose exec web python manage.py popular_tudo --username <usuario-cadastrado>
 ```
 
-### 5. Acessar
+## Demonstração e evidências
 
-| O quê | URL |
-| --- | --- |
-| API health | http://127.0.0.1:8000/api/health/ |
-| Swagger | http://127.0.0.1:8000/swagger/ |
-| Django Admin | http://127.0.0.1:8000/admin/ |
+- [`docs/ROTEIRO_DEMO_BANCA.md`](docs/ROTEIRO_DEMO_BANCA.md): sequência, preflight, fallback e registro de ensaios.
+- [`docs/INVESTOR_CTO_PRESSURE_TEST.md`](docs/INVESTOR_CTO_PRESSURE_TEST.md): perguntas difíceis e respostas orientativas.
+- [`docs/PITCH_FATOS.md`](docs/PITCH_FATOS.md): matriz que autoriza ou bloqueia claims do pitch.
+- [`docs/evidence/`](docs/evidence/): relatórios de execução e limites.
 
-> O frontend Next.js é servido separadamente na porta 3000.
-> Execute `cd frontend-next && npm ci && npm run dev` e configure
-> `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api` no `.env` do frontend.
+Não há GIF versionado nem vídeo de fallback registrado neste checkout. A captura só deve entrar depois de existir arquivo real, com data e contexto.
 
-### Comandos úteis
+## Segurança em linguagem simples
+
+- Ingestão usa credencial individual de dispositivo; não há segredo global de produção por padrão.
+- Segredos ficam fora do bundle do frontend e o `.env` está ignorado pelo Git.
+- `DEMO_MODE` limita leitura pública a máquinas marcadas como demo.
+- O MVP ainda usa token no `localStorage`; cookie `httpOnly` com CSRF é dívida explícita de produção.
+- MQTT local sem TLS e a proteção contra extração física de credenciais ainda têm limites documentados em [`docs/SEGURANCA.md`](docs/SEGURANCA.md).
+
+## Verificações úteis
 
 ```bash
-# Logs de todos os serviços
-docker compose logs -f
-
-# Logs só do worker MQTT
-docker compose logs -f worker
-
-# Status dos serviços e healthchecks
-docker compose ps
-
-# Entrar no container web
-docker compose exec web bash
-
-# Parar sem apagar volumes
-docker compose down
-
-# Parar e apagar volumes (inclusive banco — cuidado)
-docker compose down -v
+python manage.py check
+python -m pytest api_tcc/tests simulators
+python scripts/check_docs_status.py
 ```
 
-### Serviços
+O resultado real de cada rodada deve ser registrado nos relatórios. Teste local não vira campo por osmose, por mais simpático que o terminal pareça.
 
-| Serviço | Descrição | Porta |
+## Roadmap explícito
+
+- validação física de sensores, gateway, rádio, energia e armazenamento;
+- três ensaios cronometrados e vídeo de contingência da demo;
+- entrevistas estruturadas por papel e acesso a máquina para piloto;
+- dataset operacional rotulado e avaliação de manutenção;
+- TLS, cookie seguro, endurecimento de dispositivo e OTA assinada;
+- validação progressiva em campo e integrações industriais autorizadas.
+
+## Documentação
+
+Comece por [`docs/CLAIMS_VS_CODE.md`](docs/CLAIMS_VS_CODE.md), depois leia os relatórios da tarefa que pretende defender. [`FIELDNODE_LEVIATA_ROADMAP_V5.md`](FIELDNODE_LEVIATA_ROADMAP_V5.md) descreve a visão e o roadmap; não substitui evidência de execução.
+
+## Equipe
+
+As contribuições e links abaixo vêm do cadastro tipado da interface e do relatório S3-T8:
+
+| Pessoa | Frente | Links |
 | --- | --- | --- |
-| `web` | Django + Gunicorn | 8000 |
-| `worker` | mqtt_listen (MQTT → banco) | — |
-| `mosquitto` | Broker MQTT | 1883 |
-| `db` | MySQL 8 | 3307 (host) |
+| Vinícius Morales | Backend e IA | [GitHub](https://github.com/ViniciusMorales) · [LinkedIn](https://www.linkedin.com/in/vin%C3%ADcius-morales-609744368/) |
+| Ana Furlaneto | Frontend e UI/UX | [GitHub](https://github.com/acfurlaneto) · [LinkedIn](https://www.linkedin.com/in/ana-furlaneto-a47746368/) |
+| Giovana D'Angelo | Hardware e IoT | [LinkedIn](https://www.linkedin.com/in/giovanamdangelo/) |
+| Paola Soares Machado | Full Stack e decisões | [GitHub](https://github.com/Paola5858) · [LinkedIn](https://www.linkedin.com/in/paolasoaresmachado/) |
 
-### Testar fluxo MQTT
-
-```bash
-docker compose exec mosquitto mosquitto_pub \
-  -h localhost -p 1883 \
-  -t "fieldnode/COLH-01/leitura" \
-  -m '{"id":"550e8400-e29b-41d4-a716-446655440001","maquina_id":"COLH-01","temperatura":78.5,"vibracao":0.42,"rpm":1850,"timestamp":"2026-10-06T12:00:00Z"}'
-
-docker compose logs worker --tail=10
-```
-
----
-
-## Setup Local (sem Docker)
-
-### Backend
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/macOS
-pip install -r requirements.txt
-copy .env.example .env
-python manage.py migrate
-python manage.py treinar_modelo_anomalia --machine <codigo-da-maquina>
-python manage.py runserver
-```
-
-O Isolation Forest é treinado pelo comando oficial por máquina e registrado com
-metadados e hash. Quando não há artefato compatível, o serviço identifica o
-resultado como `baseline_estatistico`; ele não é apresentado como modelo treinado.
-Isolation Forest é um sinal não supervisionado complementar aos thresholds
-determinísticos.
-
-### Frontend
-
-```bash
-cd frontend-next
-npm ci
-npm run dev
-```
-
----
-
-## Variáveis de Ambiente
-
-Copie `.env.example` para `.env` e ajuste.
-
-| Variável | Descrição |
-| --- | --- |
-| `SECRET_KEY` | Chave secreta Django |
-| `FIELDNODE_DEVICE_KEY` | Chave individual do dispositivo; use com `FIELDNODE_DEVICE_ID` |
-| `DEMO_MODE` | Quando `True`, leitura pública anônima usa somente `Machine.is_demo=True` |
-| `DEBUG` | `True` em dev, `False` em produção |
-| `ALLOWED_HOSTS` | Hosts permitidos pelo Django |
-| `CORS_ALLOWED_ORIGINS` | Origens permitidas pelo CORS |
-| `NEXT_PUBLIC_API_URL` | URL da API usada pelo browser |
-| `FIELDNODE_SERVER_API_URL` | URL da API usada pelo servidor Next |
-| `USE_SQLITE` | `True` para SQLite em dev |
-| `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | Conexão MySQL |
-
-Credenciais de ingestão são provisionadas por dispositivo; não há segredo global de produção.
-O frontend não recebe segredo via `NEXT_PUBLIC_*`. O `.env` está no `.gitignore`.
-
----
-
-## Rotas do Frontend
-
-| Rota | Descrição |
-| --- | --- |
-| `/` | Redireciona para `/dashboard` |
-| `/login` | Autenticação por token |
-| `/register` | Cadastro público de usuário |
-| `/dashboard` | Visão geral da frota: métricas, grid de máquinas, mapa |
-| `/colheitadeiras` | Leituras recentes por máquina com badge de risco |
-| `/detalhes?id=COLH-01` | Histórico, gráficos e prescrição da máquina |
-| `/mapa` | Mapa de posição em campo |
-| `/operarios` | Equipe cadastrada |
-| `/maquinas` | Frota completa cadastrada |
-| `/relatorios` | Geração de relatório JSON e exportação CSV |
-
----
-
-## API — Endpoints principais
-
-A documentação completa fica em `/swagger/`. Os endpoints mais relevantes:
-
-| Endpoint | Método | Autenticação | Descrição |
-| --- | --- | --- | --- |
-| `/api/auth/login/` | POST | usuario/senha | Retorna token DRF |
-| `/api/auth/register/` | POST | pública | Cadastro de usuário |
-| `/api/auth/logout/` | POST | Token | Revoga token |
-| `/api/auth/me/` | GET | Token | Perfil do usuário |
-| `/api/health/` | GET | — | Health check da API e banco |
-| `/api/telemetria/` | POST | `X-Device-Id` + `X-Device-Key` | Ingestão com deduplicação UUID |
-| `/api/leituras/ultimas/` | GET | Token / Demo | Última leitura por máquina |
-| `/api/anomalias/` | GET | Token / Demo | Detecção de anomalias |
-| `/api/manutencao/` | GET | Token / Demo | Análise preditiva de manutenção |
-| `/api/events/` | GET | Token / Demo | Eventos priorizados |
-| `/api/decisions/` | GET | Token / Demo | Fila de decisões |
-| `/api/decisions/<uuid>/` | POST, PATCH | Token | Aprovação/rejeição de decisão |
-| `/api/prescricoes/lista/` | GET | Token / Demo | Histórico de prescrições |
-| `/api/relatorio/` | GET | Token / Demo | Relatório operacional |
-| `/api/relatorio/exportar/` | GET | Token / Demo | Exportação CSV/XLSX |
-| `/api/maquinas/posicao/` | GET | Token / Demo | Coordenadas GPS da frota |
-
-Com `DEMO_MODE=True`, endpoints públicos de leitura retornam somente dados de `Machine.is_demo=True`.
-Isso não libera escrita nem substitui autorização.
-
-### Exemplo de ingestão
-
-Primeiro provisione uma credencial individual para uma `Machine` já cadastrada:
-
-```powershell
-python scripts\provision_device.py COLH-01 --http
-```
-
-Guarde a chave exibida uma vez em `FIELDNODE_DEVICE_KEY` no ambiente local do dispositivo; não a salve no repositório. Configure `FIELDNODE_DEVICE_ID=COLH-01` e envie `device_id` e `maquina_id` correspondentes.
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/telemetria/ \
-  -H "Content-Type: application/json" \
-  -H "X-Device-Id: ${FIELDNODE_DEVICE_ID}" \
-  -H "X-Device-Key: ${FIELDNODE_DEVICE_KEY}" \
-  -d '{
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "maquina_id": "COLH-01",
-    "device_id": "COLH-01",
-    "temperatura": 78.5,
-    "vibracao": 0.42,
-    "rpm": 1850,
-    "latitude": -15.793889,
-    "longitude": -47.882778,
-    "timestamp": "2026-05-28T14:32:01Z"
-  }'
-```
-
-Resposta `201`:
-
-```json
-{"status": "ok", "id": "550e8400-e29b-41d4-a716-446655440000", "ia": {"status": "agendado"}}
-```
-
-Reenviar o mesmo `id` retorna `200` sem duplicar o banco:
-
-```json
-{"status": "duplicata ignorada", "id": "550e8400-e29b-41d4-a716-446655440000"}
-```
-
----
-
-## Simulador MQTT
-
-```bash
-# MQTT normal
-python scripts/simular_mqtt.py
-
-# Forçar fallback HTTP (broker inacessível)
-MQTT_PORT=1884 DEMO_CYCLES=1 python scripts/simular_mqtt.py
-```
-
-O simulador detecta `Connection refused`, entra em modo fallback e envia diretamente
-para `/api/telemetria/`. O sistema não para — degrada com graciosidade.
-
----
-
-## Testes
-
-```bash
-# Suite completa do backend
-python manage.py test api_tcc
-
-# Módulo específico
-python manage.py test api_tcc.tests.test_telemetria --verbosity=2
-
-# Fluxo end-to-end via scripts
-python scripts/teste_fluxo_completo.py
-```
-
-Build e type-check do frontend:
-
-```bash
-cd frontend-next
-npm run build
-```
-
----
-
-## Resiliência Offline
-
-### Topologia real da demo
-
-Na demo atual, o notebook é o hospedeiro dos serviços: Docker executa
-Mosquitto, Django, `mqtt_listen`, banco e, no modo Compose, o frontend Next.js.
-Hotspot ou LAN fornecem apenas conectividade local; não são servidor nem
-internet automática. Não existe firmware ESP32, gateway ESP-NOW ou Raspberry
-implantado neste repositório. A separação entre demo, bancada e arquitetura
-proposta está em [docs/CONECTIVIDADE.md](docs/CONECTIVIDADE.md).
-
-O Service Worker (`frontend-next/public/sw.js`) faz cache apenas de assets e mantém
-payloads offline em IndexedDB. Respostas de `/api/` ficam na rede para não reutilizar
-dados autenticados entre sessões. Na sincronização, respostas 2xx, 400 e 401 removem o
-item; outros erros deixam o item pendente. Portanto, payloads inválidos ou credenciais
-expiradas precisam ser corrigidos antes de depender dessa fila.
-
-A ingestão operacional confiável deve ser feita por clientes de dispositivo/borda. O
-`simulators/edge_client.py` oferece outbox SQLite persistente, ACK e deduplicação. Use
-`--offline` para gravar durante a falta de conexão e `--sync-only` quando houver conexão
-novamente. Para ensaiar coleta contínua com buffer e reenvio automático:
-
-```powershell
-$env:FIELDNODE_DEVICE_KEY = "<chave individual provisionada uma única vez>"
-.\.venv\Scripts\python.exe simulators\edge_client.py `
-  --watch --device-id COLH-01 --interval 5 `
-  --api-url http://127.0.0.1:8000/api/telemetria/
-```
-
-Interrompa com `Ctrl+C`. O modo `--watch` grava primeiro em
-`simulators/edge_buffer.db` e sincroniza em segundo plano; durante uma interrupção do
-backend, a coleta local continua. Esse cliente de bancada usa HTTP, não MQTT.
-
-O simulador MQTT (`scripts/simular_mqtt.py`) envia telemetria continuamente enquanto o
-broker e o listener estão acessíveis. Ele não grava localmente as publicações MQTT que
-falham. Para o ensaio de store-and-forward descrito acima, use o `edge_client.py --watch`,
-que envia por HTTP com outbox local. A análise completa e os dashboards dependem do backend:
-sem conectividade com ele, os dados só são analisados centralmente após a sincronização. O
-projeto ainda não inclui firmware/gateway físico com armazenamento e análise embarcados;
-esse comportamento precisa ser validado no hardware-alvo antes de ser tratado como operação
-de campo.
-
-Se broker, API e banco estão no mesmo computador, remover a conexão externa desse computador
-não desliga os processos locais; outros dispositivos deixam de alcançá-los se não houver
-outra rota de rede. A fila do Service Worker é complementar e não substitui o armazenamento
-local do dispositivo.
-
----
-
-## Segurança — notas relevantes
-
-- Token de autenticação fica em `localStorage` no MVP — dívida técnica explícita.
-  Em produção, migrar para cookie `httpOnly` + CSRF adequado.
-- `FIELDNODE_DEVICE_KEY` nunca deve entrar no bundle do frontend via `NEXT_PUBLIC_*`.
-- Se uma credencial individual foi exposta, revogue e reprovisione somente o dispositivo afetado.
-  no backend e nos dispositivos. Apagar o arquivo atual não reescreve o histórico Git.
-- `DEBUG=False` e `ALLOWED_HOSTS` configurados antes de qualquer exposição pública.
-
----
+Para contribuir, abra uma issue com o contexto, evidência e mudança proposta.
+Antes de enviar código, rode os testes adequados e não inclua segredos. Ainda
+não há um `CONTRIBUTING.md` separado; este fluxo é deliberadamente curto.
 
 ## Licença
 
-MIT
+MIT. Veja [`LICENSE`](LICENSE).

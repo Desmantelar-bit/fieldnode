@@ -1,0 +1,70 @@
+# Edge overlay. It reuses the base services and only changes deployment
+# concerns: explicit edge identity, local persistence, restart, and LAN bind.
+# Run with: docker compose -f docker-compose.yml -f docker-compose.edge.yml --profile edge up -d
+services:
+  db:
+    profiles: [edge]
+    restart: unless-stopped
+    ports: !reset []
+    volumes:
+      - ${FIELDNODE_EDGE_DB_PATH:-/srv/fieldnode/mysql}:/var/lib/mysql
+    command:
+      - |
+        : "$${DB_PASSWORD:?DB_PASSWORD is required}"
+        export MYSQL_DATABASE="$${DB_NAME:-fieldnode_db}"
+        export MYSQL_USER="$${DB_USER:-fieldnode_user}"
+        export MYSQL_PASSWORD="$${DB_PASSWORD}"
+        export MYSQL_ROOT_PASSWORD="$${DB_ROOT_PASSWORD:-$${DB_PASSWORD}}"
+        exec docker-entrypoint.sh mysqld --innodb-flush-log-at-trx-commit=1
+
+  mosquitto:
+    profiles: [edge]
+    restart: unless-stopped
+    ports: !override
+      - "${EDGE_BIND_ADDRESS:-0.0.0.0}:${MQTT_HOST_PORT:-1883}:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  web:
+    profiles: [edge]
+    restart: unless-stopped
+    environment:
+      NODE_ROLE: edge
+      NODE_ID: ${NODE_ID:?Defina NODE_ID no .env}
+      OFFLINE_AUTH: "true"
+    ports: !override
+      - "${EDGE_BIND_ADDRESS:-0.0.0.0}:${EDGE_API_PORT:-8000}:8000"
+
+  worker:
+    profiles: [edge]
+    restart: unless-stopped
+    environment:
+      NODE_ROLE: edge
+      NODE_ID: ${NODE_ID:?Defina NODE_ID no .env}
+      OFFLINE_AUTH: "true"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  frontend:
+    profiles: [edge]
+    restart: unless-stopped
+    ports: !override
+      - "${EDGE_BIND_ADDRESS:-0.0.0.0}:${EDGE_FRONTEND_PORT:-3000}:3000"
+    environment:
+      NODE_ROLE: edge
+      NODE_ID: ${NODE_ID:?Defina NODE_ID no .env}
+      NODE_ENV: production
+      FIELDNODE_SERVER_API_URL: http://web:8000/api
+      NEXT_PUBLIC_API_URL: ${EDGE_BROWSER_API_URL:-http://localhost:8000/api}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+

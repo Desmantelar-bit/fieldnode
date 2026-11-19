@@ -2,6 +2,7 @@ import logging
 import math
 from datetime import timedelta
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from api_tcc.models import DeadLetterEntry, Event, LeituraTelemetria
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 from api_tcc.contracts import metric_definition
 from api_tcc.services.thresholds import classify_machine_metric
 from api_tcc.metrics import record_event_created
+from api_tcc.services.domain_changes import record_domain_change
+from api_tcc.services.hlc import event_id as deterministic_event_id
 SUPPRESSAO_EVENTO_MINUTOS = 15
 PRIORITY_URGENCY_DECAY_HOURS = 24.0
 
@@ -279,7 +282,15 @@ def _persistir_evento_com_priority(
     *, machine, leitura_origem, tipo, severidade, dados_contexto
 ):
     qualidade = evidence_quality(leitura_origem.trust_score)
+    factual_time = getattr(leitura_origem, "timestamp", None)
+    rule = str(tipo)
+    if tipo == Event.Tipo.FALHA_DTC:
+        rule = f"{tipo}|{dados_contexto.get('pgn')}|{dados_contexto.get('spn')}|{dados_contexto.get('fmi')}"
+    event_kwargs = {}
+    if factual_time:
+        event_kwargs["id"] = deterministic_event_id(machine.external_code, rule, factual_time)
     event = Event(
+        **event_kwargs,
         machine=machine,
         leitura_origem=leitura_origem,
         tipo=tipo,
@@ -295,7 +306,26 @@ def _persistir_evento_com_priority(
         event,
         _historico_para_evento(leitura_origem),
     )
-    event.save(force_insert=True)
+    try:
+        with transaction.atomic():
+            event.save(force_insert=True)
+    except IntegrityError:
+        if not event.pk:
+            raise
+        existing = Event.objects.get(pk=event.pk)
+        existing.trust_score_herdado = leitura_origem.trust_score
+        existing.evidence_quality = qualidade
+        existing.needs_verification = qualidade != "boa"
+        existing.priority_score = event.priority_score
+        existing.dados_contexto = dados_contexto
+        existing.save(update_fields=["trust_score_herdado", "evidence_quality", "needs_verification", "priority_score", "dados_contexto"])
+        return existing
+    record_domain_change(
+        entity="Event",
+        entity_id=event.pk,
+        op="upsert",
+        payload={"machine_id": str(machine.pk), "tipo": event.tipo, "leitura_id": str(leitura_origem.pk), "dados_contexto": dados_contexto},
+    )
     record_event_created(event.tipo, event.severidade)
     try:
         from api_tcc.services.incidents import agrupar_evento

@@ -80,6 +80,7 @@ artifacts/
 docs/evidence/**/*.sql
 # Backups and restore material are local operational data, never versioned.
 backups/
+release-artifacts/
 *.sql.gz.enc
 *.sql.gz
 *.manifest

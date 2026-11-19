@@ -905,6 +905,45 @@ class SecurityCounter(models.Model):
         indexes = [models.Index(fields=["expires_at"])]
 
 
+class DomainChange(models.Model):
+    """Append-only replication envelope ordered by a hybrid logical clock."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    node_id = models.CharField(max_length=64, db_index=True)
+    hlc_l = models.BigIntegerField()
+    hlc_c = models.PositiveBigIntegerField()
+    entity = models.CharField(max_length=80)
+    entity_id = models.CharField(max_length=100)
+    op = models.CharField(max_length=20)
+    payload_hash = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["hlc_l", "hlc_c", "node_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["node_id", "hlc_l", "hlc_c"],
+                name="domainchange_node_hlc_unique",
+            )
+        ]
+
+
+class IdempotencyKey(models.Model):
+    """Replay ledger for user mutations received after an offline retry."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    key = models.CharField(max_length=128, unique=True)
+    actor = models.ForeignKey(User, on_delete=models.PROTECT)
+    request_hash = models.CharField(max_length=64)
+    response_status = models.PositiveSmallIntegerField(default=102)
+    response_payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class AuditLogQuerySet(models.QuerySet):
     def bulk_create(self, objs, **kwargs):
         if kwargs.get("update_conflicts"):

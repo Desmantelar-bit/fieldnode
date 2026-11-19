@@ -1,16 +1,20 @@
-const CACHE_NAME = 'fieldnode-runtime-v3';
-const STATIC_CACHE = 'fieldnode-static-v3';
+const CACHE_NAME = 'fieldnode-runtime-v4';
+const STATIC_CACHE = 'fieldnode-static-v4';
+const TILE_CACHE = 'fieldnode-map-tiles-v1';
 const TELEMETRY_SYNC_TAG = 'fieldnode-telemetria-sync';
+const ACTION_SYNC_TAG = 'fieldnode-actions-sync';
 const DB_NAME = 'fieldnode-offline';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const TELEMETRY_STORE = 'telemetria-pendente';
+const ACTION_STORE = 'actions';
+const RECENT_STORE = 'dados-recentes';
 
 let apiConfig = {
   apiUrl: "/api",
 };
 let syncInProgress = false;
 
-const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+const PRECACHE_URLS = ["/", "/dashboard", "/decisoes", "/mapa", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -28,7 +32,7 @@ self.addEventListener("activate", (event) => {
           Promise.all(
             cacheNames
               .filter(
-                (cacheName) => ![CACHE_NAME, STATIC_CACHE].includes(cacheName),
+                (cacheName) => ![CACHE_NAME, STATIC_CACHE, TILE_CACHE].includes(cacheName),
               )
               .map((cacheName) => caches.delete(cacheName)),
           ),
@@ -58,6 +62,7 @@ self.addEventListener("message", (event) => {
       queueTelemetry(message.payload, message.headers || {}).then(requestSync),
     );
   }
+  if (message.type === "SYNC_ACTIONS") event.waitUntil(requestActionSync());
   if (message.type === "GET_TELEMETRY_STATUS") {
     event.waitUntil(openDb().then(async (db) => notifyClients({ type: "TELEMETRY_QUEUE_STATUS", counts: await countBy(db), items: await queueSummaries(db) })).catch(() => notifyClients({ type: "TELEMETRY_QUEUE_ERROR" })));
   }
@@ -74,6 +79,11 @@ self.addEventListener("fetch", (event) => {
 
   if (isTelemetryPost(request)) {
     event.respondWith(sendOrQueueTelemetry(request));
+    return;
+  }
+
+  if (isActionPatch(request)) {
+    event.respondWith(sendOrQueueAction(request));
     return;
   }
 
@@ -97,6 +107,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isStaticAssetRequest(request)) {
+    if (new URL(request.url).hostname.endsWith('tile.openstreetmap.org')) {
+      event.respondWith(tileCacheFirst(request));
+      return;
+    }
     event.respondWith(cacheFirst(request));
   }
 });
@@ -105,7 +119,64 @@ self.addEventListener("sync", (event) => {
   if (event.tag === TELEMETRY_SYNC_TAG) {
     event.waitUntil(syncTelemetriaData());
   }
+  if (event.tag === ACTION_SYNC_TAG) event.waitUntil(syncActions());
 });
+
+function isActionPatch(request) {
+  if (request.method !== "PATCH") return false;
+  const url = new URL(request.url);
+  return /^\/api\/(decisions|workorders)\/.+\/$/.test(url.pathname);
+}
+
+async function sendOrQueueAction(request) {
+  const clone = request.clone();
+  try {
+    const response = await fetch(request);
+    if (response.ok || response.status === 401 || response.status === 403 || !shouldRetryStatus(response.status)) return response;
+    await queueAction(clone);
+    await requestActionSync();
+    return queuedResponse("Gateway indisponível. Ação guardada para reaplicação.");
+  } catch {
+    await queueAction(clone);
+    await requestActionSync();
+    return queuedResponse("Sem conexão. Ação guardada para reaplicação.");
+  }
+}
+
+async function queueAction(request) {
+  const db = await openDb();
+  const url = new URL(request.url);
+  const body = await request.json();
+  const decisionMatch = url.pathname.match(/^\/api\/decisions\/([^/]+)\//);
+  const orderMatch = url.pathname.match(/^\/api\/workorders\/([^/]+)\//);
+  await tx(db, "readwrite", (store) => store.put({
+    localId: crypto.randomUUID(),
+    type: decisionMatch ? (body.status === "APROVADA" ? "decision.approve" : "decision.reject") : "wo.update",
+    id: (decisionMatch || orderMatch)[1], body,
+    key: request.headers.get("Idempotency-Key") || crypto.randomUUID(),
+    state: "pending", attempts: 0, createdAt: Date.now(), lastError: null,
+  }), ACTION_STORE);
+}
+
+async function requestActionSync() {
+  if ("sync" in self.registration) return self.registration.sync.register(ACTION_SYNC_TAG);
+  if (navigator.onLine) return syncActions();
+}
+
+async function syncActions() {
+  const db = await openDb();
+  for (const item of await readAll(db, ACTION_STORE)) {
+    if (item.state === "rejected") continue;
+    try {
+      const endpoint = item.type === "wo.update" ? `/api/workorders/${item.id}/` : `/api/decisions/${item.id}/`;
+      const response = await fetch(endpoint, { method: "PATCH", headers: buildHeaders({ "Idempotency-Key": item.key }), body: JSON.stringify(item.body), credentials: "include" });
+      if (response.ok) await tx(db, "readwrite", (store) => store.delete(item.localId), ACTION_STORE);
+      else if (shouldRetryStatus(response.status)) { item.attempts += 1; item.state = "retrying"; item.lastError = `HTTP ${response.status}`; await tx(db, "readwrite", (store) => store.put(item), ACTION_STORE); }
+      else { item.attempts += 1; item.state = "rejected"; item.lastError = `HTTP ${response.status}`; await tx(db, "readwrite", (store) => store.put(item), ACTION_STORE); }
+    } catch { item.attempts += 1; item.state = "retrying"; item.lastError = "Falha de rede"; await tx(db, "readwrite", (store) => store.put(item), ACTION_STORE); }
+  }
+  await notifyClients({ type: "ACTION_SYNC_STATUS", pending: (await readAll(db, ACTION_STORE)).length });
+}
 
 async function sendOrQueueTelemetry(request) {
   const requestForQueue = request.clone();
@@ -120,7 +191,7 @@ async function sendOrQueueTelemetry(request) {
       credentials: "include",
     });
     const response = await fetch(requestForNetwork);
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       await queueRequest(requestForQueue);
       const db = await openDb();
       await markAll(db, "auth_blocked", "Autenticação necessária");
@@ -164,7 +235,7 @@ async function syncTelemetriaData() {
       if (response.ok) {
         await deleteItem(db, item.localId);
         synced++;
-      } else if (response.status === 401 || response.status === 403) {
+      } else if (response.status === 401) {
         item.attempts += 1;
         await putItem(db, item);
         await markAll(db, "auth_blocked", "Autenticação necessária");
@@ -253,12 +324,18 @@ async function networkFirst(request) {
     if (response.ok) {
       const cache = await caches.open(CACHE_NAME);
       await cache.put(request, response.clone());
+      if (request.url.includes('/api/')) {
+        const body = await response.clone().json().catch(() => null);
+        if (body !== null) await tx(await openDb(), 'readwrite', (store) => store.put({ url: request.url, body, savedAt: Date.now() }), RECENT_STORE);
+      }
     }
     return response;
   } catch {
     const cached = await caches.match(request);
+    if (cached) return cached;
+    const recent = await getRecent(request.url);
     return (
-      cached ||
+      recent ||
       jsonResponse(
         { status: "offline", message: "Dados em cache nao disponiveis." },
         503,
@@ -283,6 +360,19 @@ async function cacheFirst(request) {
       return caches.match("/dashboard") || caches.match("/");
     }
     return new Response("", { status: 404 });
+  }
+}
+
+async function tileCacheFirst(request) {
+  const cache = await caches.open(TILE_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return new Response('', { status: 404 });
   }
 }
 
@@ -409,6 +499,8 @@ function openDb() {
       if (!db.objectStoreNames.contains(TELEMETRY_STORE)) {
         db.createObjectStore(TELEMETRY_STORE, { keyPath: 'localId' });
       }
+      if (!db.objectStoreNames.contains(ACTION_STORE)) db.createObjectStore(ACTION_STORE, { keyPath: 'localId' });
+      if (!db.objectStoreNames.contains(RECENT_STORE)) db.createObjectStore(RECENT_STORE, { keyPath: 'url' });
       const cursorRequest = request.transaction.objectStore(TELEMETRY_STORE).openCursor();
       cursorRequest.onsuccess = () => {
         const cursor = cursorRequest.result;
@@ -424,8 +516,8 @@ function openDb() {
   });
 }
 
-function readAll(db) {
-  return tx(db, 'readonly', (store) => store.getAll());
+function readAll(db, storeName = TELEMETRY_STORE) {
+  return tx(db, 'readonly', (store) => store.getAll(), storeName);
 }
 
 function putItem(db, item) {
@@ -440,14 +532,19 @@ function getItem(db, key) {
   return tx(db, "readonly", (store) => store.get(key));
 }
 
-function tx(db, mode, action) {
+function tx(db, mode, action, storeName = TELEMETRY_STORE) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(TELEMETRY_STORE, mode);
-    const store = transaction.objectStore(TELEMETRY_STORE);
+    const transaction = db.transaction(storeName, mode);
+    const store = transaction.objectStore(storeName);
     const request = action(store);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+async function getRecent(url) {
+  const item = await tx(await openDb(), 'readonly', (store) => store.get(url), RECENT_STORE);
+  return item ? jsonResponse(item.body, 200) : null;
 }
 
 async function notifyClients(message) {

@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
-from api_tcc.authentication import is_token_expired, token_expires_in
+from api_tcc.authentication import ExpiringTokenAuthentication, is_token_expired, token_expires_in
 from api_tcc.api.throttles import (
     LoginThrottle, RegisterThrottle, audit_security_event, normalized_login_identity,
     record_login_failure, reset_security_counter, security_counter_value,
@@ -171,7 +171,7 @@ class RegisterView(APIView):
 
 
 class LogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -183,7 +183,7 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

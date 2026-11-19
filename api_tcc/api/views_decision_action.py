@@ -1,14 +1,15 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api_tcc.api.serializers import DecisionActionSerializer, DecisionSerializer
-from api_tcc.models import AuditLog, Decision, Reevaluation, WorkOrder
+from api_tcc.models import AuditLog, Decision, IdempotencyKey, Reevaluation, WorkOrder
 from api_tcc.permissions import IsAuthenticatedOrPublicDemo, request_can_access_machine, user_can_access_machine
 from api_tcc.services.decisions import aplicar_acao_decision
 from api_tcc.services.audit import record as audit_record
 from api_tcc.services.workorders import approve as approve_decision
+from api_tcc.services.domain_changes import canonical_hash
 
 
 def _work_order_payload(decision):
@@ -88,6 +89,17 @@ class DecisionActionView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+        request_hash = canonical_hash({"decision_id": str(decision_id), "body": request.data})
+        if idempotency_key:
+            prior = IdempotencyKey.objects.filter(key=idempotency_key).first()
+            if prior is not None:
+                if prior.actor_id != request.user.id or prior.request_hash != request_hash:
+                    return Response({"status": "erro", "detalhe": "Idempotency-Key ja usada para outra operacao."}, status=status.HTTP_409_CONFLICT)
+                if prior.response_status == 102:
+                    return Response({"status": "processando", "detalhe": "Operacao idempotente ainda esta sendo processada."}, status=status.HTTP_409_CONFLICT)
+                return Response(prior.response_payload, status=prior.response_status)
+
         novo_status = serializer.validated_data["status"]
         outcome_fornecido = "outcome_texto" in serializer.validated_data
         outcome_texto = serializer.validated_data.get("outcome_texto")
@@ -164,4 +176,16 @@ class DecisionActionView(APIView):
             payload["work_order"] = _work_order_payload(work_order.decision)
         else:
             payload["work_order"] = _work_order_payload(decision)
+        if idempotency_key:
+            try:
+                IdempotencyKey.objects.create(
+                    key=idempotency_key,
+                    actor=request.user,
+                    request_hash=request_hash,
+                    response_status=status.HTTP_200_OK,
+                    response_payload=payload,
+                )
+            except IntegrityError:
+                prior = IdempotencyKey.objects.get(key=idempotency_key)
+                return Response(prior.response_payload, status=prior.response_status)
         return Response(payload, status=status.HTTP_200_OK)

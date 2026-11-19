@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState, ErrorState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/ui/FeedbackStates';
-import { decisionService } from '@/services/decisionService';
+import { decisionService, OfflineActionQueuedError } from '@/services/decisionService';
 import { DecisaoSchema, type Decisao } from '@/schemas/decisoes';
 import { ConsequencePanel } from '@/components/ConsequencePanel';
 
@@ -89,6 +89,11 @@ export default function DecisoesPage() {
       setItems((current) => current.map((item) => item.id === saved.id ? saved : item));
       setOutcome(saved.outcome_texto ?? '');
     } catch (err) {
+      if (err instanceof OfflineActionQueuedError) {
+        setError('Sem conexão. A ação ficou pendente no aparelho e será reaplicada ao reconectar.');
+        setSaving(false);
+        return;
+      }
       setSelected(previous);
       setItems((current) => current.map((item) => item.id === previous.id ? previous : item));
       setError(err instanceof Error ? err.message : 'A ação não foi registrada.');

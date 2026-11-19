@@ -13,10 +13,30 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import json
 import os
+import re
 from decouple import config as env_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# The node role is a deployment boundary, not a feature flag.  Keep the
+# accepted values narrow so a typo cannot silently select an unknown topology.
+NODE_ROLE = env_config("NODE_ROLE", default="cloud").strip().lower()
+if NODE_ROLE not in {"edge", "cloud"}:
+    raise RuntimeError("NODE_ROLE deve ser 'edge' ou 'cloud'.")
+
+NODE_ID = env_config("NODE_ID", default="").strip()
+if NODE_ROLE == "edge":
+    if not NODE_ID:
+        raise RuntimeError("NODE_ID e obrigatorio para NODE_ROLE=edge.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{2,63}", NODE_ID):
+        raise RuntimeError("NODE_ID deve ter 3-64 caracteres seguros para identificacao local.")
+
+# This setting controls where authentication is evaluated, never whether it is
+# required.  An edge node authenticates against its local, previously provisioned
+# Django database; it does not bypass DRF permissions or token expiry.
+OFFLINE_AUTH = env_config("OFFLINE_AUTH", default=False, cast=bool)
 
 
 # Quick-start development settings - unsuitable for production
@@ -93,6 +113,7 @@ CORS_ALLOW_HEADERS = [
     "x-api-key",
     "x-device-id",
     "x-device-key",
+    "idempotency-key",
 ]
 
 SECURE_CONTENT_TYPE_NOSNIFF = True

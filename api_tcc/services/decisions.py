@@ -1,12 +1,14 @@
 from datetime import timedelta
 import logging
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from api_tcc.models import DeadLetterEntry, Decision, Event, LeituraTelemetria, Machine
 from api_tcc.services.decision_schema import validate_decision_details
 from api_tcc.services.dlq import registrar_falha_dlq
+from api_tcc.services.domain_changes import record_domain_change
+from api_tcc.services.hlc import decision_id as deterministic_decision_id
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +28,27 @@ def validar_transicao_decision(status_atual: str, novo_status: str) -> bool:
     return novo_status in DECISION_TRANSICOES_PERMITIDAS.get(status_atual, set())
 
 
-def criar_decision(*, detalhes: dict, **kwargs) -> Decision:
+def criar_decision(*, detalhes: dict, deterministic: bool = False, **kwargs) -> Decision:
     validate_decision_details(detalhes)
-    return Decision.objects.create(detalhes=detalhes, **kwargs)
+    event = kwargs.get("event")
+    if deterministic and event is not None and "id" not in kwargs:
+        rule = str((detalhes or {}).get("regra", {}).get("id", "decision"))
+        kwargs["id"] = deterministic_decision_id(event.pk, rule)
+    try:
+        with transaction.atomic():
+            decision = Decision.objects.create(detalhes=detalhes, **kwargs)
+    except IntegrityError:
+        if not deterministic or "id" not in kwargs:
+            raise
+        decision = Decision.objects.get(pk=kwargs["id"])
+        return decision
+    record_domain_change(
+        entity="Decision",
+        entity_id=decision.pk,
+        op="create",
+        payload={"machine_id": str(decision.machine_id), "event_id": str(decision.event_id) if decision.event_id else None, "status": decision.status, "detalhes": detalhes},
+    )
+    return decision
 
 
 def aplicar_acao_decision(
@@ -56,6 +76,12 @@ def aplicar_acao_decision(
 
     decision.save(
         update_fields=["status", "decidido_por", "decidido_em", "outcome_texto", "motivo_rejeicao"]
+    )
+    record_domain_change(
+        entity="Decision",
+        entity_id=decision.pk,
+        op="update",
+        payload={"status": decision.status, "decidido_por_id": decision.decidido_por_id, "outcome_texto": decision.outcome_texto, "motivo_rejeicao": decision.motivo_rejeicao},
     )
     if novo_status == Decision.Status.EXECUTADA:
         order = getattr(decision, "work_order", None)
@@ -146,6 +172,7 @@ def persistir_decision_da_anomalia(machine, event, resultado) -> Decision:
         "anomaly_score": resultado.anomaly_score,
     }
     return criar_decision(
+        deterministic=True,
         machine=machine,
         event=event,
         texto=resultado.explanation,

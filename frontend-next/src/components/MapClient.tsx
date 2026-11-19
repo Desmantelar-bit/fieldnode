@@ -11,6 +11,7 @@ import { ListaPosicoesMaquinasSchema } from "@/schemas";
 import type { MachinePosition } from "@/types/telemetry";
 import type { EstadoRequisicao } from "@/types/api";
 import { LoadingState, EmptyState, ErrorState } from "@/components/ui/FeedbackStates";
+import { get as getOfflineData, put as putOfflineData, type RecentData } from "@/lib/offline/db";
 
 type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
@@ -195,6 +196,7 @@ export default function MapClient({
 }) {
   const [estado, setEstado] = useState<EstadoRequisicao<MachinePosition[]>>({ tipo: "carregando" });
   const [retryCount, setRetryCount] = useState(0);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapTheme, setMapTheme] = useState<'dark' | 'light'>(() => (
@@ -566,11 +568,20 @@ export default function MapClient({
         const data = await response.json();
         const normalized = Array.isArray(data) ? normalizeApiPositions(data) : [];
         const parsed = parsePositions(normalized);
+        await putOfflineData('dados-recentes', { url: `${API_URL}/maquinas/posicao/`, body: parsed, savedAt: Date.now() });
         if (!cancelled) {
+          setLastUpdatedAt(Date.now());
           setEstado(parsed.length === 0 ? { tipo: "vazio" } : { tipo: "sucesso", dados: parsed });
         }
       } catch (err) {
         if (!cancelled) {
+          const cached = await getOfflineData<RecentData>('dados-recentes', `${API_URL}/maquinas/posicao/`).catch(() => undefined);
+          if (cached) {
+            const parsed = parsePositions(cached.body as UnknownRecord[]);
+            setLastUpdatedAt(cached.savedAt);
+            setEstado(parsed.length === 0 ? { tipo: "vazio" } : { tipo: "sucesso", dados: parsed });
+            return;
+          }
           const mensagem = err instanceof Error ? err.message : "Falha ao carregar posições da frota.";
           setEstado({ tipo: "erro", mensagem });
         }
@@ -625,6 +636,7 @@ export default function MapClient({
                 <div>
                   <p className="section-heading">Central de campo</p>
                   <h2 className="mt-1 text-lg font-bold text-[var(--text-1)]">Frota em movimento</h2>
+                  <p className="mt-1 text-xs text-[var(--text-3)]">{lastUpdatedAt ? `Dados de ${Math.max(0, Math.floor((Date.now() - lastUpdatedAt) / 60000))} min atrás` : 'Atualização sem timestamp'}</p>
                 </div>
                 <span className="flex items-center gap-1.5 rounded-full bg-[color:var(--status-normal)]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[color:var(--status-normal)]">
                   <Activity size={11} aria-hidden="true" /> ao vivo
