@@ -1,0 +1,23 @@
+groups:
+  - name: fieldnode-operacao
+    rules:
+      - alert: FieldNodeDLQCrescendo
+        expr: increase(fieldnode_dlq_open[5m]) > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "DLQ do FieldNode crescendo"}
+      - alert: FieldNodeWorkerSemHeartbeat
+        expr: fieldnode_worker_heartbeat_age_seconds > 120
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "Worker do FieldNode sem atividade"}
+      - alert: FieldNodeBacklogAlto
+        expr: sum(fieldnode_outbox_pending) > 10
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Backlog de sincronização acima do limite"}
+      - alert: FieldNodeLLMFailureRateAlta
+        expr: sum(rate(fieldnode_llm_failures_total[10m])) / (sum(rate(fieldnode_llm_failures_total[10m])) + rate(fieldnode_llm_latency_seconds_count[10m])) > 0.2
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Taxa de falha LLM acima de 20%"}

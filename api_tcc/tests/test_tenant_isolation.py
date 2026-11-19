@@ -47,6 +47,9 @@ ROUTES = {
     "prescricao-lista": "machine_scoped_collection", "prescricao-maquina": "machine_scoped_read",
     "relatorio": "machine_scoped_report", "relatorio-exportar": "machine_scoped_export",
     "maquinas-posicao": "machine_scoped_collection", "mapas-demo": "demo_only",
+    "passport-export": "machine_scoped_export",
+    "organization-tokens": "administrative",
+    "machine-capabilities": "machine_scoped_read",
 }
 ROUTES["operario-list"] = "tenant_scoped_collection"
 ROUTES["operario-detail"] = "tenant_scoped_detail"
@@ -80,6 +83,9 @@ _CUSTOM_METHODS = {
     "prescricao-lista": {"GET"}, "prescricao-maquina": {"GET", "POST"},
     "relatorio": {"GET"}, "relatorio-exportar": {"GET"},
     "maquinas-posicao": {"GET"}, "mapas-demo": {"GET"},
+    "passport-export": {"GET"},
+    "organization-tokens": {"POST", "DELETE"},
+    "machine-capabilities": {"GET"},
 }
 OPERAÇÕES = {**_ROUTER_METHODS, **_CUSTOM_METHODS}
 ROUTE_PATTERN_COUNTS = {

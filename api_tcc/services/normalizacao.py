@@ -1,6 +1,7 @@
 """Normalizacao v0.1 de telemetria bruta para parametros canonicos."""
 
 from api_tcc.models import CanonicalTelemetry, FabricanteMapping, RawTelemetry
+from api_tcc.services.conversoes import convert_value
 
 
 def normalizar(raw_telemetry: RawTelemetry) -> CanonicalTelemetry | None:
@@ -25,23 +26,40 @@ def normalizar(raw_telemetry: RawTelemetry) -> CanonicalTelemetry | None:
             raw_telemetry.save(update_fields=["quality"])
         return None
 
+    try:
+        value, unit, factor, offset = convert_value(
+            raw_telemetry.raw_value,
+            raw_telemetry.unit,
+            mapping.canonical_parameter,
+        )
+    except ValueError:
+        raw_telemetry.quality = "unsupported_unit"
+        raw_telemetry.save(update_fields=["quality"])
+        return None
+
     raw_telemetry.quality = "mapped"
     raw_telemetry.save(update_fields=["quality"])
     canonical, _ = CanonicalTelemetry.objects.get_or_create(
         raw_telemetry=raw_telemetry,
         canonical_parameter=mapping.canonical_parameter,
         defaults={
-            "value": raw_telemetry.raw_value * mapping.unit_conversion_factor,
-            "unit": raw_telemetry.unit,
+            "value": value * mapping.unit_conversion_factor + mapping.unit_conversion_offset,
+            "unit": unit,
             "quality": "mapped",
             "mapping_version": mapping.mapping_version,
+            "origem": raw_telemetry.origem,
+            "fonte": raw_telemetry.source_protocol_simulado,
+            "unidade_original": raw_telemetry.unit,
+            "fator_conversao": factor,
+            "offset_conversao": offset,
         },
     )
     return canonical
 
 
 def registrar_e_normalizar(
-    *, machine, manufacturer, raw_parameter, raw_value, unit, source_protocol_simulado, payload_original
+    *, machine, manufacturer, raw_parameter, raw_value, unit, source_protocol_simulado,
+    payload_original, origem="simulado"
 ):
     """Persiste o bruto antes de tentar normaliza-lo."""
     raw = RawTelemetry.objects.create(
@@ -52,5 +70,6 @@ def registrar_e_normalizar(
         unit=unit or "",
         source_protocol_simulado=source_protocol_simulado,
         payload_original=dict(payload_original),
+        origem=origem or "simulado",
     )
     return raw, normalizar(raw)

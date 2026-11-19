@@ -17,6 +17,7 @@ import {
   ListaPrescricoesSchema,
   RelatorioResumoSchema,
   TelemetryInputSchema,
+  MachineCapabilitiesSchema,
 } from '@/schemas';
 import type { z } from 'zod';
 import { CanMotorSchema, type CanMotorResponse } from '@/schemas/canMotor';
@@ -166,6 +167,14 @@ export const telemetryService = {
     return getValidated(
       `telemetria/?maquina_id=${encodeURIComponent(machineId)}`,
       ListaLeiturasTelemetriaSchema,
+      signal,
+    );
+  },
+
+  async getMachineCapabilities(machineId: string, signal?: AbortSignal) {
+    return getValidated(
+      `machines/${encodeURIComponent(machineId)}/capabilities/`,
+      MachineCapabilitiesSchema,
       signal,
     );
   },

@@ -2,6 +2,17 @@ from rest_framework import serializers
 from api_tcc import models
 from api_tcc.services.telemetria import calcular_status_risco
 
+
+class CanonicalTelemetrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.CanonicalTelemetry
+        fields = [
+            "id", "raw_telemetry", "canonical_parameter", "value", "unit", "quality",
+            "mapping_version", "origem", "fonte", "unidade_original",
+            "fator_conversao", "offset_conversao", "criado_em",
+        ]
+        read_only_fields = fields
+
 class UnidadedeMedidaSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UnidadedeMedida

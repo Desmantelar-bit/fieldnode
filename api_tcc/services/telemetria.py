@@ -579,6 +579,7 @@ def _registrar_leitura_impl(
                         unit=unit,
                         source_protocol_simulado=source_protocol_simulado,
                         payload_original=dados,
+                        origem=data_origin or "simulado",
                     )
                 transaction.on_commit(
                     lambda: REGISTRY.record_reading(

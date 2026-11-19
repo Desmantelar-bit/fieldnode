@@ -1,0 +1,38 @@
+{
+  "table_version": "j1939-public-v1",
+  "pgns": {
+    "61444": {
+      "name": "Electronic Engine Controller 1 (EEC1)",
+      "description": "Rotacao real do motor",
+      "source": "https://www.fms-standard.com/down_load/fms_document_ver02.00vers_11_11_2010.pdf",
+      "specification": "FMS-Standard issue 02.00 (2010), PGN 61444 / SPN 190",
+      "spns": [{
+        "spn": 190, "name": "Engine Speed", "canonical": "engine.rpm",
+        "start_bit": 24, "length": 16, "resolution": 0.125, "offset": 0.0,
+        "unit": "rpm", "special_values": {"unavailable": [65535], "error": [65279]}
+      }]
+    },
+    "65262": {
+      "name": "Engine Temperature 1 (ET1)",
+      "description": "Temperatura do liquido de arrefecimento",
+      "source": "https://www.diva-portal.org/smash/get/diva2%3A1622990/FULLTEXT01.pdf",
+      "specification": "Public thesis reproducing SAE J1939/71, PGN 65262 / SPN 110",
+      "spns": [{
+        "spn": 110, "name": "Engine Coolant Temperature", "canonical": "engine.coolant_temp",
+        "start_bit": 0, "length": 8, "resolution": 1.0, "offset": -40.0,
+        "unit": "C", "special_values": {"unavailable": [255], "error": [254]}
+      }]
+    },
+    "65263": {
+      "name": "Engine Fluid Level/Pressure 1 (EFLP1)",
+      "description": "Pressao do oleo do motor",
+      "source": "https://pyramidsolutions.com/unsecured/support-documents-drivers-downloads/J1939_Data_Mapping_Explained.pdf",
+      "specification": "BridgeWay J1939 Data Mapping Explained, PGN 65263 / SPN 100",
+      "spns": [{
+        "spn": 100, "name": "Engine Oil Pressure", "canonical": "engine.oil_pressure",
+        "start_bit": 24, "length": 8, "resolution": 4.0, "offset": 0.0,
+        "unit": "kPa", "special_values": {"unavailable": [255], "error": [254]}
+      }]
+    }
+  }
+}

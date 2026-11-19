@@ -9,6 +9,7 @@ import {
   RelatorioResumoSchema,
   TelemetryInputSchema,
   TelemetrySchema,
+  MachineCapabilitiesSchema,
 } from '@/schemas';
 
 export {
@@ -37,3 +38,4 @@ export type Operator = z.infer<typeof OperatorSchema>;
 export type Prescricao = z.infer<typeof PrescricaoSchema>;
 export type AnalisePrescricao = z.infer<typeof AnalisePrescricaoSchema>;
 export type Relatorio = z.infer<typeof RelatorioResumoSchema>;
+export type MachineCapabilities = z.infer<typeof MachineCapabilitiesSchema>;

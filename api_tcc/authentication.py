@@ -12,6 +12,7 @@ from django.utils import timezone
 from rest_framework import exceptions
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
+from api_tcc.models import OrganizationToken
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +66,24 @@ class ExpiringTokenAuthentication(TokenAuthentication):
             )
 
         return (token.user, token)
+
+
+class OrganizationTokenAuthentication:
+    """Autentica tokens de integração Bearer, preservando a organização no request."""
+    www_authenticate_realm = "api"
+
+    def authenticate(self, request):
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return None
+        import hashlib
+        from rest_framework import exceptions
+        raw = header[7:].strip()
+        token = OrganizationToken.objects.select_related("created_by", "organization").filter(token_hash=hashlib.sha256(raw.encode()).hexdigest()).first()
+        if not token or not token.is_active or not token.created_by.is_active:
+            raise exceptions.AuthenticationFailed("Token de integração inválido, expirado ou revogado.")
+        request.organization_token = token
+        return token.created_by, token
+
+    def authenticate_header(self, request):
+        return 'Bearer realm="api"'

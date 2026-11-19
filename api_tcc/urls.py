@@ -24,7 +24,9 @@ from api_tcc.api.views_workorders import WorkOrderDetailView, WorkOrderExportVie
 from api_tcc.api.views_operation_graph import OperationGraphView, OperationGraphImportView
 from api_tcc.api.views_consequence import ConsequenceAssessmentView
 from api_tcc.api.views_incidents import IncidentListView
+from api_tcc.api.views_capabilities import MachineCapabilitiesView
 from api_tcc.api.views_relatorio import RelatorioExportarView
+from api_tcc.api.views_passport import PassportExportView, OrganizationTokenView
 from api_tcc import views_gps
 
 router = routers.DefaultRouter()
@@ -57,6 +59,7 @@ urlpatterns = [
     path("manutencao/", ManutencaoView.as_view(), name="manutencao"),
     path("metricas/", MetricasView.as_view(), name="metricas"),
     path("machines/<str:machine_id>/health/", MachineDataHealthView.as_view(), name="machine-data-health"),
+    path("machines/<str:machine_id>/capabilities/", MachineCapabilitiesView.as_view(), name="machine-capabilities"),
     path("health/", HealthView.as_view(), name="api-health"),
     path("health/live", LiveHealthView.as_view(), name="api-health-live"),
     path("health/ready", ReadyHealthView.as_view(), name="api-health-ready"),
@@ -87,4 +90,6 @@ urlpatterns = [
     path("relatorio/exportar/", RelatorioExportarView.as_view(), name="relatorio-exportar"),
     path("maquinas/posicao/", views_gps.get_maquinas_posicao, name="maquinas-posicao"),
     path("mapas/demo/", views_gps.gps_demo, name="mapas-demo"),
+    path("passport/export/", PassportExportView.as_view(), name="passport-export"),
+    path("auth/organization-tokens/", OrganizationTokenView.as_view(), name="organization-tokens"),
 ]

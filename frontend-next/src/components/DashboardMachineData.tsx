@@ -27,6 +27,7 @@ import {
   type MetricStatus,
 } from '@/lib/metrics';
 import type { Machine, Telemetry } from '@/types/telemetry';
+import { CapabilityList } from '@/components/CapabilityList';
 
 /* ──────────────────────────────────────────────────────────────────────────
    DashboardMachineData — o bloco de telemetria do dashboard.
@@ -387,6 +388,7 @@ export function DashboardMachineData({
       {error && hasReadings ? <p role="status" className="text-xs text-[var(--text-3)]">A atualização falhou. Exibindo o último dado conhecido; o intervalo esperado desta máquina não está disponível para classificar a idade automaticamente.</p> : null}
 
       <DataStateBoundary state={dataState} simulated={isSimulated} onRetry={polling.refresh}>
+      {selectedMachineId ? <CapabilityList machineId={selectedMachineId} /> : null}
       {/* Gráfico principal de telemetria */}
       <MetricTrendChart key={`trend-${selectedMachineId}`} readings={readings} initialMetric="rpm" />
 

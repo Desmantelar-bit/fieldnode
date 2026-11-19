@@ -28,3 +28,4 @@ export {
 export { EventoSchema, EventoPageSchema, type Evento, type EventoPage } from './eventos';
 export { DecisaoSchema, DecisaoPageSchema, type Decisao, type DecisaoPage } from './decisoes';
 export { SaudeMaquinaSchema, type SaudeMaquina } from './saude';
+export { MachineCapabilitiesSchema, MachineCapabilitySchema, type MachineCapabilities, type MachineCapability } from './capabilities';

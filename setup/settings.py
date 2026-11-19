@@ -32,6 +32,9 @@ if os.environ.get("DEBUG") == "release":
 
 DEBUG = env_config("DEBUG", default=False, cast=bool)
 FIELDNODE_API_KEY = env_config("FIELDNODE_API_KEY", default="")
+FIELDNODE_PASSPORT_SIGNING_KEY = env_config("FIELDNODE_PASSPORT_SIGNING_KEY", default="")
+FIELDNODE_PASSPORT_SIGNING_KEY_ID = env_config("FIELDNODE_PASSPORT_SIGNING_KEY_ID", default="default")
+FIELDNODE_PASSPORT_MAX_BYTES = env_config("FIELDNODE_PASSPORT_MAX_BYTES", default=250 * 1024 * 1024, cast=int)
 ALLOW_LEGACY_INGESTION_KEY = env_config("ALLOW_LEGACY_INGESTION_KEY", default=DEBUG, cast=bool)
 # Device credentials live in DeviceCredential. Keep an empty setting only so
 # legacy development tests may explicitly override it; environment parsing is removed.
@@ -130,6 +133,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'api_tcc.middleware.LegacyAPIDeprecationMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     # S7-T2: correlation ID — deve vir logo após CORS para cobrir todo o pipeline
     'api_tcc.middleware.CorrelationIDMiddleware',

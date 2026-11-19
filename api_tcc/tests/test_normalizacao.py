@@ -41,6 +41,9 @@ class UniversalTelemetryModelTest(TestCase):
         self.assertEqual(john_deere_canonical.canonical_parameter, "engine.rpm")
         self.assertEqual(case_canonical.value, john_deere_canonical.value)
         self.assertEqual(case_canonical.mapping_version, "v0.1")
+        self.assertEqual(case_canonical.origem, "simulado")
+        self.assertEqual(case_canonical.fonte, "can_simulado")
+        self.assertEqual(case_canonical.unidade_original, "rpm")
 
     def test_parametro_sem_mapeamento_fica_persistido_como_unsupported(self):
         raw = RawTelemetry.objects.create(

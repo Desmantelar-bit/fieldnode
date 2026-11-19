@@ -1143,6 +1143,30 @@ class Membership(models.Model):
         return f"{self.user} → {self.organization} [{self.role}]"
 
 
+class OrganizationToken(models.Model):
+    """Credencial de integração limitada a uma organização e a escopos explícitos."""
+
+    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    organization = models.ForeignKey("Organization", on_delete=models.CASCADE, related_name="integration_tokens")
+    name = models.CharField(max_length=120)
+    token_prefix = models.CharField(max_length=16, unique=True, db_index=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    scopes = models.JSONField(default=list)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="created_integration_tokens")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["organization", "revoked_at", "expires_at"])]
+
+    @property
+    def is_active(self):
+        from django.utils import timezone
+        return self.revoked_at is None and self.expires_at > timezone.now()
+
+
 class Machine(models.Model):
     """
     Entidade canônica que representa um hardware físico (ex.: ESP32/colheitadeira).
@@ -1224,12 +1248,19 @@ class Machine(models.Model):
     def __str__(self):
         return self.external_code
 
-    def capabilities(self, manufacturer=None):
-        """Retorna os parametros canonicos mapeados para esta maquina.
+    def capabilities(self, manufacturer=None, *, detailed=False, days=7):
+        """Retorna capacidades conhecidas da maquina.
 
         O fabricante pode vir do payload de origem. Sem ele, usamos a marca
         cadastrada no modelo da Machine, quando existir.
+
+        ``detailed=False`` preserva o contrato legado, que retornava somente
+        os parametros possiveis do mapeamento. A matriz operacional usa
+        ``detailed=True`` e considera apenas CanonicalTelemetry realmente
+        recebida no periodo informado.
         """
+        if detailed:
+            return self.capability_matrix(manufacturer=manufacturer, days=days)
         fabricante = manufacturer
         if not fabricante and self.modelo_id:
             fabricante = self.modelo.marca.nome
@@ -1244,6 +1275,50 @@ class Machine(models.Model):
             .distinct()
             .order_by("canonical_parameter")
         )
+
+    def capability_matrix(self, manufacturer=None, *, days=7):
+        """Agrega o que esta maquina informou, sem inventar parametros ausentes."""
+        from collections import defaultdict
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        cutoff = timezone.now() - timedelta(days=max(1, int(days)))
+        queryset = CanonicalTelemetry.objects.select_related("raw_telemetry").filter(
+            raw_telemetry__machine=self,
+            criado_em__gte=cutoff,
+            quality__in=("mapped", "verified"),
+        ).order_by("canonical_parameter", "-criado_em")
+
+        groups = defaultdict(list)
+        for item in queryset:
+            raw = item.raw_telemetry
+            if manufacturer and raw.manufacturer != manufacturer:
+                continue
+            groups[item.canonical_parameter].append(item)
+
+        result = []
+        for parameter, items in sorted(groups.items()):
+            latest = items[0]
+            first_at = items[-1].criado_em
+            last_at = latest.criado_em
+            elapsed_hours = (last_at - first_at).total_seconds() / 3600
+            rate = len(items) / elapsed_hours if elapsed_hours > 0 else None
+            raw = latest.raw_telemetry
+            result.append({
+                "canonical_parameter": parameter,
+                "unidade": latest.unit or raw.unit or None,
+                "fonte": {
+                    "manufacturer": raw.manufacturer,
+                    "protocol": raw.source_protocol_simulado,
+                    "mapping_version": latest.mapping_version,
+                },
+                "taxa_media_por_hora": round(rate, 4) if rate is not None else None,
+                "ultima_leitura": latest.criado_em,
+                "qualidade": latest.quality,
+                "amostras": len(items),
+            })
+        return result
 
 
 class Site(models.Model):
@@ -1395,6 +1470,7 @@ class FabricanteMapping(models.Model):
     raw_parameter = models.CharField(max_length=100)
     canonical_parameter = models.CharField(max_length=100, db_index=True)
     unit_conversion_factor = models.FloatField(default=1.0)
+    unit_conversion_offset = models.FloatField(default=0.0)
     mapping_version = models.CharField(max_length=50)
     confidence = models.FloatField(default=1.0)
     ativo = models.BooleanField(default=True, db_index=True)
@@ -1432,6 +1508,11 @@ class RawTelemetry(models.Model):
     recebido_em = models.DateTimeField(auto_now_add=True, db_index=True)
     payload_original = models.JSONField(default=dict)
     quality = models.CharField(max_length=40, default="raw")
+    origem = models.CharField(
+        max_length=12,
+        choices=[(value, value) for value in ("medido", "calculado", "estimado", "simulado")],
+        default="simulado",
+    )
 
     class Meta:
         ordering = ["-recebido_em"]
@@ -1458,6 +1539,14 @@ class CanonicalTelemetry(models.Model):
     unit = models.CharField(max_length=30, blank=True, default="")
     quality = models.CharField(max_length=40, default="mapped")
     mapping_version = models.CharField(max_length=50)
+    origem = models.CharField(
+        max_length=12,
+        choices=[(value, value) for value in ("medido", "calculado", "estimado", "simulado")],
+    )
+    fonte = models.CharField(max_length=200)
+    unidade_original = models.CharField(max_length=30, blank=True, default="")
+    fator_conversao = models.FloatField(null=True, blank=True)
+    offset_conversao = models.FloatField(null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1468,6 +1557,10 @@ class CanonicalTelemetry(models.Model):
             ),
         ]
         ordering = ["-criado_em"]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.canonical_parameter}={self.value} ({self.mapping_version})"

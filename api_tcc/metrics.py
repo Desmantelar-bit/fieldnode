@@ -71,6 +71,11 @@ WORKER_LAST_MESSAGE_AGE = Gauge(
     "Segundos desde a última mensagem processada pelo backend.",
     registry=REGISTRY,
 )
+WORKER_HEARTBEAT_AGE = Gauge(
+    "fieldnode_worker_heartbeat_age_seconds",
+    "Segundos desde o ultimo heartbeat persistido do worker MQTT.",
+    registry=REGISTRY,
+)
 
 MODEL_VERSION_INFO.labels(method="isolation_forest", version="runtime-registry").set(1)
 
@@ -137,7 +142,7 @@ def refresh_state_metrics() -> None:
     Falhas de banco são ignoradas: observabilidade não pode interromper a API.
     """
     try:
-        from api_tcc.models import DeadLetterEntry, Decision, LeituraTelemetria
+        from api_tcc.models import DeadLetterEntry, Decision, LeituraTelemetria, WorkerHeartbeat
 
         DLQ_OPEN.set(DeadLetterEntry.objects.filter(resolvido=False).count())
         DECISIONS_PENDING.set(Decision.objects.filter(status=Decision.Status.PENDENTE).count())
@@ -152,6 +157,9 @@ def refresh_state_metrics() -> None:
             from django.utils import timezone
 
             WORKER_LAST_MESSAGE_AGE.set(max(0.0, (timezone.now() - latest).total_seconds()))
+        heartbeat = WorkerHeartbeat.objects.filter(worker_name="mqtt").values_list("last_heartbeat_at", flat=True).first()
+        if heartbeat is not None:
+            WORKER_HEARTBEAT_AGE.set(max(0.0, (timezone.now() - heartbeat).total_seconds()))
     except Exception:
         return
 
@@ -180,3 +188,4 @@ def reset_metrics_for_tests() -> None:
     DLQ_OPEN.set(0)
     DECISIONS_PENDING.set(0)
     WORKER_LAST_MESSAGE_AGE.set(0)
+    WORKER_HEARTBEAT_AGE.set(0)

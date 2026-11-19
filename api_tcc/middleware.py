@@ -36,6 +36,19 @@ from api_tcc.correlation import (
 
 logger = logging.getLogger(__name__)
 
+
+class LegacyAPIDeprecationMiddleware:
+    """Identifica o alias /api/ sem marcar o prefixo versionado /api/v1/."""
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.path.startswith("/api/") and not request.path.startswith("/api/v1/"):
+            response["Deprecation"] = "true"
+            response["Link"] = '</api/v1/>; rel="successor-version"'
+        return response
+
 _HEADER_IN = "HTTP_X_CORRELATION_ID"   # Django transforma X-Correlation-ID → HTTP_X_CORRELATION_ID
 _HEADER_OUT = "X-Correlation-ID"
 

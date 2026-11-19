@@ -42,6 +42,7 @@ urlpatterns = [
     path('', RedirectView.as_view(url=settings.FIELDNODE_FRONTEND_URL, permanent=False), name='root'),
     path('admin/', admin.site.urls),
     path('api/', include('api_tcc.urls')),
+    path('api/v1/', include('api_tcc.v1_urls')),
 ]
 urlpatterns += [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
